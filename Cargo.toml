@@ -1,0 +1,20 @@
+[package]
+name = "dorea"
+version = "0.1.0"
+authors = ["mrxiaozhuox <mrxzx@wwsg18.top>"]
+edition = "2018"
+license = "MIT"
+keywords = ["database","cache",]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.6.1", features = ['full'] }
+toml = "0.5.8"
+chrono = "0.4.19"
+once_cell = "1.7.2"
+base64="0.13.0"
+
+serde = { version = "1.0.126", features = ["derive"] }
+serde_json = "1.0.64"
+bincode = "1.3.3"
