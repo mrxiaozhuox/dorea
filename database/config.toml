@@ -1,0 +1,11 @@
+[common]
+connect_password = ""
+maximum_connect_number = 255
+maximum_database_number = 20
+
+[memory]
+maximum_memory_cache = 120
+persistence_interval = 40000
+
+[database]
+default_database = "default"
