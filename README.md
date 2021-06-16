@@ -1,6 +1,14 @@
-# Dorea DB
-
-> 一个 Key-Value 储存数据库
+<p align="center">
+	<h3 align="center">Dorea DB</h3>
+	<p align="center">
+    <a href="https://github.com/mrxiaozhuox/Dorea/actions">
+    	<img alt="Build" src="https://img.shields.io/github/workflow/status/mrxiaozhuox/Dorea/Rust?style=for-the-badge" />
+    </a>
+    <a href="">
+      <img alt="GitHub" src="https://img.shields.io/github/license/mrxiaozhuox/Dorea?style=for-the-badge">
+    </a>
+	</p>
+</p>
 
 
 
