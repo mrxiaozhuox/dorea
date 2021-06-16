@@ -98,9 +98,9 @@ struct SerializeStruct {
 }
 
 // ---- db manager struct ---- //
-pub(crate) struct InsertOptions {
-    pub(crate) expire: Option<u64>,
-    pub(crate) unlocal_sign: bool
+pub struct InsertOptions {
+    pub expire: Option<u64>,
+    pub unlocal_sign: bool
 }
 
 impl DataBaseManager {
@@ -126,7 +126,7 @@ impl DataBaseManager {
         object
     }
 
-    pub(crate) fn insert(&mut self, key: DataKey, value: DataValue, db: String, option: InsertOptions) {
+    pub fn insert(&mut self, key: DataKey, value: DataValue, db: String, option: InsertOptions) {
 
         let config = self.config.as_ref().unwrap();
 
@@ -146,6 +146,15 @@ impl DataBaseManager {
         self.db(db.clone()).set(key.clone(),value.clone(),expire,unlocal_sign);
 
         self.cache_eliminate.push_front( format!("{}::{}",&db, key));
+    }
+
+    pub fn find(&mut self, key: DataKey, db: String) -> Option<DataValue> {
+
+        let config = self.config.as_ref().unwrap();
+
+        let db = self.db(db);
+
+        return db.get(key.clone());
     }
 
     pub fn db(&mut self,name: String) -> &mut DataBase {
@@ -437,6 +446,55 @@ impl DataBase {
         } else {
             if unlocal_sign { self.unlocal.push(key.clone()); }
         }
+    }
+
+    pub fn get(&self,key: DataKey) -> Option<DataValue> {
+
+        let data = &self.data;
+        let mut in_cache: bool = true;
+
+        let value: DataNode = match data.get(&key) {
+            None => {
+
+                in_cache = false;
+
+                let path = Path::new(&self.persistence.location).to_path_buf();
+                let path = key_to_path(key,path);
+
+                let mut result: DataNode;
+
+                if path.is_file() {
+                    let data = fs::read(path);
+                    let data= match data {
+                        Ok(v) => v,
+                        Err(_) => { return None }
+                    };
+
+                    let data= bincode::deserialize::<SerializeStruct>(&data[..]);
+                    let data = match data {
+                        Ok(d) => d,
+                        Err(_) => { return None }
+                    };
+
+                    result = data.content;
+                } else {
+                    return None;
+                }
+
+                result
+            }
+            Some(v) => v.clone()
+        };
+
+        let now_stamp = chrono::Local::now().timestamp();
+        if value.expire_stamp > ( now_stamp as u64 ) || value.expire_stamp == 0 {
+            return Some(value.value.clone());
+        } else {
+            // remove
+            if in_cache {}
+        }
+
+        None
     }
 
     pub fn exist(&self,key: DataKey) -> bool {

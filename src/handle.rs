@@ -134,11 +134,33 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
 
         manager.lock().await.insert(key.clone(),value.clone(),current_db,option);
 
-        return Ok(format!("automatic derivation: {:?}",value.clone()));
+        return Ok("OK".to_string());
+
+    } else if handle_type == HandleType::GET {
+
+        let key = arguments.get("key").unwrap();
+
+        // find value
+        let result = manager.lock().await.find(key.clone(),current_db);
+
+        return match result {
+            None => { Err(format!("data not found: {}", &key)) }
+            Some(res) => { Ok(format!("{:?}", res)) }
+        }
+
+    }else if handle_type == HandleType::SELECT {
+
+        // select db
+        let target = arguments.get("database").unwrap();
+
+        let _ = manager.lock().await.db(target.clone());
+        manager.lock().await.current_db = target.clone();
+
+        return Ok("OK".to_string());
     }
 
 
-    Ok("OK".to_string())
+    Err("execute error".to_string())
 }
 
 fn parse_value_type(value: String) -> Result<DataValue> {
