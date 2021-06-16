@@ -60,6 +60,7 @@ pub struct DataBaseManager {
     root_path: String,
     config: Option<toml::Value>,
     cache_eliminate: LinkedList<DataKey>,
+    pub current_db: String,
 }
 
 // ---- config struct ---- //
@@ -97,9 +98,9 @@ struct SerializeStruct {
 }
 
 // ---- db manager struct ---- //
-struct InsertOptions {
-    expire: Option<u64>,
-    unlocal_sign: bool
+pub(crate) struct InsertOptions {
+    pub(crate) expire: Option<u64>,
+    pub(crate) unlocal_sign: bool
 }
 
 impl DataBaseManager {
@@ -111,14 +112,21 @@ impl DataBaseManager {
             root_path: "./database/".to_string(),
             config: None,
             cache_eliminate: LinkedList::new(),
+            current_db: "default".to_string(),
         };
 
-        object.config = Some(object.load_config());
+        let config = object.load_config();
+        object.config = Some(config.clone());
+
+        match &config["database"].get("default_database") {
+            None => { /* default */ }
+            Some(val) => { object.current_db = val.as_str().unwrap().to_string(); }
+        }
 
         object
     }
 
-    pub fn insert(&mut self, key: DataKey, value: DataValue, db: String, option: InsertOptions) {
+    pub(crate) fn insert(&mut self, key: DataKey, value: DataValue, db: String, option: InsertOptions) {
 
         let config = self.config.as_ref().unwrap();
 

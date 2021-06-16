@@ -129,10 +129,7 @@ async fn process(socket: &mut TcpStream) -> Result<String> {
 
     // from buf[u8; 1024] to String
     let message = String::from_utf8_lossy(&buf[0 .. split]).to_string();
-    // let parseMeta = match handle::parser(message) {
-    //     Ok(t) => t,
-    //     Err(e) =>
-    // };
+
     let parse_result = handle::parser(message);
     let parse_meta: handle::ParseMeta;
 
@@ -151,7 +148,7 @@ async fn process(socket: &mut TcpStream) -> Result<String> {
 
     return match exec_result {
         Ok(res) => {
-            Ok(res.to_string())
+            Ok(res)
         }
         Err(err) => {
             Err(err)
