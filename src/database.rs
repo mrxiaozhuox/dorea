@@ -1,4 +1,4 @@
-use std::collections::{HashMap, LinkedList};
+use std::collections::{HashMap};
 use std::{fs};
 use std::{path::Path};
 use std::path::PathBuf;
@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use serde::{Serialize, Deserialize};
 use toml::Value;
 use bincode;
+use crate::structure::LRU;
 
 
 /// Dorea - database
@@ -51,7 +52,7 @@ pub struct DataBaseManager {
     db_list: HashMap<String,DataBase>,
     root_path: String,
     config: Option<toml::Value>,
-    cache_eliminate: LinkedList<DataKey>,
+    cache_eliminate: crate::structure::LRU,
     pub current_db: String,
 }
 
@@ -103,7 +104,7 @@ impl DataBaseManager {
             db_list: HashMap::new(),
             root_path: "./database/".to_string(),
             config: None,
-            cache_eliminate: LinkedList::new(),
+            cache_eliminate: LRU::new(),
             current_db: "default".to_string(),
         };
 
@@ -138,17 +139,7 @@ impl DataBaseManager {
         self.db(db.clone()).set(key.clone(),value.clone(),expire,unlocal_sign);
 
         let eliminate_name = format!("{}::{}",&db, key);
-        if !self.cache_eliminate.contains(&eliminate_name) {
-            self.cache_eliminate.push_front(eliminate_name);
-        } else {
-            let mut idx = 0;
-            for x in self.cache_eliminate.iter() {
-                if x == &key {
-                    self.cache_eliminate.pop;
-                }
-                idx += 1;
-            }
-        }
+        self.cache_eliminate.join(eliminate_name);
     }
 
     pub fn find(&mut self, key: DataKey, db: String) -> Option<DataValue> {
@@ -203,6 +194,9 @@ impl DataBaseManager {
             });
         }
 
+        let eliminate_name = format!("{}::{}",&db_name,&key);
+        self.cache_eliminate.remove(&eliminate_name);
+
         true
     }
 
@@ -231,15 +225,14 @@ impl DataBaseManager {
         for (k, v) in db_list.iter_mut() {
             let db = (k,v);
             let unlocal = db.1.unlocal.clone();
-            if unlocal.len() > 0 {
-                let mut idx = 0;
-                for key in unlocal {
-                    let value = db.1.data.get(&key).unwrap().clone();
-                    db.1.save_to_local(key.clone(),value);
+            while unlocal.len() != 0 {
+                let name = match db.1.unlocal.pop() {
+                    None => { break; }
+                    Some(value) => value
+                };
 
-                    db.1.unlocal.remove(idx);
-                    idx += 1;
-                }
+                let value = db.1.data.get(&name).unwrap().clone();
+                db.1.save_to_local(name.clone(),value);
             }
         }
 
@@ -298,9 +291,8 @@ impl DataBaseManager {
 
     fn reduce_memory(&mut self, num: u16) {
         for _ in 0..num {
-            let index = self.cache_eliminate.pop_back();
+            let index = self.cache_eliminate.pop();
             if let Some(x) = index {
-                let x = x.to_string();
 
                 let data: Vec<&str> = x.split("::").collect();
 
@@ -542,10 +534,6 @@ impl DataBase {
         };
 
         Some(node)
-    }
-
-    pub fn list(&self) -> HashMap<DataKey, DataNode> {
-        return self.data.clone();
     }
 
     pub fn exist(&self,key: DataKey) -> bool {
