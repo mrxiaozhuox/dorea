@@ -110,7 +110,6 @@ impl Listener {
             println!("A new connection was created: @{:?}",socket_addr);
 
             let connect_num: u16 = CONNECT_NUM.lock().await.get();
-            println!("{}:{}",connect_num.clone(),max_connect.clone());
             if connect_num >= max_connect {
                 let _ = socket.write_all(("-connection error\n").as_bytes()).await;
                 continue;

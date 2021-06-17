@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 //   clean: clean all data (in group)
 //   select: select another group
 //   dict: use for dict struct
-//   show: display some information
+//   info: display some information
 
 #[derive(Debug,Clone)]
 pub enum HandleType {
@@ -22,7 +22,7 @@ pub enum HandleType {
     CLEAN,
     SELECT,
     DICT,
-    SHOW,
+    INFO,
 }
 
 #[derive(Debug)]
@@ -42,7 +42,7 @@ impl string::ToString for HandleType {
             HandleType::CLEAN => "CLEAN",
             HandleType::SELECT => "SELECT",
             HandleType::DICT => "DICT",
-            HandleType::SHOW => "SHOW",
+            HandleType::INFO => "INFO",
         }.to_string()
     }
 }
@@ -85,7 +85,7 @@ pub fn parser(message: String) -> Result<ParseMeta> {
         "CLEAN" => result.handle_type = HandleType::CLEAN,
         "SELECT" => result.handle_type = HandleType::SELECT,
         "DICT" => result.handle_type = HandleType::DICT,
-        "SHOW" => result.handle_type = HandleType::SHOW,
+        "INFO" => result.handle_type = HandleType::INFO,
         _ => { return Err(format!("unknown command: {}",operation)) }
     }
 
@@ -148,6 +148,18 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
             Some(res) => { Ok(format!("{:?}", res)) }
         }
 
+    } else if handle_type == HandleType::REMOVE {
+
+        let key = arguments.get("key").unwrap();
+
+        let result = manager.lock().await.remove(key.clone(),current_db);
+
+        if result {
+            return Ok("OK".to_string());
+        } else {
+            return Err(format!("remove failure: {}", &key));
+        }
+
     } else if handle_type == HandleType::SELECT {
 
         // select db
@@ -158,12 +170,14 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
 
         return Ok("OK".to_string());
 
-    } else if handle_type == HandleType::SHOW {
+    } else if handle_type == HandleType::INFO {
 
         // show information
         let target = arguments.get("target").unwrap();
 
-        if target == "manager" {
+        if target == "current" {
+            return Ok(format!("db: {}",manager.lock().await.current_db));
+        }else if target == "manager" {
             return Ok(format!("{:?}",manager.lock().await));
         }
 
@@ -246,7 +260,7 @@ fn parse_sub_argument(command: &Vec<&str>, operation: &HandleType) -> Result<Has
         HandleType::CLEAN => sub_argument_struct = vec![],
         HandleType::SELECT => sub_argument_struct = vec!["database"],
         HandleType::DICT => sub_argument_struct = vec!["key","operation"],
-        HandleType::SHOW => sub_argument_struct = vec!["target"],
+        HandleType::INFO => sub_argument_struct = vec!["target"],
     }
 
     // parse the values that must be included

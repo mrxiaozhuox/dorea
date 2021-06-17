@@ -137,7 +137,18 @@ impl DataBaseManager {
 
         self.db(db.clone()).set(key.clone(),value.clone(),expire,unlocal_sign);
 
-        self.cache_eliminate.push_front( format!("{}::{}",&db, key));
+        let eliminate_name = format!("{}::{}",&db, key);
+        if !self.cache_eliminate.contains(&eliminate_name) {
+            self.cache_eliminate.push_front(eliminate_name);
+        } else {
+            let mut idx = 0;
+            for x in self.cache_eliminate.iter() {
+                if x == &key {
+                    self.cache_eliminate.pop;
+                }
+                idx += 1;
+            }
+        }
     }
 
     pub fn find(&mut self, key: DataKey, db: String) -> Option<DataValue> {
@@ -152,6 +163,13 @@ impl DataBaseManager {
             Some(res) => res
         };
 
+        let now_stamp = chrono::Local::now().timestamp() as u64;
+
+        if &node.expire_stamp <= &now_stamp && &node.expire_stamp != &(0 as u64) {
+            self.remove(key.clone(),db_name.clone());
+            return None;
+        }
+
         let option = InsertOptions {
             expire: Some(node.expire_stamp.clone()),
             unlocal_sign: false
@@ -160,6 +178,32 @@ impl DataBaseManager {
         self.insert(key.clone(),node.value.clone(),db_name.clone(),option);
 
         Some(node.value)
+    }
+
+    pub fn remove(&mut self,key: DataKey, db: String) -> bool {
+
+        let db_name = db;
+        let db = match self.db_list.get_mut(&db_name) {
+            None => { return false; }
+            Some(db) => db,
+        };
+
+        db.data.remove(&key);
+
+        let path = Path::new(&db.persistence.location).to_path_buf();
+        let path = key_to_path(key.clone(),path);
+
+        if path.is_file() {
+            let _ = fs::remove_file(path);
+        }
+
+        if db.unlocal.contains(&key) {
+            db.unlocal.retain(|x| {
+                x != &key
+            });
+        }
+
+        true
     }
 
     pub fn db(&mut self,name: String) -> &mut DataBase {
@@ -465,12 +509,9 @@ impl DataBase {
     pub fn get(&self, key: DataKey) -> Option<DataNode> {
 
         let data = &self.data;
-        let mut in_cache: bool = true;
 
-        let value: DataNode = match data.get(&key) {
+        let node = match data.get(&key) {
             None => {
-
-                in_cache = false;
 
                 let path = Path::new(&self.persistence.location).to_path_buf();
                 let path = key_to_path(key,path);
@@ -500,15 +541,11 @@ impl DataBase {
             Some(v) => v.clone()
         };
 
-        let now_stamp = chrono::Local::now().timestamp();
-        if value.expire_stamp > ( now_stamp as u64 ) || value.expire_stamp == 0 {
-            return Some(value);
-        } else {
-            // remove
-            if in_cache {}
-        }
+        Some(node)
+    }
 
-        None
+    pub fn list(&self) -> HashMap<DataKey, DataNode> {
+        return self.data.clone();
     }
 
     pub fn exist(&self,key: DataKey) -> bool {

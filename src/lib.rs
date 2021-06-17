@@ -22,5 +22,6 @@ pub mod client;
 
 mod handle;
 mod database;
+mod structure;
 
 type Result<T> = std::result::Result<T,String>;
