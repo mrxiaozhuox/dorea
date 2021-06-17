@@ -1,22 +1,32 @@
+//! Dorea server implementation
+//!
+//! you can use this code to start a server.
+//! ```rust
+//! use dorea::server::Listener;
+//!
+//! let mut listener = Listener::new("127.0.0.1",3450).await;
+//! listener.start().await;
+//! ```
+//! then the tcpServer will run in { hostname : 127.0.0.1, port : 3450 }
+//!
+//! you can use `nc` tool to connect it ( **and dorea-client is better** )
+
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::{task, sync::Mutex};
 use tokio::sync::OnceCell;
-use tokio::time::Interval;
-
 use crate::Result;
 use crate::handle;
 use crate::database::{DataBaseManager};
 use once_cell::sync::Lazy;
 use toml::Value;
-use std::fmt::Formatter;
 use std::time::Duration;
 
 #[derive(Debug)]
 struct ListenerOptions {
     hostname: String,
     port: u16,
-    max_connection: u16,
+    connection_number: u16,
 }
 
 pub struct Listener {
@@ -24,29 +34,31 @@ pub struct Listener {
     options: ListenerOptions,
 }
 
+struct ConnectNumber {
+    num: u16,
+}
+
 static DB_MANAGER: Lazy<Mutex<DataBaseManager>> = Lazy::new(|| {
     let m = DataBaseManager::new();
     Mutex::new(m)
+});
+
+static CONNECT_NUM: Lazy<Mutex<ConnectNumber>> = Lazy::new(|| {
+    Mutex::new(ConnectNumber { num: 0 })
 });
 
 static DB_CONFIG: OnceCell<Value> = OnceCell::const_new();
 
 async fn config_bind() -> Value { DB_MANAGER.lock().await.init() }
 
+/// the Listener can help you to create a new Dorea server.
 impl Listener {
-    // construct a new Listener
+
+    /// structure a new listener struct.
     pub async fn new(hostname:&str, port: u16) -> Listener {
 
         // init database config
         DB_CONFIG.get_or_init(config_bind).await;
-
-        let mut index = 1;
-        // while index <= 130 {
-        //     DB_MANAGER.lock().await.insert(format!("_{}",index),crate::database::DataValue::String(String::from("world")),String::from("default"),None);
-        //     index += 1;
-        // }
-
-        println!("{:?}",DB_MANAGER.lock().await);
 
         let addr = format!("{}:{}", hostname, port);
         let app = match TcpListener::bind(&addr).await {
@@ -59,7 +71,7 @@ impl Listener {
         let option = ListenerOptions {
             hostname: hostname.to_string(),
             port,
-            max_connection: 255,
+            connection_number: 0,
         };
 
         Listener {
@@ -68,6 +80,8 @@ impl Listener {
         }
     }
 
+    /// start the Dorea server.
+    /// **Note**: you need use `.await` for this function.
     pub async fn start(&mut self) {
 
         let config = DB_CONFIG.get().unwrap();
@@ -75,8 +89,13 @@ impl Listener {
         let schedule = config["memory"].get("persistence_interval");
         let schedule = schedule.unwrap().as_integer().unwrap();
 
+        let max_connect = match config["common"].get("maximum_connect_number") {
+            None => 98,
+            Some(v) => { v.as_integer().unwrap() as u16 }
+        };
+
         // persistence task
-        task::spawn(async move {
+         task::spawn(async move {
             loop {
                 DB_MANAGER.lock().await.persistence_all();
                 tokio::time::sleep(Duration::from_millis(schedule as u64)).await;
@@ -84,24 +103,46 @@ impl Listener {
         });
 
         loop {
-            let (mut socket, socket_addr ) = self.listener.accept().await.unwrap();
+            let (mut socket, socket_addr ) = self.listener
+                .accept().await.unwrap();
 
             // a new connect was created.
             println!("A new connection was created: @{:?}",socket_addr);
 
+            let connect_num: u16 = CONNECT_NUM.lock().await.get();
+            println!("{}:{}",connect_num.clone(),max_connect.clone());
+            if connect_num >= max_connect {
+                let _ = socket.write_all(("-connection error\n").as_bytes()).await;
+                continue;
+            }
+
+
+            CONNECT_NUM.lock().await.add();
             task::spawn(async move {
                 loop {
                     match process(&mut socket).await {
                         Ok(text) => {
                             let text: String = "+".to_string() + &text + "\n";
-                            socket.write_all((text).as_ref()).await.unwrap();
+                            let res = socket.write_all((text).as_ref()).await;
+
+                            if res.is_err() {
+                                CONNECT_NUM.lock().await.low();
+                                break;
+                            }
                         },
                         Err(e) => {
+
                             // display database error.
                             if e != "empty string" {
                                 let text: String = "-".to_string() + &e + "\n";
-                                let _ = socket.write_all((text).as_ref()).await;
+                                let res = socket.write_all((text).as_ref()).await;
+
+                                if res.is_err() {
+                                    CONNECT_NUM.lock().await.low();
+                                    break;
+                                }
                             }
+
                         },
                     };
                 }
@@ -154,4 +195,10 @@ async fn process(socket: &mut TcpStream) -> Result<String> {
             Err(err)
         }
     }
+}
+
+impl ConnectNumber {
+    pub fn add(&mut self) { self.num += 1; }
+    pub fn low(&mut self) { self.num -= 1; }
+    pub fn get(&self) -> u16 { self.num }
 }

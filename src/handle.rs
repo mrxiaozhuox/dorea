@@ -4,9 +4,6 @@ use crate::Result;
 use std::collections::HashMap;
 use crate::database::{DataBaseManager, DataValue, InsertOptions};
 use tokio::sync::Mutex;
-use std::num::ParseIntError;
-use serde_json::Value;
-use std::ops::Index;
 
 // the handle type for database:
 //   get: find (get) one data.
@@ -15,6 +12,7 @@ use std::ops::Index;
 //   clean: clean all data (in group)
 //   select: select another group
 //   dict: use for dict struct
+//   show: display some information
 
 #[derive(Debug,Clone)]
 pub enum HandleType {
@@ -24,6 +22,7 @@ pub enum HandleType {
     CLEAN,
     SELECT,
     DICT,
+    SHOW,
 }
 
 #[derive(Debug)]
@@ -43,7 +42,7 @@ impl string::ToString for HandleType {
             HandleType::CLEAN => "CLEAN",
             HandleType::SELECT => "SELECT",
             HandleType::DICT => "DICT",
-            _ => "UNKNOWN",
+            HandleType::SHOW => "SHOW",
         }.to_string()
     }
 }
@@ -86,6 +85,7 @@ pub fn parser(message: String) -> Result<ParseMeta> {
         "CLEAN" => result.handle_type = HandleType::CLEAN,
         "SELECT" => result.handle_type = HandleType::SELECT,
         "DICT" => result.handle_type = HandleType::DICT,
+        "SHOW" => result.handle_type = HandleType::SHOW,
         _ => { return Err(format!("unknown command: {}",operation)) }
     }
 
@@ -148,7 +148,7 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
             Some(res) => { Ok(format!("{:?}", res)) }
         }
 
-    }else if handle_type == HandleType::SELECT {
+    } else if handle_type == HandleType::SELECT {
 
         // select db
         let target = arguments.get("database").unwrap();
@@ -157,6 +157,17 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
         manager.lock().await.current_db = target.clone();
 
         return Ok("OK".to_string());
+
+    } else if handle_type == HandleType::SHOW {
+
+        // show information
+        let target = arguments.get("target").unwrap();
+
+        if target == "manager" {
+            return Ok(format!("{:?}",manager.lock().await));
+        }
+
+        return Err("unknown target".to_string());
     }
 
 
@@ -166,8 +177,6 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
 fn parse_value_type(value: String) -> Result<DataValue> {
 
     let mut value = value;
-
-    println!("{}",value);
 
     // string ? check
     if value[0..1] == "\"".to_string() && value[value.len() - 1..] == "\"".to_string() {
@@ -237,7 +246,7 @@ fn parse_sub_argument(command: &Vec<&str>, operation: &HandleType) -> Result<Has
         HandleType::CLEAN => sub_argument_struct = vec![],
         HandleType::SELECT => sub_argument_struct = vec!["database"],
         HandleType::DICT => sub_argument_struct = vec!["key","operation"],
-        _ => sub_argument_struct = vec![],
+        HandleType::SHOW => sub_argument_struct = vec!["target"],
     }
 
     // parse the values that must be included

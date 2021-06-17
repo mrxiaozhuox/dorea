@@ -1,17 +1,9 @@
-use crate::Result;
-
 use std::collections::{HashMap, LinkedList};
-use std::collections::hash_map::RandomState;
-use std::{fs, fs::ReadDir, fs::create_dir_all};
-use std::{io::Error, path::Path};
-use std::fmt::Formatter;
+use std::{fs};
+use std::{path::Path};
 use std::path::PathBuf;
-use std::ops::Index;
-use std::borrow::BorrowMut;
 
-use chrono::prelude::{Local, Utc};
 use serde::{Serialize, Deserialize};
-use serde::Serializer;
 use toml::Value;
 use bincode;
 
@@ -29,7 +21,7 @@ struct PersistenceOption {
 }
 
 #[derive(Debug,Serialize,Deserialize,Clone)]
-struct DataNode {
+pub struct DataNode {
     key: DataKey,
     value: DataValue,
     value_size: usize,
@@ -46,7 +38,7 @@ pub enum DataValue {
     Dict(HashMap<String,String>)
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct DataBase {
     name: String,
     persistence: PersistenceOption,
@@ -150,11 +142,24 @@ impl DataBaseManager {
 
     pub fn find(&mut self, key: DataKey, db: String) -> Option<DataValue> {
 
-        let config = self.config.as_ref().unwrap();
+        let db_name = db;
+        let db = self.db(db_name.clone());
 
-        let db = self.db(db);
+        let result = db.get(key.clone());
 
-        return db.get(key.clone());
+        let node = match result.clone() {
+            None => { return None; }
+            Some(res) => res
+        };
+
+        let option = InsertOptions {
+            expire: Some(node.expire_stamp.clone()),
+            unlocal_sign: false
+        };
+
+        self.insert(key.clone(),node.value.clone(),db_name.clone(),option);
+
+        Some(node.value)
     }
 
     pub fn db(&mut self,name: String) -> &mut DataBase {
@@ -175,16 +180,25 @@ impl DataBaseManager {
         self.db_list.get_mut(&name).unwrap()
     }
 
-    pub fn persistence_all(&self) {
-        for db in &self.db_list {
+    pub fn persistence_all(&mut self) {
+
+        let db_list = &mut self.db_list;
+
+        for (k, v) in db_list.iter_mut() {
+            let db = (k,v);
             let unlocal = db.1.unlocal.clone();
             if unlocal.len() > 0 {
+                let mut idx = 0;
                 for key in unlocal {
                     let value = db.1.data.get(&key).unwrap().clone();
                     db.1.save_to_local(key.clone(),value);
+
+                    db.1.unlocal.remove(idx);
+                    idx += 1;
                 }
             }
         }
+
     }
 
     pub fn init(&mut self) -> toml::Value {
@@ -210,7 +224,7 @@ impl DataBaseManager {
             let config = DataBaseConfig {
                 common: ConfigCommon {
                     connect_password: "".to_string(),
-                    maximum_connect_number: 255,
+                    maximum_connect_number: 98,
                     maximum_database_number: 20,
                 },
                 memory: ConfigMemory {
@@ -239,13 +253,12 @@ impl DataBaseManager {
 
 
     fn reduce_memory(&mut self, num: u16) {
-        let mut num = num;
-        for i in 0..num {
+        for _ in 0..num {
             let index = self.cache_eliminate.pop_back();
             if let Some(x) = index {
                 let x = x.to_string();
 
-                let mut data: Vec<&str> = x.split("::").collect();
+                let data: Vec<&str> = x.split("::").collect();
 
                 let db: String = data.get(0).unwrap().to_string();
                 let idx: String = data.get(1).unwrap().to_string();
@@ -448,7 +461,8 @@ impl DataBase {
         }
     }
 
-    pub fn get(&self,key: DataKey) -> Option<DataValue> {
+    // get the value
+    pub fn get(&self, key: DataKey) -> Option<DataNode> {
 
         let data = &self.data;
         let mut in_cache: bool = true;
@@ -461,7 +475,7 @@ impl DataBase {
                 let path = Path::new(&self.persistence.location).to_path_buf();
                 let path = key_to_path(key,path);
 
-                let mut result: DataNode;
+                let result: DataNode;
 
                 if path.is_file() {
                     let data = fs::read(path);
@@ -488,7 +502,7 @@ impl DataBase {
 
         let now_stamp = chrono::Local::now().timestamp();
         if value.expire_stamp > ( now_stamp as u64 ) || value.expire_stamp == 0 {
-            return Some(value.value.clone());
+            return Some(value);
         } else {
             // remove
             if in_cache {}
@@ -514,8 +528,6 @@ impl DataBase {
     }
 
     fn save_to_local(&self, key: String, value: DataNode) {
-
-        let db_name = self.name.clone();
 
         let db_path = self.persistence.location.clone();
         let db_path = Path::new(&db_path);
