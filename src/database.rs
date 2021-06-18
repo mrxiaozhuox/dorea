@@ -136,7 +136,7 @@ impl DataBaseManager {
             self.reduce_memory(1);
         }
 
-        self.db(db.clone()).set(key.clone(),value.clone(),expire,unlocal_sign);
+        self.db(&db).set(key.clone(),value.clone(),expire,unlocal_sign);
 
         let eliminate_name = format!("{}::{}",&db, key);
         self.cache_eliminate.join(eliminate_name);
@@ -145,7 +145,7 @@ impl DataBaseManager {
     pub fn find(&mut self, key: DataKey, db: String) -> Option<DataValue> {
 
         let db_name = db;
-        let db = self.db(db_name.clone());
+        let db = self.db(&db_name);
 
         let result = db.get(key.clone());
 
@@ -200,9 +200,45 @@ impl DataBaseManager {
         true
     }
 
-    pub fn db(&mut self,name: String) -> &mut DataBase {
+    pub fn clean(&mut self, db: String) -> crate::Result<()> {
 
-        match self.db_list.get(&name) {
+        let config = self.config.as_ref().unwrap();
+
+        if self.db_list.contains_key(&db) {
+            self.db_list.remove(&db);
+        }
+
+        // if current db eq clean db
+        // change current to default db
+        if &self.current_db == &db {
+            let default = config["database"].get("default_database");
+            let default = match default {
+                None => "name",
+                Some(val) => val.as_str().unwrap(),
+            };
+            self.current_db = default.to_string();
+        }
+
+        self.cache_eliminate.clean(&db);
+
+        let path = Path::new(&self.root_path).join("storage");
+        let path = path.join(format!("@{}",&db));
+
+        if path.is_dir() {
+            return match fs::remove_dir_all(path) {
+                Ok(_) => { Ok(()) }
+                Err(_) => {
+                    Err("clean failure".to_string())
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn db(&mut self,name: &String) -> &mut DataBase {
+
+        match self.db_list.get(name) {
             None => {
                 let buf = Path::new(&self.root_path).join("storage");
                 let buf: PathBuf = buf.join(format!("@{}",&name));
@@ -215,7 +251,7 @@ impl DataBaseManager {
             Some(_) => {}
         }
 
-        self.db_list.get_mut(&name).unwrap()
+        self.db_list.get_mut(name).unwrap()
     }
 
     pub fn persistence_all(&mut self) {
@@ -277,7 +313,7 @@ impl DataBaseManager {
             let status = fs::write(file_path,content);
             match status {
                 Ok(_) => { /* continue */ }
-                Err(e) => { panic!(e.to_string()) }
+                Err(e) => { panic!("{}",e.to_string()) }
             }
         }
         // the first run processing end
@@ -361,7 +397,7 @@ impl DataBaseManager {
         let result = fs::read_to_string(path.into_os_string());
         let data = match result {
             Ok(data) => data,
-            Err(e) => { panic!(e.to_string()) }
+            Err(e) => { panic!("{}",e.to_string()) }
         };
 
         let config = data.parse::<toml::Value>().unwrap();
@@ -552,6 +588,14 @@ impl DataBase {
         false
     }
 
+    pub fn expire_stamp (&self, key: &DataKey) -> Option<u64> {
+        if self.data.contains_key(key) {
+            let node = self.data.get(key).unwrap();
+            return Some(node.expire_stamp);
+        }
+        None
+    }
+
     fn save_to_local(&self, key: String, value: DataNode) {
 
         let db_path = self.persistence.location.clone();
@@ -617,6 +661,7 @@ impl DataValue {
 
         res
     }
+
 }
 
 fn key_to_path(key: String, path: PathBuf) -> PathBuf {

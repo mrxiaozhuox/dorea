@@ -154,10 +154,10 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
 
         let result = manager.lock().await.remove(key.clone(),current_db);
 
-        if result {
-            return Ok("OK".to_string());
+        return if result {
+            Ok("OK".to_string())
         } else {
-            return Err(format!("remove failure: {}", &key));
+            Err(format!("remove failure: {}", &key))
         }
 
     } else if handle_type == HandleType::SELECT {
@@ -165,7 +165,7 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
         // select db
         let target = arguments.get("database").unwrap();
 
-        let _ = manager.lock().await.db(target.clone());
+        let _ = manager.lock().await.db(&target);
         manager.lock().await.current_db = target.clone();
 
         return Ok("OK".to_string());
@@ -182,6 +182,73 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
         }
 
         return Err("unknown target".to_string());
+
+    }else if handle_type == HandleType::CLEAN {
+
+        let mut target = arguments.get("other").unwrap();
+
+        if target.trim()  == "" {
+            target = &current_db;
+        }
+
+        return match manager.lock().await.clean(target.clone()) {
+            Ok(_) => Ok("OK".to_string()),
+            Err(err) => Err(err)
+        }
+
+    } else if handle_type == HandleType::DICT {
+
+        let key = arguments.get("key").unwrap();
+        let operation = arguments.get("operation").unwrap();
+        let other = arguments.get("other").unwrap();
+
+        let value = match manager.lock().await.find(key.to_string(),current_db.clone()) {
+            None => { return Err(format!("data not found: {}", &key)) }
+            Some(val) => val
+        };
+
+        if let DataValue::Dict(data) = value {
+
+            let operation = operation.to_uppercase();
+            let sub_key = other;
+
+            if &operation == "FIND" {
+
+                return match data.get(sub_key) {
+                    None => { Err(format!("data not found: {}.{}",&key,&sub_key)) }
+                    Some(val) => {
+                        Ok(format!("{:?}", DataValue::String(val.clone())))
+                    }
+                }
+
+            } else if &operation == "INSERT" {
+
+                let sub_list: Vec<&str> = sub_key.split(" ").collect();
+                if sub_list.len() < 2 {
+                    return Err("missing parameters: dict.insert".to_string());
+                }
+                let sub_key: &str = sub_list.get(0).unwrap();
+                let sub_value: &str = sub_list.get(1).unwrap();
+
+                if data.contains_key(sub_key) {
+                    let old_value = data.get(sub_key).unwrap();
+                    if old_value == sub_value {
+                        return Ok("OK".to_string());
+                    }
+                }
+
+                let mut updated = data.clone();
+                updated.insert(sub_key.parse().unwrap(), sub_value.parse().unwrap());
+                let updated = DataValue::Dict(updated);
+                let option = InsertOptions {
+                    expire: manager.lock().await.db(&current_db).expire_stamp(&key),
+                    unlocal_sign: true
+                };
+
+                manager.lock().await.insert(key.clone(),updated,current_db.clone(),option);
+            }
+        }
+
     }
 
 

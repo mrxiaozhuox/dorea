@@ -42,6 +42,13 @@ impl LRU {
         });
     }
 
+    pub fn clean(&mut self,db: &String) {
+        self.queue.retain(|x| {
+            let temp: Vec<&str> = x.split("::").collect();
+            temp.get(0).unwrap() != db
+        });
+    }
+
     pub fn len(&self) -> usize {
         self.queue.len()
     }
