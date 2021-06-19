@@ -102,6 +102,26 @@ impl Listener {
             }
         });
 
+        // timestamp check task
+        task::spawn(async move {
+            loop {
+                let list = DB_MANAGER.lock().await.cache_eliminate.timestamp_check();
+                if !list.is_empty() {
+                    for item in list {
+                        let mut item: Vec<&str> = item.split("::").collect();
+                        let target: &str = item.get(0).unwrap();
+                        item.remove(0);
+                        let name: String = item.join("::");
+
+                        println!("{}.{}",target,name);
+
+                        DB_MANAGER.lock().await.remove(name,target.to_string());
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(15 * 1000));
+            }
+        });
+
         loop {
             let (mut socket, socket_addr ) = self.listener
                 .accept().await.unwrap();

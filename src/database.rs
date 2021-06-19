@@ -52,7 +52,7 @@ pub struct DataBaseManager {
     db_list: HashMap<String,DataBase>,
     root_path: String,
     config: Option<toml::Value>,
-    cache_eliminate: crate::structure::LRU,
+    pub cache_eliminate: crate::structure::LRU,
     pub current_db: String,
 }
 
@@ -136,10 +136,10 @@ impl DataBaseManager {
             self.reduce_memory(1);
         }
 
-        self.db(&db).set(key.clone(),value.clone(),expire,unlocal_sign);
+        self.db(&db).set(key.clone(),value.clone(),expire.clone(),unlocal_sign);
 
         let eliminate_name = format!("{}::{}",&db, key);
-        self.cache_eliminate.join(eliminate_name);
+        self.cache_eliminate.join(eliminate_name.clone(),expire);
     }
 
     pub fn find(&mut self, key: DataKey, db: String) -> Option<DataValue> {
@@ -200,17 +200,17 @@ impl DataBaseManager {
         true
     }
 
-    pub fn clean(&mut self, db: String) -> crate::Result<()> {
+    pub fn clean(&mut self, db: &str) -> crate::Result<()> {
 
         let config = self.config.as_ref().unwrap();
 
-        if self.db_list.contains_key(&db) {
-            self.db_list.remove(&db);
+        if self.db_list.contains_key(db) {
+            self.db_list.remove(db);
         }
 
         // if current db eq clean db
         // change current to default db
-        if &self.current_db == &db {
+        if &self.current_db == db {
             let default = config["database"].get("default_database");
             let default = match default {
                 None => "name",
@@ -219,10 +219,10 @@ impl DataBaseManager {
             self.current_db = default.to_string();
         }
 
-        self.cache_eliminate.clean(&db);
+        self.cache_eliminate.clean(&db.to_string());
 
         let path = Path::new(&self.root_path).join("storage");
-        let path = path.join(format!("@{}",&db));
+        let path = path.join(format!("@{}",db));
 
         if path.is_dir() {
             return match fs::remove_dir_all(path) {

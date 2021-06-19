@@ -108,6 +108,7 @@ pub fn parser(message: String) -> Result<ParseMeta> {
 }
 
 pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Result<String> {
+
     let handle_type = meta.handle_type.clone();
     let arguments = meta.sub_argument.clone();
 
@@ -120,6 +121,24 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
         let key = arguments.get("key").unwrap();
         let value = arguments.get("value").unwrap();
 
+        let sub_arguments:&str = match arguments.get("other") {
+            None => "",
+            Some(value) => value
+        };
+        let sub_arguments: Vec<&str> = sub_arguments.split(" ").collect();
+
+        let expire = match sub_arguments.get(0) {
+            None => None,
+            Some(val) => {
+                let num = val.parse::<u64>();
+                if num.is_ok() {
+                    Some(chrono::Local::now().timestamp() as u64 + num.unwrap())
+                }else {
+                    None
+                }
+            }
+        };
+
         let value_type = parse_value_type(value.clone());
 
         let value = match value_type {
@@ -127,8 +146,10 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
             Err(err) => { return Err(err); }
         };
 
+        println!("{:?}",expire);
+
         let option = InsertOptions {
-            expire: None,
+            expire,
             unlocal_sign: true
         };
 
@@ -179,19 +200,24 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
             return Ok(format!("db: {}",manager.lock().await.current_db));
         }else if target == "manager" {
             return Ok(format!("{:?}",manager.lock().await));
+        }else if target == "LRU" {
+            return Ok(format!("{:?}",manager.lock().await.cache_eliminate));
         }
 
         return Err("unknown target".to_string());
 
     }else if handle_type == HandleType::CLEAN {
 
-        let mut target = arguments.get("other").unwrap();
+        let mut target: &str = match arguments.get("other") {
+            None => "",
+            Some(v) => v
+        };
 
         if target.trim()  == "" {
             target = &current_db;
         }
 
-        return match manager.lock().await.clean(target.clone()) {
+        return match manager.lock().await.clean(target) {
             Ok(_) => Ok("OK".to_string()),
             Err(err) => Err(err)
         }
@@ -246,6 +272,32 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
                 };
 
                 manager.lock().await.insert(key.clone(),updated,current_db.clone(),option);
+                return Ok("OK".to_string());
+
+            }else if &operation == "REMOVE" {
+
+                let mut updated = data.clone();
+
+                if !updated.contains_key(sub_key) {
+                    return Err("missing parameters: dict.remove".to_string());
+                }
+
+                match updated.remove(sub_key) {
+                    None => {
+                        return Err(format!("remove failure: {}.{}", &key, &sub_key))
+                    },
+                    Some(_) => {}
+                }
+
+                let updated = DataValue::Dict(updated);
+                let option = InsertOptions {
+                    expire: manager.lock().await.db(&current_db).expire_stamp(&key),
+                    unlocal_sign: true
+                };
+
+                manager.lock().await.insert(key.clone(),updated,current_db.clone(),option);
+                return Ok("OK".to_string());
+
             }
         }
 
