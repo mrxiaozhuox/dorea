@@ -15,6 +15,7 @@ impl LRU {
     }
 
     pub fn join(&mut self, name: String, expire: Option<u64>) {
+
         match self.exist(&name) {
             false => {
 
@@ -48,7 +49,6 @@ impl LRU {
                 let _ = self.refresh(name.clone());
             },
         }
-        println!("{:?}",self);
     }
 
     pub fn refresh(&mut self, name: String) -> bool {
@@ -101,11 +101,8 @@ impl LRU {
 
             self.remove(&name);
             result.push(name.clone());
-        }
 
-        if !result.is_empty() {
-            println!("REMOVE: {:?}",result);
-            println!("NOW: {:?}",self);
+            log::info!("data expired: {}.", name);
         }
 
         result

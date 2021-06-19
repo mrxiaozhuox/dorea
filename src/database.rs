@@ -139,6 +139,14 @@ impl DataBaseManager {
         self.db(&db).set(key.clone(),value.clone(),expire.clone(),unlocal_sign);
 
         let eliminate_name = format!("{}::{}",&db, key);
+
+        log::info!(
+            "@{} insert value: {} % expire: {:?}.",
+            db,
+            key,
+            expire
+        );
+
         self.cache_eliminate.join(eliminate_name.clone(),expire);
     }
 
@@ -197,6 +205,8 @@ impl DataBaseManager {
         let eliminate_name = format!("{}::{}",&db_name,&key);
         self.cache_eliminate.remove(&eliminate_name);
 
+        log::info!("@{} remove value: {}.", db_name, key);
+
         true
     }
 
@@ -223,6 +233,8 @@ impl DataBaseManager {
 
         let path = Path::new(&self.root_path).join("storage");
         let path = path.join(format!("@{}",db));
+
+        log::info!("@{} clean all value.",db);
 
         if path.is_dir() {
             return match fs::remove_dir_all(path) {
@@ -387,7 +399,10 @@ impl DataBaseManager {
 
             let db = meta.1.clone();
             let key = data.content.key.clone();
-            let expire = Option::from(data.content.expire_stamp);
+            let expire = match data.content.expire_stamp {
+                0 => None,
+                _ => Some(data.content.expire_stamp)
+            };
 
             self.insert(key,data.content.value.clone(),db,InsertOptions {
                 expire,

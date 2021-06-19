@@ -11,6 +11,7 @@
 //!
 //! you can use `nc` tool to connect it ( **and dorea-client is better** )
 
+use log::{info,debug,warn};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::{task, sync::Mutex};
@@ -23,6 +24,7 @@ use toml::Value;
 use std::time::Duration;
 use std::fs;
 use std::path::Path;
+use log4rs;
 
 const ROOT_PATH: &'static str = "./database";
 
@@ -106,6 +108,11 @@ impl Listener {
         }
         // the first run processing end
 
+        let log_handle = crate::logger::init_logger(ROOT_PATH);
+        let _log_handle = match log_handle {
+            Ok(handle) => handle,
+            Err(_) => { panic!("logger error") }
+        };
 
         // init database config
         DB_CONFIG.get_or_init(config_bind).await;
@@ -114,6 +121,7 @@ impl Listener {
         let app = match TcpListener::bind(&addr).await {
             Ok(t) => t,
             Err(e) => {
+                log::error!("Server startup error: {}", e);
                 panic!("Server startup error: {}", e);
             }
         };
@@ -163,14 +171,14 @@ impl Listener {
                         item.remove(0);
                         let name: String = item.join("::");
 
-                        println!("{}.{}",target,name);
-
                         DB_MANAGER.lock().await.remove(name,target.to_string());
                     }
                 }
-                tokio::time::sleep(Duration::from_millis(15 * 1000));
+                tokio::time::sleep(Duration::from_millis(10 * 1000));
             }
         });
+
+        info!("The Dorea server is started!");
 
         loop {
             let (mut socket, socket_addr ) = self.listener
