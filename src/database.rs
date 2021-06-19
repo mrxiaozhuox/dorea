@@ -59,28 +59,28 @@ pub struct DataBaseManager {
 // ---- config struct ---- //
 
 #[derive(Debug,Serialize)]
-struct ConfigCommon {
-    connect_password: String,
-    maximum_connect_number: u16,
-    maximum_database_number: u16,
+pub struct ConfigCommon {
+    pub(crate) connect_password: String,
+    pub(crate) maximum_connect_number: u16,
+    pub(crate) maximum_database_number: u16,
 }
 
 #[derive(Debug,Serialize)]
-struct ConfigMemory {
-    maximum_memory_cache: u16,
-    persistence_interval: u64,
+pub struct ConfigMemory {
+    pub(crate) maximum_memory_cache: u16,
+    pub(crate) persistence_interval: u64,
 }
 
 #[derive(Debug,Serialize)]
-struct ConfigDB {
-    default_database: String,
+pub struct ConfigDB {
+    pub(crate) default_database: String,
 }
 
 #[derive(Debug,Serialize)]
-struct DataBaseConfig {
-    common: ConfigCommon,
-    memory: ConfigMemory,
-    database: ConfigDB,
+pub struct DataBaseConfig {
+    pub(crate) common: ConfigCommon,
+    pub(crate) memory: ConfigMemory,
+    pub(crate) database: ConfigDB,
 }
 
 // ---- serialize struct ---- //
@@ -99,10 +99,10 @@ pub struct InsertOptions {
 impl DataBaseManager {
 
     // create new DataBase Manager
-    pub fn new() -> Self {
+    pub fn new(root: &'static str) -> Self {
         let mut object = DataBaseManager {
             db_list: HashMap::new(),
-            root_path: "./database/".to_string(),
+            root_path: root.to_string(),
             config: None,
             cache_eliminate: LRU::new(),
             current_db: "default".to_string(),
@@ -275,52 +275,7 @@ impl DataBaseManager {
     }
 
     pub fn init(&mut self) -> toml::Value {
-        let root = self.root_path.clone();
-
-        // init server
-        if !Path::new(&root).is_dir() {
-            let list = vec!["default","dorea"];
-            for item in list {
-
-                let storage_path = Path::new(&root).join("storage");
-                let storage_path = storage_path.join(format!("@{}",item));
-
-                let storage_path = storage_path.into_os_string();
-                if fs::create_dir_all(&storage_path).is_err() {
-                    panic!("directory creation error !");
-                }
-            }
-
-            // init default toml config
-            let file_path = Path::new(&root).join("config.toml").into_os_string();
-
-            let config = DataBaseConfig {
-                common: ConfigCommon {
-                    connect_password: "".to_string(),
-                    maximum_connect_number: 98,
-                    maximum_database_number: 20,
-                },
-                memory: ConfigMemory {
-                    maximum_memory_cache: 120,
-                    persistence_interval: 40 * 1000,
-                },
-                database: ConfigDB {
-                    default_database: "default".to_string(),
-                }
-            };
-
-            let content = toml::to_string(&config).unwrap();
-            let status = fs::write(file_path,content);
-            match status {
-                Ok(_) => { /* continue */ }
-                Err(e) => { panic!("{}",e.to_string()) }
-            }
-        }
-        // the first run processing end
-
-
         let config = self.load();
-
         config
     }
 

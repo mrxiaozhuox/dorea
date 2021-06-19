@@ -21,6 +21,10 @@ use crate::database::{DataBaseManager};
 use once_cell::sync::Lazy;
 use toml::Value;
 use std::time::Duration;
+use std::fs;
+use std::path::Path;
+
+const ROOT_PATH: &'static str = "./database";
 
 #[derive(Debug)]
 struct ListenerOptions {
@@ -39,7 +43,7 @@ struct ConnectNumber {
 }
 
 static DB_MANAGER: Lazy<Mutex<DataBaseManager>> = Lazy::new(|| {
-    let m = DataBaseManager::new();
+    let m = DataBaseManager::new(ROOT_PATH);
     Mutex::new(m)
 });
 
@@ -56,6 +60,52 @@ impl Listener {
 
     /// structure a new listener struct.
     pub async fn new(hostname:&str, port: u16) -> Listener {
+
+        // if is first run
+        // init server
+        if !Path::new(ROOT_PATH).is_dir() {
+            let list = vec!["default","dorea"];
+            for item in list {
+
+                let storage_path = Path::new(ROOT_PATH).join("storage");
+                let storage_path = storage_path.join(format!("@{}",item));
+
+                let storage_path = storage_path.into_os_string();
+                if fs::create_dir_all(&storage_path).is_err() {
+                    panic!("directory creation error !");
+                }
+            }
+
+            // init default toml config
+            let file_path = Path::new(ROOT_PATH).join("config.toml").into_os_string();
+
+            let config = crate::database::DataBaseConfig {
+                common: crate::database::ConfigCommon {
+                    connect_password: "".to_string(),
+                    maximum_connect_number: 98,
+                    maximum_database_number: 20,
+                },
+                memory: crate::database::ConfigMemory {
+                    maximum_memory_cache: 120,
+                    persistence_interval: 40 * 1000,
+                },
+                database: crate::database::ConfigDB {
+                    default_database: "default".to_string(),
+                }
+            };
+
+            let content = toml::to_string(&config).unwrap();
+            let status = fs::write(file_path,content);
+            match status {
+                Ok(_) => { /* continue */ }
+                Err(e) => { panic!("{}",e.to_string()) }
+            }
+
+            let _ = fs::create_dir(Path::new(ROOT_PATH).join("logger"));
+
+        }
+        // the first run processing end
+
 
         // init database config
         DB_CONFIG.get_or_init(config_bind).await;
