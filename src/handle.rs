@@ -364,6 +364,12 @@ fn parse_value_type(value: String) -> Result<DataValue> {
         }
     }
 
+    // to string
+    if value[0..1] == ":".to_string() {
+        let value = &value[1..].to_string();
+        return Ok(DataValue::String(value.clone()));
+    }
+
     Err(format!("unknown data type: {}", value))
 }
 
@@ -372,6 +378,7 @@ fn parse_sub_argument(command: &Vec<&str>, operation: &HandleType) -> Result<Has
 
     // sub argument struct
     let mut sub_argument_struct: Vec<&str> = Vec::new();
+    &sub_argument_struct; // eliminate warning.
     match operation {
         HandleType::GET => sub_argument_struct = vec!["key"],
         HandleType::SET => sub_argument_struct = vec!["key","value"],

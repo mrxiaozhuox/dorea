@@ -11,7 +11,6 @@
 //!
 //! you can use `nc` tool to connect it ( **and dorea-client is better** )
 
-use log::{info,debug,warn};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::{task, sync::Mutex};
@@ -24,15 +23,13 @@ use toml::Value;
 use std::time::Duration;
 use std::fs;
 use std::path::Path;
-use log4rs;
 
 const ROOT_PATH: &'static str = "./database";
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 struct ListenerOptions {
     hostname: String,
-    port: u16,
-    connection_number: u16,
+    port: u16
 }
 
 pub struct Listener {
@@ -129,7 +126,6 @@ impl Listener {
         let option = ListenerOptions {
             hostname: hostname.to_string(),
             port,
-            connection_number: 0,
         };
 
         Listener {
@@ -141,6 +137,8 @@ impl Listener {
     /// start the Dorea server.
     /// **Note**: you need use `.await` for this function.
     pub async fn start(&mut self) {
+
+        log::info!("The Dorea server is started!");
 
         let config = DB_CONFIG.get().unwrap();
 
@@ -174,18 +172,16 @@ impl Listener {
                         DB_MANAGER.lock().await.remove(name,target.to_string());
                     }
                 }
-                tokio::time::sleep(Duration::from_millis(10 * 1000));
+                tokio::time::sleep(Duration::from_millis(10 * 1000)).await;
             }
         });
-
-        info!("The Dorea server is started!");
 
         loop {
             let (mut socket, socket_addr ) = self.listener
                 .accept().await.unwrap();
 
             // a new connect was created.
-            println!("A new connection was created: @{:?}",socket_addr);
+            log::info!("A new connection was created: @{:?}",socket_addr);
 
             let connect_num: u16 = CONNECT_NUM.lock().await.get();
             if connect_num >= max_connect {
@@ -196,6 +192,44 @@ impl Listener {
 
             CONNECT_NUM.lock().await.add();
             task::spawn(async move {
+
+                // check connect password
+                let db_config = DB_CONFIG.get();
+                if let Some(conf) = db_config {
+                    let pwd = conf["common"].get("connect_password");
+                    let pwd = match pwd {
+                        None => "",
+                        Some(pwd) => pwd.as_str().unwrap()
+                    };
+                    if pwd != "" {
+                        socket.write_all("!password\n".as_ref()).await;
+
+                        let mut buf = [0;1024];
+
+                        let length = match socket.read(&mut buf).await {
+                            Ok(t) => t,
+                            Err(_e) => 0,
+                        };
+
+                        let mut split: usize = length;
+                        if buf[length - 1] == 10 {
+                            split = length - 1;
+                        }
+                        else if buf[length - 2] == 13 && buf[length - 1] == 10 {
+                            split = length - 2;
+                        }
+
+                        let input = String::from_utf8_lossy(&buf[0 .. split]).to_string();
+
+                        if input != pwd {
+                            socket.write_all("-wrong password\n".as_ref()).await;
+                            return ();
+                        } else {
+                            socket.write_all("+pass\n".as_ref()).await;
+                        }
+                    }
+                }
+
                 loop {
                     match process(&mut socket).await {
                         Ok(text) => {
@@ -225,6 +259,10 @@ impl Listener {
                 }
             });
         }
+    }
+
+    pub fn option(&self) -> (&str, u16) {
+        (&self.options.hostname,self.options.port)
     }
 }
 

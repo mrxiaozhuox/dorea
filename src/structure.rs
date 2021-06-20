@@ -18,37 +18,37 @@ impl LRU {
 
         match self.exist(&name) {
             false => {
-
                 self.queue.push_front(name.clone());
-
-                match expire {
-                    None => {  }
-                    Some(val) => {
-
-                        if val == 0 { return (); }
-
-                        let mut tail: LinkedList<(String,u64)> = LinkedList::new();
-                        let mut idx = 0;
-                        for item in self.timer.iter().rev() {
-                            let item = item.clone();
-                            if val >= item.1 { break }
-                            tail.push_front(item);
-                            idx += 1;
-                        }
-                        tail.push_front((name.clone(),val));
-
-                        for _ in 0..idx {
-                            self.timer.pop_back();
-                        }
-
-                        self.timer.append(&mut tail);
-                    }
-                }
             },
             true => {
                 let _ = self.refresh(name.clone());
             },
         }
+
+        match expire {
+            None => {  }
+            Some(val) => {
+
+                if val == 0 { return (); }
+
+                let mut tail: LinkedList<(String,u64)> = LinkedList::new();
+                let mut idx = 0;
+                for item in self.timer.iter().rev() {
+                    let item = item.clone();
+                    if val >= item.1 { break }
+                    tail.push_front(item);
+                    idx += 1;
+                }
+                tail.push_front((name.clone(),val));
+
+                for _ in 0..idx {
+                    self.timer.pop_back();
+                }
+
+                self.timer.append(&mut tail);
+            }
+        }
+
     }
 
     pub fn refresh(&mut self, name: String) -> bool {

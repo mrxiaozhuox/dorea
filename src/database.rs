@@ -140,12 +140,14 @@ impl DataBaseManager {
 
         let eliminate_name = format!("{}::{}",&db, key);
 
-        log::info!(
-            "@{} insert value: {} % expire: {:?}.",
-            db,
-            key,
-            expire
-        );
+        if unlocal_sign {
+            log::info!(
+                "@{} insert value: {} % expire: {:?}.",
+                db,
+                key,
+                expire
+            );
+        }
 
         self.cache_eliminate.join(eliminate_name.clone(),expire);
     }
