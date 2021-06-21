@@ -1,6 +1,7 @@
 [package]
 name = "dorea"
 version = "0.1.0"
+description = "A key-value stroage system"
 authors = ["mrxiaozhuox <mrxzx@wwsg18.top>"]
 edition = "2018"
 license = "MIT"
