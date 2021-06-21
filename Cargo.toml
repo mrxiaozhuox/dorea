@@ -4,7 +4,11 @@ version = "0.1.0"
 authors = ["mrxiaozhuox <mrxzx@wwsg18.top>"]
 edition = "2018"
 license = "MIT"
-keywords = ["database","cache",]
+keywords = ["database","cache","storage"]
+exclude = [
+    ".DS_Store",
+    ".idea/*",
+]
 
 [[bin]]
 name = "dorea-cli"
