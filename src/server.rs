@@ -22,18 +22,17 @@ use once_cell::sync::Lazy;
 use toml::Value;
 use std::time::Duration;
 use std::fs;
-use std::path::Path;
+use std::path::{Path};
 
 pub use crate::database::DataValue;
 
 pub const DOREA_VERSION: &'static str = "0.1.0";
 
-const ROOT_PATH: &'static str = "./database";
-
 #[derive(Debug,Clone)]
 struct ListenerOptions {
     hostname: String,
-    port: u16
+    port: u16,
+    root_path: String,
 }
 
 pub struct Listener {
@@ -46,7 +45,7 @@ struct ConnectNumber {
 }
 
 static DB_MANAGER: Lazy<Mutex<DataBaseManager>> = Lazy::new(|| {
-    let m = DataBaseManager::new(ROOT_PATH);
+    let m = DataBaseManager::new();
     Mutex::new(m)
 });
 
@@ -64,13 +63,17 @@ impl Listener {
     /// structure a new listener struct.
     pub async fn new(hostname:&str, port: u16) -> Listener {
 
+        let root_path = {
+            DB_MANAGER.lock().await.root_path.clone()
+        };
+
         // if is first run
         // init server
-        if !Path::new(ROOT_PATH).is_dir() {
+        if !Path::new(&root_path).is_dir() {
             let list = vec!["default","dorea"];
             for item in list {
 
-                let storage_path = Path::new(ROOT_PATH).join("storage");
+                let storage_path = Path::new(&root_path).join("storage");
                 let storage_path = storage_path.join(format!("@{}",item));
 
                 let storage_path = storage_path.into_os_string();
@@ -80,7 +83,7 @@ impl Listener {
             }
 
             // init default toml config
-            let file_path = Path::new(ROOT_PATH).join("config.toml").into_os_string();
+            let file_path = Path::new(&root_path).join("config.toml").into_os_string();
 
             let config = crate::database::DataBaseConfig {
                 common: crate::database::ConfigCommon {
@@ -104,12 +107,12 @@ impl Listener {
                 Err(e) => { panic!("{}",e.to_string()) }
             }
 
-            let _ = fs::create_dir(Path::new(ROOT_PATH).join("log"));
+            let _ = fs::create_dir(Path::new(&root_path).join("log"));
 
         }
         // the first run processing end
 
-        let log_handle = crate::logger::init_logger(ROOT_PATH);
+        let log_handle = crate::logger::init_logger(root_path.to_string());
         let _log_handle = match log_handle {
             Ok(handle) => handle,
             Err(_) => { panic!("logger error") }
@@ -130,6 +133,7 @@ impl Listener {
         let option = ListenerOptions {
             hostname: hostname.to_string(),
             port,
+            root_path: root_path.clone()
         };
 
         Listener {
@@ -143,6 +147,7 @@ impl Listener {
     pub async fn start(&mut self) {
 
         log::info!("The Dorea server is started!");
+        log::info!("The storage dir: \"{}\"", self.options.root_path);
 
         let config = DB_CONFIG.get().unwrap();
 
@@ -200,11 +205,13 @@ impl Listener {
                 // check connect password
                 let db_config = DB_CONFIG.get();
                 if let Some(conf) = db_config {
+
                     let pwd = conf["common"].get("connect_password");
                     let pwd = match pwd {
                         None => "",
                         Some(pwd) => pwd.as_str().unwrap()
                     };
+
                     if pwd != "" {
                         let _ = socket.write_all("!password\n".as_ref()).await;
 
@@ -215,22 +222,17 @@ impl Listener {
                             Err(_e) => 0,
                         };
 
-                        let mut split: usize = length;
-                        if buf.len() >= (length - 1) && buf[length - 1] == 10 {
-                            split = length - 1;
-                        }
-                        else if buf.len() >= (length - 2) && buf[length - 2] == 13 && buf[length - 1] == 10 {
-                            split = length - 2;
-                        }
-
-                        let input = String::from_utf8_lossy(&buf[0 .. split]).to_string();
+                        let input = String::from_utf8_lossy(&buf[0 .. length]).to_string();
+                        let input = input.trim();
 
                         if input != pwd {
                             let _ = socket.write_all("-wrong password\n".as_ref()).await;
                             return ();
                         } else {
-                            let _ = socket.write_all("+pass\n".as_ref()).await;
+                            let _ = socket.write_all("+connected\n".as_ref()).await;
                         }
+                    } else {
+                        let _ = socket.write_all("+connected\n".as_ref()).await;
                     }
                 }
 
@@ -282,13 +284,9 @@ async fn process(socket: &mut TcpStream) -> Result<String> {
     // if length eq zero, abort the function
     if length == 0 { return Err("unknown input".to_string()) }
 
-    let mut split: usize = length;
-
-    if buf[length - 1] == 10 { split = length - 1 } // for Linux & MacOS
-    else if buf[length - 2] == 13 && buf[length - 1] == 10 { split = length - 2 } // for Windows
-
     // from buf[u8; 1024] to String
-    let message = String::from_utf8_lossy(&buf[0 .. split]).to_string();
+    let message = String::from_utf8_lossy(&buf[0 .. length]).to_string();
+    let message = message.trim().to_string();
 
     let parse_result = handle::parser(message);
     let parse_meta: handle::ParseMeta;

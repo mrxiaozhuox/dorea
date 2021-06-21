@@ -200,7 +200,6 @@ fn execute<'a>(client: &mut Client,message: String) -> String {
             }
 
             sub = format!("insert {} {}", sub_key, sub_value);
-            println!("{}",sub);
         }
 
         let exec = format!("dict {} {}",key, sub);

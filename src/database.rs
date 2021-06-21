@@ -50,7 +50,7 @@ pub struct DataBase {
 #[derive(Debug)]
 pub struct DataBaseManager {
     db_list: HashMap<String,DataBase>,
-    root_path: String,
+    pub root_path: String,
     config: Option<toml::Value>,
     pub cache_eliminate: crate::structure::LRU,
     pub current_db: String,
@@ -99,7 +99,17 @@ pub struct InsertOptions {
 impl DataBaseManager {
 
     // create new DataBase Manager
-    pub fn new(root: &'static str) -> Self {
+    pub fn new() -> Self {
+
+        let path  = match dirs::data_local_dir() {
+            Some(v) => v,
+            None => PathBuf::from("./")
+        };
+
+        let root_path = path.join("Dorea");
+        let root_path = root_path.to_str().unwrap();
+        let root = root_path.to_string();
+
         let mut object = DataBaseManager {
             db_list: HashMap::new(),
             root_path: root.to_string(),

@@ -5,7 +5,9 @@ use log4rs::encode::pattern::PatternEncoder;
 use log::{LevelFilter, SetLoggerError};
 use log4rs::append::console::ConsoleAppender;
 
-pub fn init_logger(root: &'static str) -> Result<Handle, SetLoggerError> {
+pub fn init_logger(path: String) -> Result<Handle, SetLoggerError> {
+
+    let root = &path;
 
     let record = ConsoleAppender::builder()
         .encoder(Box::new(PatternEncoder::new("[{l}] {d} - {m}{n}")))

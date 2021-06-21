@@ -20,6 +20,7 @@ pub struct Client {
     pub current_db: &'static str
 }
 
+#[derive(Debug)]
 pub struct ClientOption<'a> {
     pub password: &'a str
 }
@@ -27,6 +28,7 @@ pub struct ClientOption<'a> {
 impl Client {
 
     pub fn new(hostname: &str, port: u16, option: ClientOption) -> crate::Result<Self> {
+
         let stream = TcpStream::connect(format!("{}:{}",hostname,port));
         let mut stream = match stream {
             Ok(tcp) => tcp,
@@ -43,8 +45,12 @@ impl Client {
             let _ = stream.write_all(option.password.as_ref());
 
             let feedback = read_string(&mut stream);
-            if &feedback[0..1] == "-" {
-                return Err("password error.".to_string())
+            if feedback != "" {
+                if &feedback[0..1] == "-" {
+                    return Err("password error.".to_string())
+                }
+            } else {
+                return Err("connect error.".to_string())
             }
         }
 
