@@ -146,8 +146,6 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
             Err(err) => { return Err(err); }
         };
 
-        println!("{:?}",expire);
-
         let option = InsertOptions {
             expire,
             unlocal_sign: true
@@ -307,7 +305,7 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
     Err("execute error".to_string())
 }
 
-fn parse_value_type(value: String) -> Result<DataValue> {
+pub fn parse_value_type(value: String) -> Result<DataValue> {
 
     let mut value = value;
 
@@ -320,7 +318,7 @@ fn parse_value_type(value: String) -> Result<DataValue> {
 
     // number ? check
     if value[0..1] == ":".to_string() {
-        match value[1..].parse::<isize>() {
+        match value[1..].parse::<f64>() {
             Ok(data) => {
                 return Ok(DataValue::Number(data));
             }
@@ -344,20 +342,24 @@ fn parse_value_type(value: String) -> Result<DataValue> {
             let temp = serde_json::from_str::<serde_json::Value>(&value);
             match temp {
                 Ok(data) => {
-                    let mut dict = HashMap::new();
-                    let map = data.as_object().unwrap();
 
-                    for val in map {
-                        let value = val.1.as_str();
-                        match value {
-                            None => {}
-                            Some(value) => {
-                                dict.insert(val.0.clone(),value.to_string());
+                    if data.is_object() {
+                        let mut dict = HashMap::new();
+                        let map = data.as_object().unwrap();
+
+                        for val in map {
+                            let value = val.1.as_str();
+                            match value {
+                                None => {}
+                                Some(value) => {
+                                    dict.insert(val.0.clone(),value.to_string());
+                                }
                             }
                         }
+
+                        return Ok(DataValue::Dict(dict));
                     }
 
-                    return Ok(DataValue::Dict(dict));
                 }
                 Err(_) => { /* continue */ }
             }

@@ -15,9 +15,12 @@
 //! - *client*: Dorea-client system - connect & execute the database.
 //!
 
+#[macro_use]
+mod macros;
 
 pub mod server;
 pub mod client;
+pub mod tools;
 
 
 mod handle;
@@ -26,4 +29,4 @@ mod structure;
 mod logger;
 
 
-type Result<T> = std::result::Result<T,String>;
+pub type Result<T> = std::result::Result<T,String>;

@@ -34,7 +34,7 @@ pub struct DataNode {
 #[derive(Debug,Serialize,Deserialize,Clone)]
 pub enum DataValue {
     String(String),
-    Number(isize),
+    Number(f64),
     Boolean(bool),
     Dict(HashMap<String,String>)
 }
@@ -633,7 +633,6 @@ impl DataValue {
 
         res
     }
-
 }
 
 fn key_to_path(key: String, path: PathBuf) -> PathBuf {

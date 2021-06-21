@@ -24,6 +24,8 @@ use std::time::Duration;
 use std::fs;
 use std::path::Path;
 
+pub use crate::database::DataValue;
+
 const ROOT_PATH: &'static str = "./database";
 
 #[derive(Debug,Clone)]
@@ -202,7 +204,7 @@ impl Listener {
                         Some(pwd) => pwd.as_str().unwrap()
                     };
                     if pwd != "" {
-                        socket.write_all("!password\n".as_ref()).await;
+                        let _ = socket.write_all("!password\n".as_ref()).await;
 
                         let mut buf = [0;1024];
 
@@ -212,20 +214,20 @@ impl Listener {
                         };
 
                         let mut split: usize = length;
-                        if buf[length - 1] == 10 {
+                        if buf.len() >= (length - 1) && buf[length - 1] == 10 {
                             split = length - 1;
                         }
-                        else if buf[length - 2] == 13 && buf[length - 1] == 10 {
+                        else if buf.len() >= (length - 2) && buf[length - 2] == 13 && buf[length - 1] == 10 {
                             split = length - 2;
                         }
 
                         let input = String::from_utf8_lossy(&buf[0 .. split]).to_string();
 
                         if input != pwd {
-                            socket.write_all("-wrong password\n".as_ref()).await;
+                            let _ = socket.write_all("-wrong password\n".as_ref()).await;
                             return ();
                         } else {
-                            socket.write_all("+pass\n".as_ref()).await;
+                            let _ = socket.write_all("+pass\n".as_ref()).await;
                         }
                     }
                 }
