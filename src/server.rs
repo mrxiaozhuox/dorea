@@ -26,6 +26,8 @@ use std::path::Path;
 
 pub use crate::database::DataValue;
 
+pub const DOREA_VERSION: &'static str = "0.1.0";
+
 const ROOT_PATH: &'static str = "./database";
 
 #[derive(Debug,Clone)]
@@ -102,7 +104,7 @@ impl Listener {
                 Err(e) => { panic!("{}",e.to_string()) }
             }
 
-            let _ = fs::create_dir(Path::new(ROOT_PATH).join("logger"));
+            let _ = fs::create_dir(Path::new(ROOT_PATH).join("log"));
 
         }
         // the first run processing end

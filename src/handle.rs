@@ -252,7 +252,10 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
                     return Err("missing parameters: dict.insert".to_string());
                 }
                 let sub_key: &str = sub_list.get(0).unwrap();
+
                 let sub_value: &str = sub_list.get(1).unwrap();
+                let sub_value = sub_value.replace(";@space;"," ");
+                let sub_value = sub_value.as_str();
 
                 if data.contains_key(sub_key) {
                     let old_value = data.get(sub_key).unwrap();

@@ -118,7 +118,7 @@ impl Client {
             }
         };
 
-        let mut pattern = String::new();
+        let pattern: String;
         if expire == 0 {
             pattern = format!("set {} {}", key, value);
         } else {

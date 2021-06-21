@@ -1,10 +1,6 @@
 use dorea::client::{Client, ClientOption};
 use dorea::server::DataValue;
-use dorea::database_type;
 use clap::clap_app;
-use std::num::{ParseIntError, ParseFloatError};
-use std::panic::panic_any;
-use std::io::{stdin, stdout, Write};
 use dorea::tools::parse_value_type;
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
@@ -161,7 +157,7 @@ fn execute<'a>(client: &mut Client,message: String) -> String {
 
     } else if operator == "SELECT" {
 
-        if length != 2 { return "Missing parameters".to_string(); }
+        if length != 2 { return "Incorrect number of parameters".to_string(); }
         let key = segment.get(1).unwrap();
 
         if client.select(key) == true {
@@ -172,7 +168,7 @@ fn execute<'a>(client: &mut Client,message: String) -> String {
 
     } else if operator == "REMOVE" {
 
-        if length != 2 { return "Missing parameters".to_string(); }
+        if length != 2 { return "Incorrect number of parameters".to_string(); }
         let key = segment.get(1).unwrap();
 
         if client.remove(key) == true {
@@ -183,6 +179,35 @@ fn execute<'a>(client: &mut Client,message: String) -> String {
 
     } else if operator == "DICT" {
 
+        if length < 3 { return "Missing parameters".to_string(); }
+        let key = segment.get(1).unwrap();
+
+        let todo = segment.get(2).unwrap();
+        let todo: &str = &todo.to_uppercase();
+
+        let mut sub: String = String::new();
+
+        if todo == "INSERT" {
+            if length < 5 { return "Incorrect number of parameters".to_string(); }
+
+            let temp = segment[4..].to_vec();
+
+            let sub_key: &str = segment.get(3).unwrap().as_ref();
+            let mut sub_value: String = temp.join(";@space;");
+
+            if &sub_value[0..1] == "\"" && &sub_value[(sub_value.len() - 1)..] == "\"" {
+                sub_value = sub_value[1..(sub_value.len() - 1)].parse().unwrap();
+            }
+
+            sub = format!("insert {} {}", sub_key, sub_value);
+            println!("{}",sub);
+        }
+
+        let exec = format!("dict {} {}",key, sub);
+        match client.execute(&exec) {
+            Ok(v) => { result = v; }
+            Err(e) => { return e; }
+        };
     }
 
     result
