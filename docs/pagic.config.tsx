@@ -4,7 +4,6 @@ import { React } from 'https://deno.land/x/pagic@v1.3.1/mod.ts';
 export default {
     title: "Dorea DB Docs",
     theme: "docs",
-    root: "/docs/",
     plugins: [
         "i18n",
         "sidebar"

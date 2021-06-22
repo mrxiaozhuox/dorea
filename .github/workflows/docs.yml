@@ -1,4 +1,4 @@
-name: gh-pages
+name: Docs
 
 on:
   push:
@@ -16,15 +16,15 @@ jobs:
         with:
           deno-version: v1.7.0
 
-      - name: Build gh-pages
+      - name: Build Pages
         run: |
           deno --version
           deno install --unstable --allow-read --allow-write --allow-net --allow-run --name=pagic https://deno.land/x/pagic@v1.3.1/mod.ts
           cd ./docs/
           pagic build
 
-      - name: Deploy gh-pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Deploy Pages
+        uses: peaceiris/actions-Pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs/dist
