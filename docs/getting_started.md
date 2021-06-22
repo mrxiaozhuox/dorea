@@ -2,4 +2,5 @@
 
 In this chapter, we will discuss:
 
-- [Install & Build Dorea](/getting_started/installation.md)
+- [Installation](/getting_started/installation.md)
+- [Connection](/getting_started/connection.md)
