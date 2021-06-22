@@ -6,7 +6,8 @@ export default {
     theme: "docs",
     plugins: [
         "i18n",
-        "sidebar"
+        "sidebar",
+        "prev_next"
     ],
     nav: [
         {
