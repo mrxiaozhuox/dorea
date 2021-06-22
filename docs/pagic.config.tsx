@@ -22,7 +22,8 @@ export default {
             {
                 link: "getting_started.md",
                 children: [
-                    "getting_started/installation.md"
+                    "getting_started/installation.md",
+                    "getting_started/connection.md",
                 ]
             }
         ],
