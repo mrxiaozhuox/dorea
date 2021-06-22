@@ -1,4 +1,4 @@
-//! Dorea server implementation
+//! Dorea client implementation
 //!
 //! try to run this code to connect a Dorea server:
 //! ```rust
@@ -25,6 +25,39 @@ pub struct ClientOption<'a> {
     pub password: &'a str
 }
 
+/// Client can help you to use the dorea db.
+///
+/// Function: get set setex remove clean select execute
+///
+/// example:
+///
+/// ```rust
+/// use dorea::client::{Client, ClientOption};
+/// use dorea::database_type;
+/// use dorea::server::DataValue;
+///
+/// let mut c = Client::new("127.0.0.1",3450, ClientOption {
+///     password: ""
+/// }).unwrap();
+///
+/// // choose example db
+/// c.select("example");
+///
+/// // database_type! can help you to create a "DataValue"
+/// c.set("foo",database_type!(@String -> String::from("bar")));
+///
+/// // but you can also use DataValue::$type
+/// // this data will expired after 10 min
+/// c.setex("pi", DataValue::Number(3.14), 10 * 60);
+///
+/// // clean all data in this db!
+/// c.clean();
+///
+/// // exec other command
+/// let curr = c.execute("info current").unwrap();
+///
+/// assert_eq!(curr, String::from("db: example"));
+/// ```
 impl Client {
 
     pub fn new(hostname: &str, port: u16, option: ClientOption) -> crate::Result<Self> {

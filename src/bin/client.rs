@@ -200,6 +200,25 @@ fn execute<'a>(client: &mut Client,message: String) -> String {
             }
 
             sub = format!("insert {} {}", sub_key, sub_value);
+
+        } else if todo == "FIND" {
+
+            if length < 4 { return "Incorrect number of parameters".to_string(); }
+
+            let sub_key: &str = segment.get(3).unwrap().as_ref();
+
+            sub = format!("find {}", sub_key);
+
+        } else if todo == "REMOVE" {
+
+            if length < 4 { return "Incorrect number of parameters".to_string(); }
+
+            let sub_key: &str = segment.get(3).unwrap().as_ref();
+
+            sub = format!("remove {}", sub_key);
+
+        } else {
+            return format!("Unknown subcommand: @{}", todo);
         }
 
         let exec = format!("dict {} {}",key, sub);
