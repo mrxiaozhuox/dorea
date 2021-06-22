@@ -14,5 +14,10 @@
 	<p align="center">
     <strong>Dorea is a lightweight database system, you can use it in any programing language.</strong>
 	</p>
+	<p align="center">
+    <a href="http://dorea.mrxzx.info/">Documentation</a> | 
+    <a href="https://crates.io/crates/dorea">Crates.io</a> | 
+    <a href="https://docs.rs/dorea/">API Doucment</a>
+	</p>
 </p>
 
