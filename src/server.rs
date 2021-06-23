@@ -54,14 +54,19 @@ static CONNECT_NUM: Lazy<Mutex<ConnectNumber>> = Lazy::new(|| {
 });
 
 static DB_CONFIG: OnceCell<Value> = OnceCell::const_new();
+static START_TIMESTAMP: OnceCell<i64> = OnceCell::const_new();
 
 async fn config_bind() -> Value { DB_MANAGER.lock().await.init() }
+async fn start_time_bind() -> i64 { chrono::Local::now().timestamp() }
 
 /// the Listener can help you to create a new Dorea server.
 impl Listener {
 
     /// structure a new listener struct.
     pub async fn new(hostname:&str, port: u16) -> Listener {
+
+        // statistical elapsed time
+        START_TIMESTAMP.get_or_init(start_time_bind).await;
 
         let root_path = {
             DB_MANAGER.lock().await.root_path.clone()
@@ -303,6 +308,33 @@ async fn process(socket: &mut TcpStream) -> Result<String> {
     }
 
     let exec_result = handle::execute(&DB_MANAGER,parse_meta).await;
+
+    let exec_result: Result<String> = {
+        let res: Result<String> = match exec_result {
+            Ok(str) => {
+                let mut ret: String = str.to_string();
+
+                if str == ":{connect_number}" {
+                    // connect number
+                    ret = CONNECT_NUM.lock().await.get().to_string();
+                } else if str == ":{dorea_version}" {
+                    // dorea version
+                    ret = DOREA_VERSION.to_string();
+                } else if str == ":{uptime_stamp}" {
+                    // uptime stamp
+                    ret = START_TIMESTAMP.get().unwrap().to_string();
+                } else if str == ":{cache_number}" {
+                    // cache number
+                    ret = DB_MANAGER.lock().await.cache_eliminate.len().to_string();
+                }
+
+                Ok(ret)
+            }
+            Err(e) => Err(e)
+        };
+
+        res
+    };
 
     return match exec_result {
         Ok(res) => {

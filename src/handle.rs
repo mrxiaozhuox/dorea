@@ -4,6 +4,8 @@ use crate::Result;
 use std::collections::HashMap;
 use crate::database::{DataBaseManager, DataValue, InsertOptions};
 use tokio::sync::Mutex;
+use regex::{Regex, Error};
+use std::path::PathBuf;
 
 // the handle type for database:
 //   get: find (get) one data.
@@ -23,6 +25,7 @@ pub enum HandleType {
     SELECT,
     DICT,
     INFO,
+    FIND,
 }
 
 #[derive(Debug)]
@@ -43,6 +46,7 @@ impl string::ToString for HandleType {
             HandleType::SELECT => "SELECT",
             HandleType::DICT => "DICT",
             HandleType::INFO => "INFO",
+            HandleType::FIND => "FIND",
         }.to_string()
     }
 }
@@ -86,6 +90,7 @@ pub fn parser(message: String) -> Result<ParseMeta> {
         "SELECT" => result.handle_type = HandleType::SELECT,
         "DICT" => result.handle_type = HandleType::DICT,
         "INFO" => result.handle_type = HandleType::INFO,
+        "FIND" => result.handle_type = HandleType::FIND,
         _ => { return Err(format!("unknown command: {}",operation)) }
     }
 
@@ -191,15 +196,21 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
 
     } else if handle_type == HandleType::INFO {
 
+        // HandleType::INFO
+
         // show information
-        let target = arguments.get("target").unwrap();
+        let target: &str = arguments.get("target").unwrap();
 
         if target == "current" {
             return Ok(format!("db: {}",manager.lock().await.current_db));
-        }else if target == "manager" {
-            return Ok(format!("{:?}",manager.lock().await));
-        }else if target == "LRU" {
-            return Ok(format!("{:?}",manager.lock().await.cache_eliminate));
+        } else if target == "connections" {
+            return Ok(":{connect_number}".to_string());
+        } else if target == "version" {
+            return Ok(":{dorea_version}".to_string());
+        } else if target == "uptime" {
+            return Ok(String::from(":{uptime_stamp}"));
+        } else if target == "cache-num" {
+            return Ok(":{cache_number}".to_string());
         }
 
         return Err("unknown target".to_string());
@@ -302,10 +313,47 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
             }
         }
 
+    } else if handle_type == HandleType::FIND {
+        let statement: &str = arguments.get("statement").unwrap();
+        let statement: String = match arguments.get("other") {
+            None => statement.to_string(),
+            Some(v) => {
+                statement.to_string() + " " + v
+            }
+        };
+
+        let db_path = &manager.lock().await.root_path;
+        let db_path = PathBuf::from(db_path).join("storage");
+        let db_path = db_path.join(format!("@{}",&current_db));
+
+        try_to_find(&statement,db_path);
     }
 
 
     Err("execute error".to_string())
+}
+
+pub fn try_to_find(statement: &String, path: PathBuf) -> Result<Vec<&str>> {
+
+    let mut then_func: Vec<&str>;
+    let mut statement: &str = statement;
+
+    if statement.contains(" then ") {
+        let mut temp: Vec<&str> = statement.split(" then ").collect();
+        statement = temp.remove(0);
+        then_func = temp;
+    } else {
+        then_func = vec![];
+    }
+
+    let mut res = vec![];
+    recursive_find(path, statement, &mut res);
+
+    Ok(vec![])
+}
+
+fn recursive_find (path: PathBuf,statement: &str,result: &mut Vec<String>) {
+    let mut wildcard: bool = false;
 }
 
 pub fn parse_value_type(value: String) -> Result<DataValue> {
@@ -392,6 +440,7 @@ fn parse_sub_argument(command: &Vec<&str>, operation: &HandleType) -> Result<Has
         HandleType::SELECT => sub_argument_struct = vec!["database"],
         HandleType::DICT => sub_argument_struct = vec!["key","operation"],
         HandleType::INFO => sub_argument_struct = vec!["target"],
+        HandleType::FIND => sub_argument_struct = vec!["statement"],
     }
 
     // parse the values that must be included
