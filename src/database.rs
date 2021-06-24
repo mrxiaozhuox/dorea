@@ -131,7 +131,7 @@ impl DataBaseManager {
 
 
         let max_mem = match config["memory"].get("maximum_memory_cache") {
-            None => 120,
+            None => 512,
             Some(max) => max.as_integer().unwrap(),
         };
 

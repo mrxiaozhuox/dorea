@@ -213,6 +213,8 @@ pub async fn execute(
             return Ok(String::from(":{uptime_stamp}"));
         } else if target == "cache-num" {
             return Ok(":{cache_number}".to_string());
+        } else if target == "cache-list" {
+            return Ok(format!("{:?}",manager.lock().await.cache_eliminate));
         }
 
         return Err("unknown target".to_string());

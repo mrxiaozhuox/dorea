@@ -95,7 +95,7 @@ impl Listener {
                     maximum_database_number: 20,
                 },
                 memory: crate::database::ConfigMemory {
-                    maximum_memory_cache: 120,
+                    maximum_memory_cache: 512,
                     persistence_interval: 60 * 1000,
                 },
                 database: crate::database::ConfigDB {
