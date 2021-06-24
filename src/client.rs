@@ -11,9 +11,10 @@
 
 use std::net::TcpStream;
 use std::io::{Write, Read};
-use crate::database::DataValue;
 use regex::{Regex};
 use std::collections::HashMap;
+
+pub use crate::database::DataValue;
 
 pub struct Client {
     stream: TcpStream,
@@ -119,6 +120,10 @@ impl Client {
 
         let _ = stream.write_all(&pattern.as_ref());
         let fallback = read_string(stream);
+
+        if  fallback.len() == 0 {
+            return None;
+        }
 
         if &fallback[0..1] == "+" {
             return type_parse(&fallback[1..]);

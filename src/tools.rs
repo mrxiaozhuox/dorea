@@ -11,7 +11,7 @@
 ///
 /// ```rust
 /// use dorea::tools::parse_value_type;
-/// use dorea::server::DataValue;
+/// use dorea::client::DataValue;
 /// use std::collections::HashMap;
 ///
 /// let parse = parse_value_type("{\"foo\":\"bar\"}".to_string());

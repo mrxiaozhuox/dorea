@@ -53,7 +53,6 @@ pub struct DataBaseManager {
     pub root_path: String,
     config: Option<toml::Value>,
     pub cache_eliminate: crate::structure::LRU,
-    pub current_db: String,
 }
 
 // ---- config struct ---- //
@@ -115,16 +114,10 @@ impl DataBaseManager {
             root_path: root.to_string(),
             config: None,
             cache_eliminate: LRU::new(),
-            current_db: "default".to_string(),
         };
 
         let config = object.load_config();
         object.config = Some(config.clone());
-
-        match &config["database"].get("default_database") {
-            None => { /* default */ }
-            Some(val) => { object.current_db = val.as_str().unwrap().to_string(); }
-        }
 
         object
     }
@@ -224,7 +217,7 @@ impl DataBaseManager {
 
     pub fn clean(&mut self, db: &str) -> crate::Result<()> {
 
-        let config = self.config.as_ref().unwrap();
+        // let config = self.config.as_ref().unwrap();
 
         if self.db_list.contains_key(db) {
             self.db_list.remove(db);
@@ -232,15 +225,6 @@ impl DataBaseManager {
 
         // if current db eq clean db
         // change current to default db
-        if &self.current_db == db {
-            let default = config["database"].get("default_database");
-            let default = match default {
-                None => "name",
-                Some(val) => val.as_str().unwrap(),
-            };
-            self.current_db = default.to_string();
-        }
-
         self.cache_eliminate.clean(&db.to_string());
 
         let path = Path::new(&self.root_path).join("storage");
@@ -248,9 +232,19 @@ impl DataBaseManager {
 
         log::info!("@{} clean all value.",db);
 
+        let c_path = Path::new(&self.root_path).join("storage");
+        let c_path = c_path.join(format!("~@{}",db));
+
         if path.is_dir() {
-            return match fs::remove_dir_all(path) {
-                Ok(_) => { Ok(()) }
+            return match fs::rename(&path,&c_path) {
+                Ok(_) => {
+                    tokio::task::spawn(async move {
+                        if let Err(e) = fs::remove_dir_all(c_path) {
+                            log::error!("{}",e);
+                        }
+                    });
+                    Ok(())
+                }
                 Err(_) => {
                     Err("clean failure".to_string())
                 }

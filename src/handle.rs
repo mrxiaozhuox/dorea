@@ -110,12 +110,16 @@ pub fn parser(message: String) -> Result<ParseMeta> {
     Ok(result)
 }
 
-pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Result<String> {
+pub async fn execute(
+    manager: &Mutex<DataBaseManager>,
+    meta: ParseMeta,
+    curr: &mut String
+) -> Result<String> {
 
     let handle_type = meta.handle_type.clone();
     let arguments = meta.sub_argument.clone();
 
-    let current_db = manager.lock().await.current_db.clone();
+    let current_db = curr.clone();
 
     if handle_type == HandleType::SET {
 
@@ -188,7 +192,7 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
         let target = arguments.get("database").unwrap();
 
         let _ = manager.lock().await.db(&target);
-        manager.lock().await.current_db = target.clone();
+        *curr = target.clone();
 
         return Ok("OK".to_string());
 
@@ -200,7 +204,7 @@ pub async fn execute(manager: &Mutex<DataBaseManager>, meta: ParseMeta) -> Resul
         let target: &str = arguments.get("target").unwrap();
 
         if target == "current" {
-            return Ok(format!("db: {}",manager.lock().await.current_db));
+            return Ok(format!("db: {}", current_db));
         } else if target == "connections" {
             return Ok(":{connect_number}".to_string());
         } else if target == "version" {

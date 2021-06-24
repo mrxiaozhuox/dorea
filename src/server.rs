@@ -24,8 +24,6 @@ use std::time::Duration;
 use std::fs;
 use std::path::{Path};
 
-pub use crate::database::DataValue;
-
 pub const DOREA_VERSION: &'static str = "0.1.0";
 
 #[derive(Debug,Clone)]
@@ -98,7 +96,7 @@ impl Listener {
                 },
                 memory: crate::database::ConfigMemory {
                     maximum_memory_cache: 120,
-                    persistence_interval: 40 * 1000,
+                    persistence_interval: 60 * 1000,
                 },
                 database: crate::database::ConfigDB {
                     default_database: "default".to_string(),
@@ -207,6 +205,8 @@ impl Listener {
             CONNECT_NUM.lock().await.add();
             task::spawn(async move {
 
+                let mut current_db = String::from("default");
+
                 // check connect password
                 let db_config = DB_CONFIG.get();
                 if let Some(conf) = db_config {
@@ -239,10 +239,19 @@ impl Listener {
                     } else {
                         let _ = socket.write_all("+connected\n".as_ref()).await;
                     }
+
+                    current_db = match conf["database"].get("default_db") {
+                        None => "default".to_string(),
+                        Some(v) => {
+                            let temp = v.as_str().unwrap();
+                            temp.to_string()
+                        }
+                    }
+
                 }
 
                 loop {
-                    match process(&mut socket).await {
+                    match process(&mut socket,&mut current_db).await {
                         Ok(text) => {
                             let text: String = "+".to_string() + &text + "\n";
                             let res = socket.write_all((text).as_ref()).await;
@@ -277,7 +286,7 @@ impl Listener {
     }
 }
 
-async fn process(socket: &mut TcpStream) -> Result<String> {
+async fn process(socket: &mut TcpStream, curr: &mut String) -> Result<String> {
     let mut buf = [0;1024];
 
     // get data buffer size
@@ -307,7 +316,11 @@ async fn process(socket: &mut TcpStream) -> Result<String> {
         parse_meta = parse_result.unwrap();
     }
 
-    let exec_result = handle::execute(&DB_MANAGER,parse_meta).await;
+    let exec_result = handle::execute(
+        &DB_MANAGER,
+        parse_meta,
+        curr
+    ).await;
 
     let exec_result: Result<String> = {
         let res: Result<String> = match exec_result {
