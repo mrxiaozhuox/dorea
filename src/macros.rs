@@ -12,3 +12,16 @@ macro_rules! database_type {
         DataValue::$key($value)
     };
 }
+
+#[macro_export]
+macro_rules! dict {
+    (
+        $($key: expr => $value: expr),*
+    ) => {
+        {
+            let mut map = HashMap::new();
+            $( map.insert($key, $value); )*
+            map
+        }
+    };
+}

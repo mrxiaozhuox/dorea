@@ -1,5 +1,5 @@
 use dorea::client::{Client, ClientOption};
-use dorea::server::DataValue;
+use dorea::client::DataValue;
 use clap::clap_app;
 use dorea::tools::parse_value_type;
 use rustyline::Editor;
@@ -223,6 +223,11 @@ fn execute<'a>(client: &mut Client,message: String) -> String {
 
         let exec = format!("dict {} {}",key, sub);
         match client.execute(&exec) {
+            Ok(v) => { result = v; }
+            Err(e) => { return e; }
+        };
+    } else {
+        match client.execute(&message) {
             Ok(v) => { result = v; }
             Err(e) => { return e; }
         };

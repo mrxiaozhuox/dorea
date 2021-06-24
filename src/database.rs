@@ -126,8 +126,8 @@ impl DataBaseManager {
 
         let config = self.config.as_ref().unwrap();
 
-        let expire = option.expire.clone();
-        let unlocal_sign = option.unlocal_sign.clone();
+        let expire = option.expire;
+        let unlocal_sign = option.unlocal_sign;
 
 
         let max_mem = match config["memory"].get("maximum_memory_cache") {
@@ -486,18 +486,18 @@ impl DataBase {
 
         let size = value.sizeof();
         self.data.insert(key.clone(),DataNode {
-            key: key.clone(),
+            key: key.to_string(),
             value: value.clone(),
             value_size: size,
             expire_stamp: expire,
-            database: db_name.clone()
+            database: db_name.to_string()
         });
 
         // if update, do not save to local file.
         if !self.exist(key.clone()) {
 
             self.save_to_local(key.clone(),DataNode {
-                key: key.clone(),
+                key: key.to_string(),
                 value: value.clone(),
                 value_size: value.sizeof(),
                 expire_stamp: 0,

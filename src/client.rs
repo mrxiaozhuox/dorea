@@ -35,7 +35,7 @@ pub struct ClientOption<'a> {
 /// ```rust
 /// use dorea::client::{Client, ClientOption};
 /// use dorea::database_type;
-/// use dorea::server::DataValue;
+/// use dorea::client::DataValue;
 ///
 /// let mut c = Client::new("127.0.0.1",3450, ClientOption {
 ///     password: ""
