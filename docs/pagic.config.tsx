@@ -24,6 +24,7 @@ export default {
                 children: [
                     "getting_started/installation.md",
                     "getting_started/connection.md",
+                    "/getting_started/architecture.md",
                 ]
             }
         ],
