@@ -11,7 +11,7 @@ export default {
     ],
     nav: [
         {
-            text: '关于',
+            text: 'author',
             link: 'https://blog.wwsg18.com/index.php/about.html',
             align: 'right',
         },
