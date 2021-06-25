@@ -2,9 +2,11 @@
 //!
 //! you can use this code to start a server.
 //! ```rust
-//! use dorea::server::Listener;
+//! use dorea::server::{Listener, ServerOption};
 //!
-//! let mut listener = Listener::new("127.0.0.1",3450).await;
+//! let mut listener = Listener::new("127.0.0.1",3450, ServerOption {
+//!     quiet: false
+//! }).await;
 //! listener.start().await;
 //! ```
 //! then the tcpServer will run in { hostname : 127.0.0.1, port : 3450 }
@@ -42,6 +44,10 @@ struct ConnectNumber {
     num: u16,
 }
 
+pub struct ServerOption {
+    pub quiet: bool
+}
+
 static DB_MANAGER: Lazy<Mutex<DataBaseManager>> = Lazy::new(|| {
     let m = DataBaseManager::new();
     Mutex::new(m)
@@ -61,7 +67,7 @@ async fn start_time_bind() -> i64 { chrono::Local::now().timestamp() }
 impl Listener {
 
     /// structure a new listener struct.
-    pub async fn new(hostname:&str, port: u16) -> Listener {
+    pub async fn new(hostname:&str, port: u16,option: ServerOption) -> Listener {
 
         // statistical elapsed time
         START_TIMESTAMP.get_or_init(start_time_bind).await;
@@ -115,7 +121,10 @@ impl Listener {
         }
         // the first run processing end
 
-        let log_handle = crate::logger::init_logger(root_path.to_string());
+        let log_handle = crate::logger::init_logger(
+            root_path.to_string(),
+            option.quiet
+        );
         let _log_handle = match log_handle {
             Ok(handle) => handle,
             Err(_) => { panic!("logger error") }
