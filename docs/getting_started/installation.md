@@ -31,11 +31,13 @@ dorea = "0.1"
 ```
 
 ```rust
-use dorea::server::Listener;
+use dorea::server::{Listener,ServerOption};
 
 #[tokio::main]
 pub async fn main() {
-  let mut listener = Listener::new("127.0.0.1",3450).await;
+  let mut listener = Listener::new("127.0.0.1",3450, ServerOption {
+      quiet: false // quiet mode: logs will not print to the console.
+  }).await;
   listener.start().await;
 }
 ```
