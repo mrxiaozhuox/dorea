@@ -71,7 +71,7 @@ pub async fn main() {
 
 fn execute<'a>(client: &mut Client,message: String) -> String {
 
-    let mut result = String::new();
+    let result: String;
 
     let segment: Vec<&str> = message.split(" ").collect();
     let length = segment.len();
@@ -185,7 +185,7 @@ fn execute<'a>(client: &mut Client,message: String) -> String {
         let todo = segment.get(2).unwrap();
         let todo: &str = &todo.to_uppercase();
 
-        let mut sub: String = String::new();
+        let sub: String;
 
         if todo == "INSERT" {
             if length < 5 { return "Incorrect number of parameters".to_string(); }

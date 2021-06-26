@@ -13,6 +13,16 @@ macro_rules! database_type {
     };
 }
 
+/// use for get type: "DataValue::Dict()"
+/// 
+/// example:
+/// ```
+/// dict!(
+/// "username" => "liuzhuoer",
+/// "password" => "123456789",
+/// "email" => "mrxzx@qq.com"
+/// )
+/// ```
 #[macro_export]
 macro_rules! dict {
     (
