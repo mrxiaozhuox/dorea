@@ -413,32 +413,35 @@ pub fn parse_value_type(value: String) -> Result<DataValue> {
             return Ok(DataValue::ByteVector(vec![]));
         } else {
 
-            if value[0..5] == "Byte[".to_string() && value[value.len() - 1..] == "]".to_string() {
-                let vec_str = &value[4..].to_string();
-                let temp = serde_json::from_str::<serde_json::Value>(&vec_str);
+            if value.len() > 6 {
 
-                match temp {
-                    Ok(data) => {
-                        if data.is_array() {
-
-                            let mut vec: Vec<u8> = vec![];
-                            let byte_vec = data.as_array().unwrap();
-
-                            for item in byte_vec {
-                                let num = match item.as_u64() {
-                                    Some(v) => v,
-                                    None => 0,
-                                } as u8;
-                                vec.push(num);
+                if value[0..5] == "Byte[".to_string() && value[value.len() - 1..] == "]".to_string() {
+                    let vec_str = &value[4..].to_string();
+                    let temp = serde_json::from_str::<serde_json::Value>(&vec_str);
+    
+                    match temp {
+                        Ok(data) => {
+                            if data.is_array() {
+    
+                                let mut vec: Vec<u8> = vec![];
+                                let byte_vec = data.as_array().unwrap();
+    
+                                for item in byte_vec {
+                                    let num = match item.as_u64() {
+                                        Some(v) => v,
+                                        None => 0,
+                                    } as u8;
+                                    vec.push(num);
+                                }
+    
+                                return Ok(DataValue::ByteVector(vec));
                             }
-
-                            return Ok(DataValue::ByteVector(vec));
-                        }
-                    },
-                    Err(_) => { /* continue */ },
+                        },
+                        Err(_) => { /* continue */ },
+                    }
                 }
+                
             }
-
         }
     }
 

@@ -11,7 +11,7 @@
 
 use std::net::TcpStream;
 use std::io::{Write, Read};
-use regex::{Regex};
+use regex::Regex;
 use std::collections::HashMap;
 
 pub use crate::database::DataValue;
@@ -261,7 +261,7 @@ impl<'a> FileStorage<'a> {
         }
     }
 
-    pub fn upload(&mut self ,name: &str, value: Vec<u8>) {
+    pub fn upload(&mut self ,name: &str, value: Vec<u8>) -> crate::Result<usize> {
 
         let mut dict: HashMap<String,String> = HashMap::new();
         let curr = self.client.current_db;
@@ -290,7 +290,14 @@ impl<'a> FileStorage<'a> {
         }
 
         self.client.select(curr);
-        self.client.set(name, DataValue::Dict(dict));
+        dict.insert("_FILE".to_string(), "TRUE".to_string());
+        let res = self.client.set(name, DataValue::Dict(dict));
+        
+        if res {
+            return Ok(length);
+        } else {
+            return Err("upload failed".to_string());
+        }
     }
 
     pub fn download(&mut self,name: &str) -> Option<Vec<u8>> {
@@ -300,6 +307,15 @@ impl<'a> FileStorage<'a> {
         let list = self.client.get(name);
         if let Some(list) = list {
             if let DataValue::Dict(dict) = list {
+
+                let mut dict = dict.clone();
+
+                // if is not file system
+                if let None = dict.get("_FILE") {
+                    return None;
+                } else {
+                    dict.remove("_FILE");
+                }
 
                 let mut result: Vec<u8> = vec![];
 
@@ -322,6 +338,11 @@ impl<'a> FileStorage<'a> {
         }
 
         None
+    }
+
+    
+    pub fn remove(&mut self, _name: &str) {
+        todo!()
     }
 
 }
