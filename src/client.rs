@@ -246,7 +246,38 @@ impl Client {
     }
 }
 
-// File Storage Manager
+/// Dorea File Uploader
+/// 
+/// you can use `FileStorage` to upload file to dorea:
+/// ```rust
+/// use dorea::client;
+/// use std::fs;
+
+/// fn main() {
+
+///     let mut c = client::Client::new("127.0.0.1",3450, client::ClientOption {
+///         password: ""
+///     }).unwrap();
+/// 
+///     let v = fs::read("./src/head.jpg").expect("Error");
+/// 
+///     let mut file = client::FileStorage::bind(&mut c, Some("file-storage"));
+/// 
+///     file.upload("head-img", v);
+/// 
+///     let v = file.download("head-img");
+///     match v {
+///         Some(v) => {
+///             fs::write("./src/head-download.jpg", v).unwrap();
+///             println!("OK");
+///         },
+///         None => { painc!("Error"); },
+///     }
+/// 
+///     file.remove("head-img");
+/// }
+/// ```
+/// use this code can upload file `head.jpg` and download it to `file-download.jpg`.
 impl<'a> FileStorage<'a> {
     pub fn bind(client: &'a mut Client, file_db: Option<&'static str>) -> Self {
 

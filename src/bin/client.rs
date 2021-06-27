@@ -9,7 +9,7 @@ use rustyline::error::ReadlineError;
 pub async fn main() {
 
     let matches = clap_app!(dorea =>
-        (version: "0.1.0")
+        (version: "0.2.0")
         (author: "ZhuoEr Liu <mrxzx@qq.com>")
         (about: "Does awesome things")
         (@arg HOSTNAME: -h --hostname +takes_value "Set the server hostname")
