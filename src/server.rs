@@ -26,7 +26,7 @@ use std::time::Duration;
 use std::fs;
 use std::path::{Path};
 
-pub const DOREA_VERSION: &'static str = "0.1.0";
+pub const DOREA_VERSION: &'static str = "0.2.1";
 
 #[derive(Debug,Clone)]
 struct ListenerOptions {
