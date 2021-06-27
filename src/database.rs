@@ -1,6 +1,6 @@
-use std::collections::{HashMap};
-use std::{fs};
-use std::{path::Path};
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 
 use serde::{Serialize, Deserialize};
@@ -36,7 +36,8 @@ pub enum DataValue {
     String(String),
     Number(f64),
     Boolean(bool),
-    Dict(HashMap<String,String>)
+    Dict(HashMap<String,String>),
+    ByteVector(Vec<u8>),
 }
 
 #[derive(Debug,Clone)]
@@ -633,6 +634,7 @@ impl DataValue {
             DataValue::Number(val) => val.clone() as usize,
             DataValue::Boolean(_) => 1,
             DataValue::Dict(val) => val.len(),
+            DataValue::ByteVector(val) => val.len(),
         };
 
         res

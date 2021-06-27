@@ -26,6 +26,11 @@ pub struct ClientOption<'a> {
     pub password: &'a str
 }
 
+pub struct FileStorage<'a> {
+    client: &'a mut Client,
+    file_db: &'static str,
+}
+
 /// Client can help you to use the dorea db.
 ///
 /// Function: get set setex remove clean select execute
@@ -76,9 +81,10 @@ impl Client {
 
             if option.password == "" { return Err("password empty.".to_string()); }
 
-            let _ = stream.write_all(option.password.as_ref());
+            let password = option.password.to_string();
 
-            let feedback = read_string(&mut stream);
+            let feedback = send_command(&mut stream, password);
+
             if feedback != "" {
                 if &feedback[0..1] == "-" {
                     return Err("password error.".to_string())
@@ -92,8 +98,7 @@ impl Client {
 
             let mut res = "";
 
-            let _ = stream.write_all("info current".as_ref());
-            let str = read_string(&mut stream);
+            let str= send_command(&mut stream,"info current".to_string());
 
             if &str[0..1] == "+" {
                 let meta: Vec<&str> = str.split(": ").collect();
@@ -118,8 +123,7 @@ impl Client {
 
         let pattern = format!("get {}", key);
 
-        let _ = stream.write_all(&pattern.as_ref());
-        let fallback = read_string(stream);
+        let fallback = send_command(stream, pattern);
 
         if  fallback.len() == 0 {
             return None;
@@ -159,7 +163,10 @@ impl Client {
             }
             DataValue::Dict(v) => {
                 serde_json::json!(v).to_string()
-            }
+            },
+            DataValue::ByteVector(v) => {
+                format!("Byte{}",serde_json::json!(v).to_string())
+            },
         };
 
         let pattern: String;
@@ -169,8 +176,8 @@ impl Client {
             pattern = format!("set {} {} {}", key, value, expire);
         }
 
-        let _ = stream.write_all(&pattern.as_ref());
-        let fallback = read_string(stream);
+
+        let fallback = send_command(stream, pattern.clone());
 
         if &fallback[0..1] == "+" {
             return true;
@@ -184,8 +191,7 @@ impl Client {
 
         let pattern = format!("remove {}",key);
 
-        let _ = stream.write_all(&pattern.as_ref());
-        let fallback = read_string(stream);
+        let fallback = send_command(stream, pattern);
 
         if &fallback[0..1] == "+" {
             return true;
@@ -200,8 +206,7 @@ impl Client {
 
         let pattern = format!("select {}", name);
 
-        let _ = stream.write_all(&pattern.as_ref());
-        let fallback = read_string(stream);
+        let fallback = send_command(stream, pattern);
 
         if &fallback[0..1] == "+" {
             return true;
@@ -216,8 +221,7 @@ impl Client {
 
         let pattern = format!("clean");
 
-        let _ = stream.write_all(&pattern.as_ref());
-        let fallback = read_string(stream);
+        let fallback = send_command(stream, pattern);
 
         if &fallback[0..1] == "+" {
             return true;
@@ -232,8 +236,7 @@ impl Client {
 
         let pattern = format!("{}", statement);
 
-        let _ = stream.write_all(&pattern.as_ref());
-        let fallback = read_string(stream);
+        let fallback = send_command(stream, pattern);
 
         if &fallback[0..1] == "+" {
             return Ok(fallback[1..].to_string());
@@ -243,9 +246,96 @@ impl Client {
     }
 }
 
-fn read_string(stream: &mut TcpStream) -> String {
+// File Storage Manager
+impl<'a> FileStorage<'a> {
+    pub fn bind(client: &'a mut Client, file_db: Option<&'static str>) -> Self {
 
-    let mut buf = [0; 1024];
+        let file_db =  match file_db {
+            Some(db) => db,
+            None => client.current_db,
+        };
+
+        Self {
+            client,
+            file_db
+        }
+    }
+
+    pub fn upload(&mut self ,name: &str, value: Vec<u8>) {
+
+        let mut dict: HashMap<String,String> = HashMap::new();
+        let curr = self.client.current_db;
+        
+        let length: f64 = value.len() as f64;
+        let num = (length / 2048.0_f64).ceil() as usize;
+        let length = length as usize;
+
+        let mut tail: usize = 0;
+
+        for i in 1..(num + 1) {
+
+            let mut target = 2048 * i;
+            if target > length {
+                target = length;
+            }
+
+            let key = format!("_FILE_{}_{}",name, i.to_string());
+            let data: Vec<u8> = value[tail..target].to_vec();
+
+            self.client.select(self.file_db);
+            dict.insert(i.to_string(), key.clone());
+            self.client.set(&key,DataValue::ByteVector(data));
+
+            tail = target;
+        }
+
+        self.client.select(curr);
+        self.client.set(name, DataValue::Dict(dict));
+    }
+
+    pub fn download(&mut self,name: &str) -> Option<Vec<u8>> {
+
+        let curr = self.client.current_db;
+
+        let list = self.client.get(name);
+        if let Some(list) = list {
+            if let DataValue::Dict(dict) = list {
+
+                let mut result: Vec<u8> = vec![];
+
+                let length = dict.len();
+                self.client.select(self.file_db);
+                for i in 1..(length + 1) {
+                    let key = i.to_string();
+                    let path = dict.get(&key).unwrap();
+                    let data = self.client.get(path).unwrap();
+                    if let DataValue::ByteVector(byte) = data {
+                        let mut byte = byte.clone();
+                        result.append(&mut byte);
+                    }
+                }
+
+                self.client.select(curr);
+
+                return Some(result);
+            }
+        }
+
+        None
+    }
+
+}
+
+fn send_command(stream: &mut TcpStream, command: String) -> String {
+    let byte = command.as_bytes();
+    let _ = stream.write_all(byte);
+
+    // read
+    return read_string(stream);
+}
+
+fn read_string(stream: &mut TcpStream) -> String {
+    let mut buf = [0; 10240];
 
     let length = match stream.read(&mut buf) {
         Ok(v) => v,
@@ -255,20 +345,16 @@ fn read_string(stream: &mut TcpStream) -> String {
     // if length eq zero, abort the function
     if length == 0 { return String::from(""); }
 
-    let mut split: usize = length;
-
-    // for Linux & MacOS
-    if buf[length - 1] == 10 { split = length - 1; }
-    // for Windows
-    else if buf[length - 2] == 13 && buf[length - 1] == 10 { split = length - 2; }
-
-    // from buf[u8; 1024] to String
-    return String::from_utf8_lossy(&buf[0 .. split]).to_string();
+    // from buf[u8; 10240] to String
+    let result = String::from_utf8_lossy(&buf[0 .. length]).to_string();
+    let result = result.trim().to_string();
+    return result;
 }
 
 fn type_parse(text: &str) -> Option<DataValue> {
 
-    let pattern = Regex::new(r"(String|Number|Boolean|Dict)\((.*)\)").unwrap();
+    let pattern = Regex::new(r"(String|Number|Boolean|Dict|ByteVector)\((.*)\)").unwrap();
+
     let meta = match pattern.captures(text) {
         None => { return None; }
         Some(v) => v
@@ -314,7 +400,23 @@ fn type_parse(text: &str) -> Option<DataValue> {
 
             Some(DataValue::Dict(result))
 
-        }
+        },
+        "ByteVector" => {
+
+            let mut result: Vec<u8> = vec![];
+
+            let temp: serde_json::Value = serde_json::from_str(&meta_value).unwrap();
+            let temp = temp.as_array().unwrap();
+            for item in temp.iter() {
+                let item = match item.as_u64() {
+                    Some(v) => v,
+                    None => 0,
+                };
+                result.push(item as u8);
+            }
+
+            Some(DataValue::ByteVector(result))
+        },
         &_ => None
     };
 
