@@ -341,8 +341,35 @@ impl<'a> FileStorage<'a> {
     }
 
     
-    pub fn remove(&mut self, _name: &str) {
-        todo!()
+    pub fn remove(&mut self, name: &str) -> bool {
+        let curr = self.client.current_db;
+
+        if let Some(list)= self.client.get(name) {
+            if let DataValue::Dict(dict) = list {
+
+                let mut dict = dict.clone();
+
+                // if is not file system
+                if let None = dict.get("_FILE") {
+                    return false;
+                } else {
+                    dict.remove("_FILE");
+                }
+
+                let length = dict.len();
+                self.client.select(self.file_db);
+                for i in 1..(length + 1) {
+                    let key = i.to_string();
+                    let path = dict.get(&key).unwrap();
+                    let _ = self.client.remove(path);
+                }
+
+                self.client.select(curr);
+                return self.client.remove(name);
+            }
+        }
+
+        false
     }
 
 }
