@@ -296,7 +296,7 @@ impl Listener {
 }
 
 async fn process(socket: &mut TcpStream, curr: &mut String) -> Result<String> {
-    let mut buf = [0;10240];
+    let mut buf = [0;20480];
 
     // get data buffer size
     let length = match socket.read(&mut buf).await {
@@ -307,7 +307,7 @@ async fn process(socket: &mut TcpStream, curr: &mut String) -> Result<String> {
     // if length eq zero, abort the function
     if length == 0 { return Err("unknown input".to_string()) }
 
-    // from buf[u8; 10240] to String
+    // from buf[u8; 20480] to String
     let message = String::from_utf8_lossy(&buf[0 .. length]).to_string();
     let message = message.trim().to_string();
 

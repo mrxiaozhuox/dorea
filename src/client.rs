@@ -294,18 +294,19 @@ impl<'a> FileStorage<'a> {
 
     pub fn upload(&mut self ,name: &str, value: Vec<u8>) -> crate::Result<usize> {
 
-        let mut dict: HashMap<String,String> = HashMap::new();
+        let mut index_dict: HashMap<String,String> = HashMap::new();
+
         let curr = self.client.current_db;
         
         let length: f64 = value.len() as f64;
-        let num = (length / 2048.0_f64).ceil() as usize;
+        let num = (length / 4096.0_f64).ceil() as usize;
         let length = length as usize;
 
         let mut tail: usize = 0;
 
         for i in 1..(num + 1) {
 
-            let mut target = 2048 * i;
+            let mut target = 4096 * i;
             if target > length {
                 target = length;
             }
@@ -314,15 +315,16 @@ impl<'a> FileStorage<'a> {
             let data: Vec<u8> = value[tail..target].to_vec();
 
             self.client.select(self.file_db);
-            dict.insert(i.to_string(), key.clone());
-            self.client.set(&key,DataValue::ByteVector(data));
+            self.client.set(&key, DataValue::ByteVector(data));
 
             tail = target;
         }
 
         self.client.select(curr);
-        dict.insert("_FILE".to_string(), "TRUE".to_string());
-        let res = self.client.set(name, DataValue::Dict(dict));
+
+        index_dict.insert("section_num".to_string(), num.to_string());
+        index_dict.insert("_FILE".to_string(), "TRUE".to_string());
+        let res = self.client.set(name, DataValue::Dict(index_dict));
         
         if res {
             return Ok(length);
@@ -350,16 +352,28 @@ impl<'a> FileStorage<'a> {
 
                 let mut result: Vec<u8> = vec![];
 
-                let length = dict.len();
+                let length = match dict.get("section_num") {
+                    Some(v) => {
+                        match v.parse::<usize>() {
+                            Ok(v) => v,
+                            Err(_) => 0,
+                        }
+                    },
+                    None => 0,
+                };
+
                 self.client.select(self.file_db);
+
                 for i in 1..(length + 1) {
+
                     let key = i.to_string();
-                    let path = dict.get(&key).unwrap();
-                    let data = self.client.get(path).unwrap();
+                    let path = format!("_FILE_{}_{}", name, key);
+                    let data = self.client.get(&path).unwrap();
                     if let DataValue::ByteVector(byte) = data {
                         let mut byte = byte.clone();
                         result.append(&mut byte);
                     }
+
                 }
 
                 self.client.select(curr);
@@ -414,7 +428,7 @@ fn send_command(stream: &mut TcpStream, command: String) -> String {
 }
 
 fn read_string(stream: &mut TcpStream) -> String {
-    let mut buf = [0; 10240];
+    let mut buf = [0; 20480];
 
     let length = match stream.read(&mut buf) {
         Ok(v) => v,
@@ -424,7 +438,7 @@ fn read_string(stream: &mut TcpStream) -> String {
     // if length eq zero, abort the function
     if length == 0 { return String::from(""); }
 
-    // from buf[u8; 10240] to String
+    // from buf[u8; 20480] to String
     let result = String::from_utf8_lossy(&buf[0 .. length]).to_string();
     let result = result.trim().to_string();
     return result;
