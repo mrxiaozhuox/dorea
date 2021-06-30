@@ -20,12 +20,13 @@ export default {
         "/": [
             "README.md",
             {
-                link: "getting_started.md",
-                children: [
-                    "getting_started/installation.md",
-                    "getting_started/connection.md",
-                    "/getting_started/architecture.md",
-                ]
+                link: "installation.md",
+            },
+            {
+                link: "connection.md",
+            },
+            {
+                link: "client.md"
             }
         ],
 
