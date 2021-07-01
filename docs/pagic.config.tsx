@@ -11,8 +11,8 @@ export default {
     ],
     nav: [
         {
-            text: 'author',
-            link: 'https://blog.wwsg18.com/index.php/about.html',
+            text: 'Team',
+            link: 'https://github.com/doreadb/',
             align: 'right',
         },
     ],

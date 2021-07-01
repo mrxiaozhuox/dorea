@@ -90,7 +90,7 @@ Undefined()
 
 ## Select
 
-if you wan't choose other `db-group`, you can use `select` to change it.
+If you wan't choose other `db-group`, you can use `select` to change it.
 
 ```dorea-cli
 127.0.0.1:3450 ~> info current
@@ -101,3 +101,25 @@ OK
 db: dorea-cli
 ```
 use `info current` can get the current database name.
+
+### Default Group
+
+- default      : Default group, highest priority.
+- dorea        : Maybe will save some system data.
+- file-storage : FileStorage group, save file section.
+
+
+## Clean
+
+You can use `clean` to remove all data in the group.
+
+```dorea-cli
+127.0.0.1:3450 ~> info cache-num
+10
+127.0.0.1:3450 ~> clean
+OK
+127.0.0.1:3450 ~> info cache-num
+0
+```
+
+`info cache-num` can get cache data num (not all data in storage)
