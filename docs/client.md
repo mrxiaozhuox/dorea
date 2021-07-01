@@ -108,6 +108,7 @@ use `info current` can get the current database name.
 - dorea        : Maybe will save some system data.
 - file-storage : FileStorage group, save file section.
 
+> don't try to insert any data in to `dorea` group !
 
 ## Clean
 

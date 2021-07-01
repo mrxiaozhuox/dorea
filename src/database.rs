@@ -163,7 +163,7 @@ impl DataBaseManager {
 
         let result = db.get(key.clone());
 
-        let node = match result.clone() {
+        let (node, cached) = match result.clone() {
             None => { return None; }
             Some(res) => res
         };
@@ -175,12 +175,13 @@ impl DataBaseManager {
             return None;
         }
 
-        let option = InsertOptions {
-            expire: Some(node.expire_stamp.clone()),
-            unlocal_sign: false
-        };
-
-        self.insert(key.clone(),node.value.clone(),db_name.clone(),option);
+        if !cached {
+            let option = InsertOptions {
+                expire: Some(node.expire_stamp.clone()),
+                unlocal_sign: false
+            };
+            self.insert(key.clone(),node.value.clone(),db_name.clone(),option);
+        }
 
         Some(node.value)
     }
@@ -511,9 +512,10 @@ impl DataBase {
     }
 
     // get the value
-    pub fn get(&self, key: DataKey) -> Option<DataNode> {
+    pub fn get(&self, key: DataKey) -> Option<(DataNode,bool)> {
 
         let data = &self.data;
+        let mut cached = false;
 
         let node = match data.get(&key) {
             None => {
@@ -543,10 +545,13 @@ impl DataBase {
 
                 result
             }
-            Some(v) => v.clone()
+            Some(v) => {
+                cached = true;
+                v.clone()
+            }
         };
 
-        Some(node)
+        Some((node,cached))
     }
 
     pub fn exist(&self,key: DataKey) -> bool {
