@@ -163,7 +163,7 @@ fn execute<'a>(client: &mut Client,message: String) -> String {
         if client.select(key) == true {
             result = String::from("OK");
         } else {
-            return format!("Select error {}", client.current_db);
+            return format!("Select error >> `{}`", key);
         }
 
     } else if operator == "REMOVE" {

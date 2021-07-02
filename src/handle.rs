@@ -110,6 +110,7 @@ pub fn parser(message: String) -> Result<ParseMeta> {
     Ok(result)
 }
 
+// command execute manager (!IMPORTANT)
 pub async fn execute(
     manager: &Mutex<DataBaseManager>,
     meta: ParseMeta,
@@ -190,6 +191,10 @@ pub async fn execute(
 
         // select db
         let target = arguments.get("database").unwrap();
+
+        if target.to_uppercase() == "DOREA" {
+            return Err("Dorea for the official occupancy database!".to_string());
+        }
 
         let _ = manager.lock().await.db(&target);
         *curr = target.clone();

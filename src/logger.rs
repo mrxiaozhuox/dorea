@@ -1,3 +1,7 @@
+use log4rs::append::rolling_file::RollingFileAppender;
+use log4rs::append::rolling_file::policy::compound::CompoundPolicy;
+use log4rs::append::rolling_file::policy::compound::roll::fixed_window::FixedWindowRoller;
+use log4rs::append::rolling_file::policy::compound::trigger::size::SizeTrigger;
 use log4rs::{Config, Handle};
 use log4rs::config::{Appender, Logger, Root};
 use log4rs::append::file::FileAppender;
@@ -7,7 +11,20 @@ use log4rs::append::console::ConsoleAppender;
 
 pub fn init_logger(path: String, quiet: bool) -> Result<Handle, SetLoggerError> {
 
-    let root = &path;
+    let root = path.clone() + "/log/";
+
+    let size_limit = 30 * 1024; // 30KB as max log file size to roll
+    let size_trigger = SizeTrigger::new(size_limit);
+
+    let window_size = 20;
+    let format = format!("{}/overdue/manager{}.log", root, "{}");
+    let fixed_window_roller = FixedWindowRoller::builder()
+        .build(&format,window_size).unwrap();
+
+    let compound_policy = CompoundPolicy::new(
+        Box::new(size_trigger),
+        Box::new(fixed_window_roller)
+    );
 
     let record = ConsoleAppender::builder()
         .encoder(Box::new(PatternEncoder::new("[{l}] {d} - {m}{n}")))
@@ -15,28 +32,32 @@ pub fn init_logger(path: String, quiet: bool) -> Result<Handle, SetLoggerError> 
 
     let quiet_record = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("[{l}] {d} - {m}{n}")))
-        .build(format!("{}/log/record.log",root))
+        .build(format!("{}/record.log",root))
         .unwrap();
 
     let eliminate = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("[{l}] {d} - {m}{n}")))
-        .build(format!("{}/log/expired.log",root))
+        .build(format!("{}/expired.log",root))
         .unwrap();
 
-    let curd = FileAppender::builder()
+    // let curd = FileAppender::builder()
+    //     .encoder(Box::new(PatternEncoder::new("[{l}] {d} - {m}{n}")))
+    //     .build(format!("{}/curd.log",root))
+    //     .unwrap();
+
+    let curd = RollingFileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("[{l}] {d} - {m}{n}")))
-        .build(format!("{}/log/curd.log",root))
+        .build(format!("{}/curd.log",root),Box::new(compound_policy))
         .unwrap();
-
 
     let server = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("[{l}] {d} - {m}{n}")))
-        .build(format!("{}/log/server.log",root))
+        .build(format!("{}/server.log",root))
         .unwrap();
 
     let handle = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("[{l}] {d} - {m}{n}")))
-        .build(format!("{}/log/handle.log",root))
+        .build(format!("{}/handle.log",root))
         .unwrap();
 
     let builder = Config::builder()
