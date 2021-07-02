@@ -121,14 +121,14 @@ impl Listener {
         }
         // the first run processing end
 
-        let log_handle = crate::logger::init_logger(
+        crate::logger::init_logger(
             root_path.to_string(),
             option.quiet
         );
-        let _log_handle = match log_handle {
-            Ok(handle) => handle,
-            Err(_) => { panic!("logger error") }
-        };
+        // let _log_handle = match log_handle {
+        //     Ok(handle) => handle,
+        //     Err(_) => { panic!("logger error") }
+        // };
 
         // init database config
         DB_CONFIG.get_or_init(config_bind).await;
