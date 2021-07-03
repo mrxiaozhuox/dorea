@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 
-pub async fn init_logger(path: String, quiet: bool) {
+pub async fn init_logger(path: String) {
 
     let root = PathBuf::from(&path).join("log");
 
