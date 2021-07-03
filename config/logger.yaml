@@ -4,7 +4,7 @@ appenders:
     kind: console
   operation:
     kind: rolling_file
-    path: log/operation.log
+    path: :DOREA_LOG_PATH:/operation.log
     encoder:
       pattern: "{d} - {m}{n}"
     policy:
@@ -21,5 +21,5 @@ loggers:
   dorea::database:
     level: info
     appenders:
-      - requests
+      - operation
     additive: false

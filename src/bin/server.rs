@@ -1,4 +1,4 @@
-use dorea::server::{DOREA_VERSION, Listener, ServerOption};
+use dorea::server::{DOREA_VERSION, Listener};
 
 #[tokio::main]
 pub async fn main() {
@@ -10,8 +10,6 @@ pub async fn main() {
     println!("server addr: {}:{} ( tcp service )", HOSTNAME, PORT);
     println!("https://github.com/mrxiaozhuox/Dorea\n");
 
-    let mut listener = Listener::new(HOSTNAME, PORT, ServerOption {
-        quiet: false
-    }).await;
+    let mut listener = Listener::new(HOSTNAME, PORT).await;
     listener.start().await;
 }

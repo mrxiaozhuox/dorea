@@ -205,7 +205,6 @@ dependencies = [
 name = "dorea"
 version = "0.2.1"
 dependencies = [
- "base64",
  "bincode",
  "chrono",
  "clap",
