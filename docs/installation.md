@@ -35,12 +35,9 @@ use dorea::server::{Listener,ServerOption};
 
 #[tokio::main]
 pub async fn main() {
-  let mut listener = Listener::new("127.0.0.1",3450, ServerOption {
-      quiet: false // quiet mode: logs will not print to the console.
-  }).await;
+  let mut listener = Listener::new("127.0.0.1",3450).await;
   listener.start().await;
 }
 ```
 
 Then you can also create a Dorea server.
-

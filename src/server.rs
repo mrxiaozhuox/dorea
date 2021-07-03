@@ -42,7 +42,9 @@ struct ConnectNumber {
     num: u16,
 }
 
-pub struct ServerOption { }
+pub struct ServerOption {
+    pub quiet: bool
+}
 
 static DB_MANAGER: Lazy<Mutex<DataBaseManager>> = Lazy::new(|| {
     let m = DataBaseManager::new();

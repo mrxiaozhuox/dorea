@@ -21,5 +21,5 @@ And you can also embed the entire server in your project.
 >  **This project was unstable, Do not use in production environment !**
 
 
-
 - Crates - [Dorea Storage](https://crates.io/crates/dorea)
+- PyPi   - [Dorea Python](https://pypi.org/project/dorea-python/)

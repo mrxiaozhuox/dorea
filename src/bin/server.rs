@@ -7,7 +7,7 @@ pub async fn main() {
     const PORT: u16 = 3450;
 
     println!("\n♘「 Dorea database {} 」♖", DOREA_VERSION);
-    println!("server addr: {}:{} ( tcp service )", HOSTNAME, PORT);
+    println!("server address: {}:{} ( tcp service )", HOSTNAME, PORT);
     println!("https://github.com/mrxiaozhuox/Dorea\n");
 
     let mut listener = Listener::new(HOSTNAME, PORT).await;
