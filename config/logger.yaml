@@ -1,25 +1,57 @@
 refresh_rate: 30 seconds
+
 appenders:
+
   stdout:
     kind: console
+
+  quiet_stdout:
+    kind: rolling_file
+    path: :DOREA_LOG_PATH:/quiet.log
+    encoder:
+      pattern: "[{l}] {d} - {m}{n}"
+    policy:
+      trigger: 
+        kind: size
+        limit: 1024
+      roller:
+        kind: delete
+
   operation:
     kind: rolling_file
     path: :DOREA_LOG_PATH:/operation.log
     encoder:
-      pattern: "{d} - {m}{n}"
+      pattern: "[{l}] {d} - {m}{n}"
     policy:
       trigger: 
         kind: size
         limit: 20480
       roller:
         kind: delete
+
+  server:
+    kind: rolling_file
+    path: :DOREA_LOG_PATH:/server.log
+    encoder:
+      pattern: "[{l}] {d} - {m}{n}"
+    policy:
+      trigger: 
+        kind: size
+        limit: 20480
+      roller:
+        kind: delete
+
 root:
   level: info
   appenders:
     - stdout
+
 loggers:
   dorea::database:
     level: info
     appenders:
       - operation
-    additive: false
+  dorea::server:
+    level: info
+    appenders:
+      - server
