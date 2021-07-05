@@ -420,6 +420,7 @@ impl<'a> FileStorage<'a> {
 }
 
 fn send_command(stream: &mut TcpStream, command: String) -> String {
+
     let byte = command.as_bytes();
     let _ = stream.write_all(byte);
 
@@ -428,20 +429,41 @@ fn send_command(stream: &mut TcpStream, command: String) -> String {
 }
 
 fn read_string(stream: &mut TcpStream) -> String {
-    let mut buf = [0; 20480];
 
-    let length = match stream.read(&mut buf) {
-        Ok(v) => v,
-        Err(_) => 0
-    };
+    let mut result = String::new();
+    let mut total_size: usize = 0;
 
-    // if length eq zero, abort the function
-    if length == 0 { return String::from(""); }
+    let mut data_size: usize = 0;
 
-    // from buf[u8; 20480] to String
-    let result = String::from_utf8_lossy(&buf[0 .. length]).to_string();
-    let result = result.trim().to_string();
-    return result;
+    loop {
+        let mut buf = [0;20480];
+        let read_size = match stream.read(&mut buf) {
+            Ok(num) => num,
+            Err(_) => 0,
+        };
+    
+        if read_size == 0 { break; }
+
+        let temp = String::from_utf8_lossy(&buf).to_string();
+
+        let pattern = Regex::new(r"\+([0-9]*)\$;").unwrap();
+        if let Some(value) = pattern.captures(&temp) {
+            let temp = value.get(1).unwrap().as_str();
+            data_size = match temp.parse::<usize>() {
+                Ok(v) => v,
+                Err(_) => 0,
+            };
+        };
+
+        result = result + temp.trim();
+
+        total_size += read_size;
+
+        if total_size >= data_size { break; }
+    
+    }
+
+    result
 }
 
 fn type_parse(text: &str) -> Option<DataValue> {

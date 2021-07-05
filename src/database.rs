@@ -636,7 +636,7 @@ impl DataValue {
     pub fn sizeof(&self) -> usize {
         let res: usize = match self {
             DataValue::String(val) => val.len(),
-            DataValue::Number(val) => val.clone() as usize,
+            DataValue::Number(_) => 32,
             DataValue::Boolean(_) => 1,
             DataValue::Dict(val) => val.len(),
             DataValue::ByteVector(val) => val.len(),

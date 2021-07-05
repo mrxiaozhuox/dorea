@@ -68,7 +68,7 @@ pub fn parser(message: String) -> Result<ParseMeta> {
 
     if message.len() == 0 { return Err("empty string".to_string()) }
 
-    let command:Vec<&str> = message.split(" ").collect();
+    let command: Vec<&str> = message.split(" ").collect();
 
     let mut result = ParseMeta::new();
 
@@ -172,7 +172,14 @@ pub async fn execute(
 
         return match result {
             None => { Err(format!("data not found: {}", &key)) }
-            Some(res) => { Ok(format!("{:?}", res)) }
+            Some(res) => {
+
+                let mut format = format!("{:?}",res);
+
+                format = format!("{}$;{}", &format.len(), &format);
+
+                Ok(format)
+            }
         }
 
     } else if handle_type == HandleType::REMOVE {
@@ -282,6 +289,10 @@ pub async fn execute(
                     if old_value == sub_value {
                         return Ok("OK".to_string());
                     }
+                }
+
+                if data.len() > 256 {
+                    return Err("maximum array length: 256".to_string());
                 }
 
                 let mut updated = data.clone();
