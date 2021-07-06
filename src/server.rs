@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 pub struct DoreaServer {
     server_options: ServerOption
@@ -17,10 +17,24 @@ impl DoreaServer {
 
         let document_path = match &options.document_path{
             Some(buf) => buf.clone(),
-            None => PathBuf::new(),
+            None => {
+                let temp = dirs::data_local_dir().unwrap();
+                temp.join("Dorea")
+            },
         };
 
-        crate::config::load_config(document_path).unwrap();
+        if ! document_path.is_dir() {
+            fs::create_dir_all(&document_path).unwrap();
+        }
+
+        crate::config::load_config(&document_path).unwrap();
+
+        let options: ServerOption = ServerOption {
+            hostname: options.hostname,
+            port: options.port,
+            document_path: Some(document_path),
+            quiet_runtime: options.quiet_runtime,
+        };
 
         Self {
             server_options: options
@@ -33,10 +47,11 @@ impl DoreaServer {
 mod server_test {
     #[test]
     fn try_to_bind() {
-        crate::server::DoreaServer::bind(crate::server::ServerOption {
+        println!("{:?}",dirs::data_local_dir().unwrap());
+        let _dorea = crate::server::DoreaServer::bind(crate::server::ServerOption {
             hostname: "127.0.0.1",
             port: 3450,
-            document_path: Some(std::path::PathBuf::from("./dorea/")),
+            document_path: None,
             quiet_runtime: true,
         });
     }

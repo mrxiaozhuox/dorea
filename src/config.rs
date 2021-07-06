@@ -31,7 +31,7 @@ pub(crate) struct CacheConfig {
 }
 
 
-pub(crate) fn load_config(path: PathBuf) -> Result<DoreaFileConfig> {
+pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
 
     let path = path.join("config.toml");
 
