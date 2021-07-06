@@ -1,32 +1,11 @@
-//! A key-value store database system.
-//! provide: server & client
-//!
-//! author: [ZhuoEr Liu](http://github.com/mrxiaozhuox)
-//!
-//! support data-type:
-//! - String
-//! - Number
-//! - Boolean
-//! - Dict
-//!
-//! ### public mod
-//!
-//! - *server*: Dorea-server system - start & manager the server.
-//! - *client*: Dorea-client system - connect & execute the database.
-//!
+//! Dorea Storage Databasepub mod server;
 
-#[macro_use]
-mod macros;
+const DOREA_VERSION: &'static str = "0.3.0";
 
 pub mod server;
-pub mod client;
-pub mod tools;
+
+mod config;
 
 
-mod handle;
-mod database;
-mod structure;
-mod logger;
-
-
-pub type Result<T> = std::result::Result<T,String>;
+type Error = Box<dyn std::error::Error + Send + Sync>;
+type Result<T> = std::result::Result<T,Error>;
