@@ -5,6 +5,7 @@ const DOREA_VERSION: &'static str = "0.3.0";
 pub mod server;
 
 mod config;
+mod handle;
 
 
 type Error = Box<dyn std::error::Error + Send + Sync>;

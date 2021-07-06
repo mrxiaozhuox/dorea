@@ -1,7 +1,17 @@
 use std::{fs, path::PathBuf};
 
+use tokio::net::{TcpListener, TcpStream};
+use tokio::task;
+
+use crate::config::DoreaFileConfig;
+use crate::handle;
+
 pub struct DoreaServer {
-    server_options: ServerOption
+    server_options: ServerOption,
+    server_listener: TcpListener,
+    server_config: DoreaFileConfig,
+
+    connection_number: u16,
 }
 
 pub struct ServerOption {
@@ -13,7 +23,7 @@ pub struct ServerOption {
 
 impl DoreaServer {
 
-    pub fn bind(options: ServerOption) -> Self {
+    pub async fn bind(options: ServerOption) -> Self {
 
         let document_path = match &options.document_path{
             Some(buf) => buf.clone(),
@@ -27,32 +37,71 @@ impl DoreaServer {
             fs::create_dir_all(&document_path).unwrap();
         }
 
-        crate::config::load_config(&document_path).unwrap();
-
         let options: ServerOption = ServerOption {
             hostname: options.hostname,
             port: options.port,
-            document_path: Some(document_path),
+            document_path: Some(document_path.clone()),
             quiet_runtime: options.quiet_runtime,
         };
 
+        let addr = format!("{}:{}",options.hostname, options.port);
+
+        let config = crate::config::load_config(&document_path).unwrap();
+
+        let listner = match TcpListener::bind(&addr).await {
+            Ok(listener) => listener,
+            Err(e) => {
+                panic!("Server startup error: {}", e);
+            },
+        };
+
         Self {
-            server_options: options
+            server_options: options,
+            server_listener: listner,
+            server_config: config,
+            connection_number: 0,
         }
+    }
+
+    pub async fn listen(&mut self) {
+        
+        loop {
+            
+            // wait for client connect.
+            let ( socket, _ ) = match self.server_listener.accept().await {
+                Ok(value) => value,
+                Err(_) => { continue; },
+            };
+
+            // add connection number (+1).
+            self.connection_number += 1;
+
+            let config = self.server_config.clone();
+
+            let current_db = config.database.default_group.to_string();
+
+            task::spawn(async move {
+                handle::process(socket, config, current_db).await;
+            });
+
+
+        }
+
     }
 
 }
 
 #[cfg(test)]
 mod server_test {
-    #[test]
-    fn try_to_bind() {
-        println!("{:?}",dirs::data_local_dir().unwrap());
-        let _dorea = crate::server::DoreaServer::bind(crate::server::ServerOption {
+    #[tokio::test]
+    async fn try_to_bind() {
+        let mut dorea = crate::server::DoreaServer::bind(crate::server::ServerOption {
             hostname: "127.0.0.1",
             port: 3450,
             document_path: None,
             quiet_runtime: true,
-        });
+        }).await;
+
+        dorea.listen().await;
     }
 }

@@ -4,30 +4,30 @@ use std::{fs, path::PathBuf};
 use serde::{Serialize, Deserialize};
 
 /// Dorea File Config Struct
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize,Deserialize,Clone)]
 pub(crate) struct DoreaFileConfig {
-    connection: ConnectionConifg,
-    database: DataBaseConfig,
-    cache: CacheConfig,
+    pub(crate) connection: ConnectionConifg,
+    pub(crate) database: DataBaseConfig,
+    pub(crate) cache: CacheConfig,
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize,Deserialize,Clone)]
 pub(crate) struct ConnectionConifg {
-    max_connect_number: u16,
-    connection_password: String,
+    pub(crate) max_connect_number: u16,
+    pub(crate) connection_password: String,
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize,Deserialize,Clone)]
 pub(crate) struct DataBaseConfig {
-    max_group_number: u16,
-    default_group: String,
-    readonly_group: Vec<String>,
+    pub(crate) max_group_number: u16,
+    pub(crate) default_group: String,
+    pub(crate) readonly_group: Vec<String>,
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize,Deserialize,Clone)]
 pub(crate) struct CacheConfig {
-    max_cache_number: u16,
-    check_interval: u16,
+    pub(crate) max_cache_number: u16,
+    pub(crate) check_interval: u16,
 }
 
 
