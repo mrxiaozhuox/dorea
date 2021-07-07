@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 use tokio::task;
 
 use crate::config::DoreaFileConfig;
@@ -68,7 +68,7 @@ impl DoreaServer {
         loop {
             
             // wait for client connect.
-            let ( socket, _ ) = match self.server_listener.accept().await {
+            let (mut socket, _ ) = match self.server_listener.accept().await {
                 Ok(value) => value,
                 Err(_) => { continue; },
             };
@@ -81,7 +81,7 @@ impl DoreaServer {
             let current_db = config.database.default_group.to_string();
 
             task::spawn(async move {
-                handle::process(socket, config, current_db).await;
+                let _ = handle::process(&mut socket, config, current_db).await;
             });
 
 
@@ -95,6 +95,9 @@ impl DoreaServer {
 mod server_test {
     #[tokio::test]
     async fn try_to_bind() {
+
+        println!("Docuemnt Path: {:?}",dirs::data_local_dir());
+
         let mut dorea = crate::server::DoreaServer::bind(crate::server::ServerOption {
             hostname: "127.0.0.1",
             port: 3450,

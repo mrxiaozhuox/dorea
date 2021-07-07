@@ -6,6 +6,8 @@ pub mod server;
 
 mod config;
 mod handle;
+mod network;
+mod command;
 
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
