@@ -2,7 +2,7 @@ use bytes::{BufMut,BytesMut};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 
-use crate::{config::DoreaFileConfig};
+use crate::{configuration::DoreaFileConfig};
 use crate::network::{NetPacket, NetPacketState};
 use crate::command::CommandManager;
 use crate::Result;
@@ -38,6 +38,7 @@ pub(crate) async fn process(
     let mut message = BytesMut::with_capacity(2048);
 
     loop {
+
         let size = socket.read(&mut buffer).await?;
         message.put(&buffer[0..size]);
 

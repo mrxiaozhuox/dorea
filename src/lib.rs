@@ -4,7 +4,7 @@ const DOREA_VERSION: &'static str = "0.3.0";
 
 pub mod server;
 
-mod config;
+mod configuration;
 mod handle;
 mod network;
 mod command;

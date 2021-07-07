@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use nom::IResult;
 
-use crate::{config::DoreaFileConfig, network::NetPacketState};
+use crate::{configuration::DoreaFileConfig, network::NetPacketState};
 
 #[allow(dead_code)]
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -82,6 +82,9 @@ impl CommandManager {
             self.meta_value.insert(format!("{:?}", option), option);
             println!("{:?}", self.meta_value);
             return (NetPacketState::EMPTY,vec![]);
+        } else {
+            // reset meta_value: going to a new data.
+            self.meta_value = HashMap::new();
         }
 
         // init command argument information. (MIN, MAX) { if MAX was -1: infinite }
@@ -158,9 +161,21 @@ impl CommandManager {
                 );
 
             } else {
+                
+                return (
+                    NetPacketState::ERR,
+                    "Password input failed".as_bytes().to_vec()
+                );
 
             }
 
+        }
+
+        if command == CommandList::PING {
+            return (
+                NetPacketState::OK,
+                "PONG".as_bytes().to_vec()
+            );
         }
 
 

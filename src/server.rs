@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 use tokio::net::TcpListener;
 use tokio::task;
 
-use crate::config::DoreaFileConfig;
+use crate::configuration::DoreaFileConfig;
 use crate::handle;
 
 pub struct DoreaServer {
@@ -46,7 +46,7 @@ impl DoreaServer {
 
         let addr = format!("{}:{}",options.hostname, options.port);
 
-        let config = crate::config::load_config(&document_path).unwrap();
+        let config = crate::configuration::load_config(&document_path).unwrap();
 
         let listner = match TcpListener::bind(&addr).await {
             Ok(listener) => listener,
@@ -89,22 +89,4 @@ impl DoreaServer {
 
     }
 
-}
-
-#[cfg(test)]
-mod server_test {
-    #[tokio::test]
-    async fn try_to_bind() {
-
-        println!("Docuemnt Path: {:?}",dirs::data_local_dir());
-
-        let mut dorea = crate::server::DoreaServer::bind(crate::server::ServerOption {
-            hostname: "0.0.0.0",
-            port: 3450,
-            document_path: None,
-            quiet_runtime: true,
-        }).await;
-
-        dorea.listen().await;
-    }
 }
