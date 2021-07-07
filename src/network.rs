@@ -1,26 +1,30 @@
-use tokio::net::TcpStream;
-use serde::{Serialize,Deserialize};
+use tokio::{io::AsyncWriteExt, net::TcpStream};
 
-#[derive(Serialize,Deserialize)]
 pub(crate) struct NetPacket {
-    header: usize,
     body: Vec<u8>,
-    current: String,
+    state: NetPacketState 
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum NetPacketState {
+    OK,
+    ERR,
+    EMPTY,
+    NOAUTH,
 }
 
 impl NetPacket {
 
-    pub(crate) fn make(body: Vec<u8>, current: &str) -> Self {
+    pub(crate) fn make(body: Vec<u8>, state: NetPacketState) -> Self {
         Self {
-            header: 0,
             body: body,
-            current: current.to_string()
+            state: state,
         }
     }
 
-    pub(crate) fn send(&self ,socket: &mut TcpStream) -> crate::Result<()> {
+    pub(crate) async fn send(&self ,socket: &mut TcpStream) -> crate::Result<()> {
         
-        println!("struct: {}", self.to_string());
+        socket.write_all(self.to_string().as_bytes()).await?;
 
         Ok(())
     }
@@ -30,13 +34,14 @@ impl std::string::ToString for NetPacket {
 
     fn to_string(&self) -> String {
         
+        let body = format!("{:?}", self.body);
+
         let mut text = String::new();
 
-        text.push_str(format!("Body-Size: {}\r\n",self.header).as_str());
-        text.push_str(format!("Current-Group: {}\r\n",self.current).as_str());
-        text.push_str("\r\n");
-        text.push_str(format!("{:?}", self.body).as_str());
-        
+        text.push_str(format!("Header-State: {:?}\r\n",self.state).as_str());
+        text.push_str(format!("Body-Size: {}\r\n",body.len()).as_str());
+        text.push_str(format!("Body-Content: {}\r\n",body).as_str());
+
         text
     }
 

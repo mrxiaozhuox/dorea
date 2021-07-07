@@ -99,7 +99,7 @@ mod server_test {
         println!("Docuemnt Path: {:?}",dirs::data_local_dir());
 
         let mut dorea = crate::server::DoreaServer::bind(crate::server::ServerOption {
-            hostname: "127.0.0.1",
+            hostname: "0.0.0.0",
             port: 3450,
             document_path: None,
             quiet_runtime: true,

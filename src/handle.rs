@@ -1,11 +1,14 @@
-use std::fs;
-
+use bytes::{BufMut,BytesMut};
+use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 
 use crate::{config::DoreaFileConfig};
-use crate::network::NetPacket;
+use crate::network::{NetPacket, NetPacketState};
+use crate::command::CommandManager;
 use crate::Result;
 
+
+// connection process
 pub(crate) async fn process(
     socket: &mut TcpStream, 
     config: DoreaFileConfig,
@@ -13,21 +16,42 @@ pub(crate) async fn process(
 ) -> Result<()> {
 
     let current = current;
-    let readonly: bool;
+
+    let mut auth = false;
+
+    if config.connection.connection_password == "" {
+        auth = true;
+    }
+
+    let _readonly: bool;
 
     // check readonly state
     if config.database.readonly_group.contains(&current) {
-        readonly = true;
+        _readonly = true;
     } else {
-        readonly = false;
+        _readonly = false;
     }
 
-    if config.connection.connection_password != "" {
+    let mut command_manager = CommandManager::new();
+
+    let mut buffer = [0; 2048];
+    let mut message = BytesMut::with_capacity(2048);
+
+    loop {
+        let size = socket.read(&mut buffer).await?;
+        message.put(&buffer[0..size]);
+
+        let res = command_manager.command_handle(
+            String::from_utf8_lossy(&buffer[0..size]).to_string(),
+            &mut auth,
+            &config,
+        );
+
+        // println!("{:?}", String::from_utf8_lossy(&res.1[..]));
+
+        if res.0 != NetPacketState::EMPTY {
+            NetPacket::make(res.1, res.0).send(socket).await?;
+        }
 
     }
-
-    NetPacket::make(vec![1,2,3,4,5,6], &current).send(socket).unwrap();
-
-
-    Ok(())
 }

@@ -16,6 +16,12 @@ exclude = [
 [dependencies]
 tokio = { version = "1.6.1", features = ['full'] }
 
+# Bytes Tool
+bytes = "1.0.1"
+
+# Parsing Tool
+nom = "6.2.1"
+
 # Lazy Static
 once_cell = "1.8.0"
 
