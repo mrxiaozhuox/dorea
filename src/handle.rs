@@ -1,7 +1,9 @@
 use bytes::{BufMut,BytesMut};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
+use tokio::sync::Mutex;
 
+use crate::database::DataBaseManager;
 use crate::{configuration::DoreaFileConfig};
 use crate::network::{NetPacket, NetPacketState};
 use crate::command::CommandManager;
@@ -13,9 +15,10 @@ pub(crate) async fn process(
     socket: &mut TcpStream, 
     config: DoreaFileConfig,
     current: String,
+    database_manager: &Mutex<DataBaseManager>
 ) -> Result<()> {
 
-    let current = current;
+    let mut current = current;
 
     let mut auth = false;
 
@@ -45,10 +48,10 @@ pub(crate) async fn process(
         let res = command_manager.command_handle(
             String::from_utf8_lossy(&buffer[0..size]).to_string(),
             &mut auth,
+            &mut current,
             &config,
+            database_manager,
         );
-
-        // println!("{:?}", String::from_utf8_lossy(&res.1[..]));
 
         if res.0 != NetPacketState::EMPTY {
             NetPacket::make(res.1, res.0).send(socket).await?;

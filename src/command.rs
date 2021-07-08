@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
+use tokio::sync::Mutex;
 use nom::IResult;
 
-use crate::{configuration::DoreaFileConfig, network::NetPacketState};
+use crate::{configuration::DoreaFileConfig, database::DataBaseManager, network::NetPacketState};
 
 #[allow(dead_code)]
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -71,7 +72,9 @@ impl CommandManager {
         &mut self,
         message: String, 
         auth: &mut bool,
+        _current: &mut str,
         config: &DoreaFileConfig,
+        _database_manager: &Mutex<DataBaseManager>,
     ) -> (NetPacketState, Vec<u8>) {
 
         let message = message.trim().to_string();
@@ -171,13 +174,13 @@ impl CommandManager {
 
         }
 
+        // Ping Pong !!!
         if command == CommandList::PING {
             return (
                 NetPacketState::OK,
                 "PONG".as_bytes().to_vec()
             );
         }
-
 
         // unknown operation.
         return (

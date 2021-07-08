@@ -1,9 +1,12 @@
+use std::sync::Arc;
 use std::{fs, path::PathBuf};
 
 use tokio::net::TcpListener;
+use tokio::sync::Mutex;
 use tokio::task;
 
 use crate::configuration::DoreaFileConfig;
+use crate::database::DataBaseManager;
 use crate::handle;
 
 pub struct DoreaServer {
@@ -12,6 +15,7 @@ pub struct DoreaServer {
     server_config: DoreaFileConfig,
 
     connection_number: u16,
+    db_manager: Arc<Mutex<DataBaseManager>>,
 }
 
 pub struct ServerOption {
@@ -58,13 +62,18 @@ impl DoreaServer {
         Self {
             server_options: options,
             server_listener: listner,
-            server_config: config,
+            server_config: config.clone(),
             connection_number: 0,
+            db_manager: Arc::new(
+                Mutex::new(DataBaseManager::new(
+                    document_path.clone(),
+                ))
+            )
         }
     }
 
     pub async fn listen(&mut self) {
-        
+
         loop {
             
             // wait for client connect.
@@ -80,10 +89,18 @@ impl DoreaServer {
 
             let current_db = config.database.default_group.to_string();
 
-            task::spawn(async move {
-                let _ = handle::process(&mut socket, config, current_db).await;
-            });
+            let current = current_db.clone();
 
+            let db_manager = Arc::clone(&self.db_manager);
+
+            task::spawn(async move {
+                handle::process(
+                    &mut socket, 
+                    config, 
+                    current,
+                    &db_manager
+                ).await.unwrap();
+            });
 
         }
 
