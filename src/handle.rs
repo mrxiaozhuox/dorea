@@ -1,23 +1,19 @@
-use bytes::{BufMut,BytesMut};
-use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 
-use crate::database::DataBaseManager;
-use crate::{configuration::DoreaFileConfig};
-use crate::network::{NetPacket, NetPacketState};
 use crate::command::CommandManager;
+use crate::configuration::DoreaFileConfig;
+use crate::database::DataBaseManager;
+use crate::network::{self, NetPacket, NetPacketState};
 use crate::Result;
-
 
 // connection process
 pub(crate) async fn process(
-    socket: &mut TcpStream, 
+    socket: &mut TcpStream,
     config: DoreaFileConfig,
     current: String,
-    database_manager: &Mutex<DataBaseManager>
+    database_manager: &Mutex<DataBaseManager>,
 ) -> Result<()> {
-
     let mut current = current;
 
     let mut auth = false;
@@ -37,25 +33,26 @@ pub(crate) async fn process(
 
     let mut command_manager = CommandManager::new();
 
-    let mut buffer = [0; 2048];
-    let mut message = BytesMut::with_capacity(2048);
+    let mut message: Vec<u8>;
 
     loop {
+        message = network::parse_frame(socket).await;
 
-        let size = socket.read(&mut buffer).await?;
-        message.put(&buffer[0..size]);
-
-        let res = command_manager.command_handle(
-            String::from_utf8_lossy(&buffer[0..size]).to_string(),
-            &mut auth,
-            &mut current,
-            &config,
-            database_manager,
-        );
+        let res = command_manager
+            .command_handle(
+                String::from_utf8_lossy(&message[..]).to_string(),
+                &mut auth,
+                &mut current,
+                &config,
+                database_manager,
+            )
+            .await;
 
         if res.0 != NetPacketState::EMPTY {
             NetPacket::make(res.1, res.0).send(socket).await?;
+        } else {
+            // if is empty: connection closed
+            return Ok(());
         }
-
     }
 }

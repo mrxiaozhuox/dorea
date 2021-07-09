@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+#[derive(Debug, Clone)]
 pub enum DataValue {
 
     /// None Value
@@ -47,7 +48,7 @@ pub enum DataValue {
     /// ```
     /// DataValue::List(HashMap::new());
     /// ```
-    Dict(HashMap<Vec<u8>, DataValue>),
+    Dict(HashMap<String, DataValue>),
 
     /// Boolean Value
     /// 
@@ -57,4 +58,39 @@ pub enum DataValue {
     Tuple((Box<DataValue>, Box<DataValue>)),
 }
 
-impl DataValue { }
+impl DataValue {
+    pub fn size(&self) -> usize {
+        match self {
+
+            DataValue::None => 0,
+            DataValue::String(str) => str.len(),
+            DataValue::Integer(_) => 8,
+            DataValue::Float(_) => 8,
+            DataValue::Boolean(_) => 1,
+
+            DataValue::List(list) => {
+
+                let mut result = 0;
+
+                for item in list {
+                    result += item.size();
+                }
+
+                result
+            },
+            DataValue::Dict(dict) => {
+
+                let mut result = 0;
+
+                for item in dict {
+                    result += item.1.size();
+                }
+
+                result
+
+            },
+
+            DataValue::Tuple(tuple) => { tuple.0.size() + tuple.1.size() },
+        }
+    }
+}

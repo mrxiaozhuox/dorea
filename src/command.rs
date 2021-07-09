@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use tokio::sync::Mutex;
-use nom::IResult;
 
 use crate::{configuration::DoreaFileConfig, database::DataBaseManager, network::NetPacketState};
 
@@ -53,42 +52,23 @@ impl CommandList {
 }
 
 #[derive(Debug)]
-pub(crate) struct CommandManager {
-    meta_value: HashMap<String, MetaOption>
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum MetaOption {
-    ValueSize(u32),
-    None,
-}
+pub(crate) struct CommandManager { }
 
 impl CommandManager {
 
-    pub(crate) fn new() -> Self { Self { meta_value: HashMap::new() } }
+    pub(crate) fn new() -> Self { Self { } }
 
     #[allow(unused_assignments)]
-    pub(crate) fn command_handle(
+    pub(crate) async fn command_handle(
         &mut self,
         message: String, 
         auth: &mut bool,
         _current: &mut str,
         config: &DoreaFileConfig,
-        _database_manager: &Mutex<DataBaseManager>,
+        database_manager: &Mutex<DataBaseManager>,
     ) -> (NetPacketState, Vec<u8>) {
 
         let message = message.trim().to_string();
-
-        let option = self.meta_option(&message);
-
-        if option != MetaOption::None {
-            self.meta_value.insert(format!("{:?}", option), option);
-            println!("{:?}", self.meta_value);
-            return (NetPacketState::EMPTY,vec![]);
-        } else {
-            // reset meta_value: going to a new data.
-            self.meta_value = HashMap::new();
-        }
 
         // init command argument information. (MIN, MAX) { if MAX was -1: infinite }
         let mut command_argument_info: HashMap<CommandList, (i16, i16)> = HashMap::new();
@@ -116,6 +96,12 @@ impl CommandManager {
         let command = CommandList::new(command_str.to_string());
 
         if command == CommandList::UNKNOWN { 
+            if command_str == "" {
+                return (
+                    NetPacketState::EMPTY,
+                    vec![]
+                );
+            }
             return (
                 NetPacketState::ERR, 
                 format!("Command {} not found.",command_str).as_bytes().to_vec()
@@ -182,25 +168,21 @@ impl CommandManager {
             );
         }
 
+
+        if command == CommandList::SET {
+
+            let key = slice.get(0).unwrap();
+            let value = slice.get(1).unwrap();
+
+            database_manager.lock().await.db_list.contains_key("h");
+        }
+
+
         // unknown operation.
         return (
             NetPacketState::ERR,
             "Unknown operation.".as_bytes().to_vec()
         );
 
-    }
-
-    fn meta_option (&self, message: &str) -> MetaOption {
-
-        let res: IResult<&str, &str> = nom::bytes::complete::tag("Value-Size: ")(message);
-        if res.is_ok() {
-            let parse = res.unwrap();
-            let size = parse.0.parse::<u32>();
-            if size.is_ok() {
-                return MetaOption::ValueSize(size.unwrap());
-            }
-        }
-    
-        return MetaOption::None;
     }
 }
