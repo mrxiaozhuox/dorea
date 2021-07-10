@@ -4,7 +4,7 @@ use tokio::sync::Mutex;
 use crate::command::CommandManager;
 use crate::configuration::DoreaFileConfig;
 use crate::database::DataBaseManager;
-use crate::network::{self, NetPacket, NetPacketState};
+use crate::network::{Frame, NetPacket, NetPacketState};
 use crate::Result;
 
 // connection process
@@ -33,10 +33,24 @@ pub(crate) async fn process(
 
     let mut command_manager = CommandManager::new();
 
+    let mut frame = Frame::new();
+
     let mut message: Vec<u8>;
 
     loop {
-        message = network::parse_frame(socket).await;
+
+        message = match frame.parse_frame(socket).await {
+            Ok(message) => message,
+            Err(e) => { 
+                NetPacket::make(
+                    e.to_string().as_bytes().to_vec(),
+                    NetPacketState::ERR
+                ).send(socket).await?;
+                continue;
+            },
+        };
+
+        if message.len() == 0 { continue; }
 
         let res = command_manager
             .command_handle(
@@ -54,5 +68,6 @@ pub(crate) async fn process(
             // if is empty: connection closed
             return Ok(());
         }
+
     }
 }
