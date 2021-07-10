@@ -1,7 +1,8 @@
 use std::io::{Error, ErrorKind};
 
 use bytes::{BufMut, BytesMut};
-use nom::bytes::complete::{is_a, tag, take_until, take_while1};
+use nom::bytes::complete::{tag, take_until, take_while1};
+use nom::character::complete::alpha1;
 use nom::combinator::map;
 use nom::sequence::delimited;
 use nom::IResult;
@@ -30,6 +31,7 @@ impl NetPacket {
     }
 
     pub(crate) async fn send(&self, socket: &mut TcpStream) -> crate::Result<()> {
+
         socket.write_all(self.to_string().as_bytes()).await?;
 
         Ok(())
@@ -38,13 +40,14 @@ impl NetPacket {
 
 impl std::string::ToString for NetPacket {
     fn to_string(&self) -> String {
-        let body = format!("{:?}", self.body);
+
+        let body = base64::encode(&self.body[..]);
 
         let mut text = String::new();
 
-        text.push_str(format!("$: {} | ", body.as_bytes().len() + 4).as_str());
+        text.push_str(format!("$: {} | ", body.as_bytes().len() + 5).as_str());
         text.push_str(format!("%: {:?} | ", self.state).as_str());
-        text.push_str(format!("#: Byte{};", body).as_str());
+        text.push_str(format!("#: B64'{}';", body).as_str());
 
         text
     }
@@ -55,6 +58,7 @@ pub struct Frame {
 }
 
 impl Frame {
+
     pub fn new() -> Self {
         Self {
             legacy_content: Vec::new(),
@@ -85,14 +89,21 @@ impl Frame {
             &message
         ) {
             Ok((remain, size)) => (remain.to_string(), size),
-            Err(e) => {
+            Err(_) => {
                 return Err(Box::new(Error::new(ErrorKind::NotFound, "size parsing error")));
             }
         };
 
+
+        // parse state
+        let (remain, _state) = match Frame::parse_state(&remain) {
+            Ok(v) => v,
+            Err(_) =>{ (message.as_str(), NetPacketState::EMPTY) }
+        };
+
         let (remain, mut data) = match Frame::parse_content(&remain) {
             Ok((remain, data)) => (remain.to_string(), data.to_string()),
-            Err(e) => {
+            Err(_) => {
                 return Err(Box::new(Error::new(ErrorKind::NotFound, "content parsing error")));
             }
         };
@@ -124,10 +135,24 @@ impl Frame {
             data = data[..data.len() - 1].to_string();
         }
 
+        // unuseful information
+        // println!("{:?}",state);
+
+        // if data was B64: change it.
+        if &data[0..4] == "B64'" && &data[data.len() - 1..] == "'" {
+            let b64 = &data[4..data.len() - 1];
+            data = match base64::decode(b64) {
+                Ok(v) => {
+                    String::from_utf8_lossy(&v[..]).to_string()
+                },
+                Err(_) => { data },
+            };
+        }
+
         Ok(data.as_bytes().to_vec())
     }
 
-    fn parse_size(message: &str) -> IResult<&str, usize> {
+    fn parse_size (message: &str) -> IResult<&str, usize> {
 
         let (mut remain, length): (&str, usize) = delimited(
             tag("$: "),
@@ -142,7 +167,41 @@ impl Frame {
         Ok((remain, length))
     }
 
-    fn parse_content(message: &str) -> IResult<&str, &str> {
+    fn parse_state (message: &str) -> IResult<&str, NetPacketState> {
+
+        let info: IResult<&str, NetPacketState> = delimited(
+            tag("%: "),
+            map(alpha1, |val: &str| {
+                if val.to_uppercase() == "OK" {
+                    return NetPacketState::OK;
+                } else if val.to_uppercase() == "ERR" {
+                    return NetPacketState::ERR;
+                } else if val.to_uppercase() == "NOAUTH" {
+                    return NetPacketState::NOAUTH;
+                }
+                NetPacketState::EMPTY
+            }),
+            take_until(" | "),
+        )(message);
+
+        let (remain, state) = match info {
+            Ok(v) => {
+                let v: (&str, NetPacketState) = v;
+
+                let mut remain = v.0;
+                let state = v.1;
+
+                remain = &remain[3..];
+
+                (remain, state)
+            },
+            Err(_) => (message, NetPacketState::EMPTY)
+        };
+
+        Ok((remain, state))
+    }
+
+    fn parse_content (message: &str) -> IResult<&str, &str> {
 
         let state: IResult<&str, &str> =
             delimited(
@@ -151,7 +210,9 @@ impl Frame {
             take_until(";")
             )(message);
 
-        let (mut remain, mut result): (&str, &str) = ("", "");
+        let mut remain = "";
+        let result;
+
         if state.is_err() {
 
             let (info, _) = tag("#: ")(message)?;
@@ -166,6 +227,3 @@ impl Frame {
         Ok((remain, result))
     }
 }
-
-#[test]
-fn test() {}

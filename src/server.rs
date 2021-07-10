@@ -10,7 +10,7 @@ use crate::database::DataBaseManager;
 use crate::handle;
 
 pub struct DoreaServer {
-    server_options: ServerOption,
+    _server_options: ServerOption,
     server_listener: TcpListener,
     server_config: DoreaFileConfig,
 
@@ -60,7 +60,7 @@ impl DoreaServer {
         };
 
         Self {
-            server_options: options,
+            _server_options: options,
             server_listener: listner,
             server_config: config.clone(),
             connection_number: 0,
@@ -94,16 +94,17 @@ impl DoreaServer {
             let db_manager = Arc::clone(&self.db_manager);
 
             task::spawn(async move {
-                handle::process(
+
+                let _ = handle::process(
                     &mut socket, 
                     config, 
                     current,
                     &db_manager
-                ).await.unwrap();
+                ).await;
+
             });
 
         }
 
     }
-
 }

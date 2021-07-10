@@ -42,6 +42,11 @@ pub(crate) async fn process(
         message = match frame.parse_frame(socket).await {
             Ok(message) => message,
             Err(e) => { 
+
+                if e.to_string() == "Connection reset by peer (os error 54)" {
+                    return Err(e);
+                }
+
                 NetPacket::make(
                     e.to_string().as_bytes().to_vec(),
                     NetPacketState::ERR

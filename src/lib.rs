@@ -13,14 +13,20 @@ const COMPATIBLE_VERSION: Lazy<Vec<&'static str>> = Lazy::new(|| {
     ]
 });
 
+#[cfg(feature = "server")]
 pub mod server;
+
+#[cfg(feature = "parser")]
 pub mod value;
+
+#[cfg(feature = "parser")]
+pub mod network;
 
 mod configuration;
 mod handle;
-mod network;
 mod command;
 mod database;
+mod logger;
 
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
