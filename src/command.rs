@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use tokio::sync::Mutex;
 
-use crate::{configuration::DoreaFileConfig, database::DataBaseManager, network::NetPacketState};
+use crate::{configuration::DoreaFileConfig, database::{DataBase, DataBaseManager}, network::NetPacketState};
 
 #[allow(dead_code)]
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -56,14 +56,11 @@ pub(crate) struct CommandManager { }
 
 impl CommandManager {
 
-    pub(crate) fn new() -> Self { Self { } }
-
     #[allow(unused_assignments)]
     pub(crate) async fn command_handle(
-        &mut self,
         message: String, 
         auth: &mut bool,
-        _current: &mut str,
+        current: &mut str,
         config: &DoreaFileConfig,
         database_manager: &Mutex<DataBaseManager>,
     ) -> (NetPacketState, Vec<u8>) {
@@ -130,6 +127,17 @@ impl CommandManager {
             );
         }
 
+        // check database existed
+        if ! database_manager.lock().await.db_list.contains_key(current) {
+
+            let db = DataBase::init(
+                current.to_string(),
+                database_manager.lock().await.location.clone(),
+                config.cache.max_cache_number as usize
+            );
+
+            database_manager.lock().await.db_list.insert(current.to_string(), db);
+        }
 
         // start to command operation
 
@@ -174,7 +182,19 @@ impl CommandManager {
             let key = slice.get(0).unwrap();
             let value = slice.get(1).unwrap();
 
-            database_manager.lock().await.db_list.contains_key("h");
+            let mut expire = 0_u64;
+
+            if slice.len() == 3 {
+                let temp = slice.get(2).unwrap();
+                expire = match temp.parse::<u64>() {
+                    Ok(v) => v,
+                    Err(_) => 0
+                }
+            }
+
+            let db = database_manager.lock().await.db_list.get_mut(current).unwrap();
+
+            // db.set(key.to_string(), valu, expire);
         }
 
 

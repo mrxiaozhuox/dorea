@@ -1,57 +1,61 @@
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
-pub enum DataValue {
+use nom::{
+    branch::alt,
+    bytes::complete::{escaped, tag, tag_no_case, take_till1, take_while_m_n},
+    character::complete::multispace0,
+    combinator::{map, peek, value as n_value},
+    error::context,
+    multi::separated_list0,
+    number::complete::double,
+    sequence::{delimited, preceded, separated_pair},
+    IResult,
+};
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum DataValue {
     /// None Value
-    /// 
+    ///
     /// Just use for deserialize.
     None,
 
     /// String Value
-    /// 
+    ///
     /// ```
     /// DataValue::String("hello world".to_string());
     /// ```
     String(String),
 
-    /// Integer Value
-    /// 
+    /// Number Value
+    ///
     /// ```
-    /// DataValue::Integer(10_i64);
+    /// DataValue::Number(10_f64);
     /// ```
-    Integer(i64),
-
-    /// Float Value
-    /// 
-    /// ```
-    /// DataValue::Integer(3.14_f64);
-    /// ```
-    Float(f64),
+    Number(f64),
 
     /// Boolean Value
-    /// 
+    ///
     /// ```
     /// DataValue::Boolean(true);
     /// ```
     Boolean(bool),
 
-    /// Boolean Value
-    /// 
+    /// List Value
+    ///
     /// ```
     /// DataValue::List(vec![DataValue::Integer(1), DataValue::Integer(2), DataValue::Integer(3)]);
     /// ```
     List(Vec<DataValue>),
 
-    /// Boolean Value
-    /// 
+    /// Dict Value
+    ///
     /// ```
     /// DataValue::List(HashMap::new());
     /// ```
     Dict(HashMap<String, DataValue>),
 
-    /// Boolean Value
-    /// 
+    /// Tuple Value
+    ///
     /// ```
     /// DataValue::Tuple((DataValue::Boolean(true), DataValue::Boolean(false)));
     /// ```
@@ -59,17 +63,21 @@ pub enum DataValue {
 }
 
 impl DataValue {
+    pub fn from(data: String) -> Self {
+        match ValueParser::parse(&data) {
+            Ok((_, v)) => v,
+            Err(_) => Self::None,
+        }
+    }
+
     pub fn size(&self) -> usize {
         match self {
-
             DataValue::None => 0,
             DataValue::String(str) => str.len(),
-            DataValue::Integer(_) => 8,
-            DataValue::Float(_) => 8,
+            DataValue::Number(_) => 8,
             DataValue::Boolean(_) => 1,
 
             DataValue::List(list) => {
-
                 let mut result = 0;
 
                 for item in list {
@@ -77,9 +85,8 @@ impl DataValue {
                 }
 
                 result
-            },
+            }
             DataValue::Dict(dict) => {
-
                 let mut result = 0;
 
                 for item in dict {
@@ -87,10 +94,151 @@ impl DataValue {
                 }
 
                 result
+            }
 
-            },
-
-            DataValue::Tuple(tuple) => { tuple.0.size() + tuple.1.size() },
+            DataValue::Tuple(tuple) => tuple.0.size() + tuple.1.size(),
         }
+    }
+}
+
+struct ValueParser {}
+impl ValueParser {
+    fn normal(message: &str) -> IResult<&str, &str> {
+        take_till1(|c: char| c == '\\' || c == '"' || c.is_ascii_control())(message)
+    }
+
+    fn escapable(i: &str) -> IResult<&str, &str> {
+        context(
+            "escaped",
+            alt((
+                tag("\""),
+                tag("\\"),
+                tag("/"),
+                tag("b"),
+                tag("f"),
+                tag("n"),
+                tag("r"),
+                tag("t"),
+                ValueParser::parse_hex,
+            )),
+        )(i)
+    }
+
+    fn string_format(message: &str) -> IResult<&str, &str> {
+        escaped(ValueParser::normal, '\\', ValueParser::escapable)(message)
+    }
+
+    fn parse_hex(message: &str) -> IResult<&str, &str> {
+        context(
+            "hex string",
+            preceded(
+                peek(tag("u")),
+                take_while_m_n(5, 5, |c: char| c.is_ascii_hexdigit() || c == 'u'),
+            ),
+        )(message)
+    }
+
+    fn parse_string(message: &str) -> IResult<&str, &str> {
+        context(
+            "string",
+            alt((
+                tag("\"\""),
+                delimited(tag("\""), ValueParser::string_format, tag("\"")),
+            )),
+        )(message)
+    }
+
+    fn parse_number(message: &str) -> IResult<&str, f64> {
+        double(message)
+    }
+
+    fn parse_boolean(message: &str) -> IResult<&str, bool> {
+        let parse_true = n_value(true, tag_no_case("true"));
+        let parse_false = n_value(false, tag_no_case("false"));
+        alt((parse_true, parse_false))(message)
+    }
+
+    fn parse_list(message: &str) -> IResult<&str, Vec<DataValue>> {
+        context(
+            "list",
+            delimited(
+                tag("["),
+                separated_list0(
+                    tag(","),
+                    delimited(multispace0, ValueParser::parse, multispace0),
+                ),
+                tag("]"),
+            ),
+        )(message)
+    }
+
+    fn parse_dict(message: &str) -> IResult<&str, HashMap<String, DataValue>> {
+        context(
+            "object",
+            delimited(
+                tag("{"),
+                map(
+                    separated_list0(
+                        tag(","),
+                        separated_pair(
+                            delimited(multispace0, ValueParser::parse_string, multispace0),
+                            tag(":"),
+                            delimited(multispace0, ValueParser::parse, multispace0),
+                        ),
+                    ),
+                    |tuple_vec: Vec<(&str, DataValue)>| {
+                        tuple_vec
+                            .into_iter()
+                            .map(|(k, v)| (String::from(k), v))
+                            .collect()
+                    },
+                ),
+                tag("}"),
+            ),
+        )(message)
+    }
+
+    fn parse(message: &str) -> IResult<&str, DataValue> {
+        context(
+            "value",
+            delimited(
+                multispace0,
+                alt((
+                    map(ValueParser::parse_number, DataValue::Number),
+                    map(ValueParser::parse_boolean, DataValue::Boolean),
+                    map(ValueParser::parse_string, |s| {
+                        DataValue::String(String::from(s))
+                    }),
+                    map(ValueParser::parse_list, DataValue::List),
+                    map(ValueParser::parse_dict, DataValue::Dict),
+                )),
+                multispace0,
+            ),
+        )(message)
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use crate::value::{DataValue, ValueParser};
+
+    #[test]
+    fn test() {
+        let value = "[1, 2, 3, 4, 5, 6]";
+        assert_eq!(
+            ValueParser::parse(value),
+            Ok((
+                "",
+                DataValue::List(vec![
+                    DataValue::Number(1_f64),
+                    DataValue::Number(2_f64),
+                    DataValue::Number(3_f64),
+                    DataValue::Number(4_f64),
+                    DataValue::Number(5_f64),
+                    DataValue::Number(6_f64),
+                ])
+            ))
+        );
     }
 }

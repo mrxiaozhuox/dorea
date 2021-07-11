@@ -16,10 +16,10 @@ const COMPATIBLE_VERSION: Lazy<Vec<&'static str>> = Lazy::new(|| {
 #[cfg(feature = "server")]
 pub mod server;
 
-#[cfg(feature = "parser")]
+#[cfg(feature = "processor")]
 pub mod value;
 
-#[cfg(feature = "parser")]
+#[cfg(feature = "processor")]
 pub mod network;
 
 mod configuration;

@@ -14,6 +14,7 @@ pub(crate) async fn process(
     current: String,
     database_manager: &Mutex<DataBaseManager>,
 ) -> Result<()> {
+
     let mut current = current;
 
     let mut auth = false;
@@ -30,8 +31,6 @@ pub(crate) async fn process(
     } else {
         _readonly = false;
     }
-
-    let mut command_manager = CommandManager::new();
 
     let mut frame = Frame::new();
 
@@ -57,8 +56,8 @@ pub(crate) async fn process(
 
         if message.len() == 0 { continue; }
 
-        let res = command_manager
-            .command_handle(
+        let res = CommandManager
+            ::command_handle(
                 String::from_utf8_lossy(&message[..]).to_string(),
                 &mut auth,
                 &mut current,

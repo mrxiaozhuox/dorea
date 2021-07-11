@@ -16,13 +16,13 @@ exclude = [
 [features]
 
 # default features: all feature.
-default = ["server", "parser"]
+default = ["server"]
 
 # server features: just run for server.
-server = ["parser"]
+server = ["processor"]
 
-# parser feature: include [value, network] to io data and fmt it.
-parser = []
+# processor feature: include [value, network] to io data and fmt it.
+processor = []
 
 [dependencies]
 tokio = { version = "1.6.1", features = ['full'] }

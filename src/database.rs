@@ -11,16 +11,21 @@ use crate::value::DataValue;
 #[derive(Debug)]
 pub(crate) struct DataBaseManager {
     pub(crate) db_list: HashMap<String,DataBase>,
-    location: PathBuf,
+    pub(crate) location: PathBuf,
     config: DoreaFileConfig
 }
 
 #[derive(Debug)]
 pub struct DataBase {
     name: String,
-    data: LruCache<String, DataNode>,
+    data: LruCache<String, IndexInfo>,
     timestamp: i64,
     location: PathBuf,
+}
+
+#[derive(Debug)]
+pub struct IndexInfo {
+    line: usize,
 }
 
 #[derive(Debug)]
@@ -72,7 +77,7 @@ impl DataBase {
     }
 
 
-    pub fn set(key: String, value: DataValue, expire: u64) {
+    pub fn set(&self, key: String, value: DataValue, expire: u64) {
 
         let value_size = value.size();
 
