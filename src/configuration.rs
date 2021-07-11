@@ -26,7 +26,7 @@ pub(crate) struct DataBaseConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct CacheConfig {
-    pub(crate) max_cache_number: u16,
+    pub(crate) index_cache_size: u16,
     pub(crate) check_interval: u16,
 }
 
@@ -63,8 +63,8 @@ fn init_config (path: PathBuf) -> Result<()> {
         },
 
         cache: CacheConfig {
-            max_cache_number: 256,
-            check_interval: 10 * 1000,
+            index_cache_size: 128,
+            check_interval: (10 * 1000),
         },
 
     };

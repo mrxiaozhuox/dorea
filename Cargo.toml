@@ -41,6 +41,7 @@ once_cell = "1.8.0"
 
 # Directory Manager
 dirs = "3.0.2"
+walkdir = "2.3.2"
 
 # Time Manager
 chrono = "0.4.19"

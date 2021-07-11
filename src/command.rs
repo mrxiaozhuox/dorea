@@ -2,7 +2,12 @@ use std::collections::HashMap;
 
 use tokio::sync::Mutex;
 
-use crate::{configuration::DoreaFileConfig, database::{DataBase, DataBaseManager}, network::NetPacketState};
+use crate::{
+    configuration::DoreaFileConfig,
+    database::{DataBase, DataBaseManager},
+    network::NetPacketState,
+    value::DataValue,
+};
 
 #[allow(dead_code)]
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -24,15 +29,14 @@ pub enum CommandList {
 }
 
 impl std::string::ToString for CommandList {
-    fn to_string (&self) -> String {
+    fn to_string(&self) -> String {
         return format!("{:?}", self);
     }
 }
 
-impl CommandList { 
-    pub fn new (message: String) -> Self {
+impl CommandList {
+    pub fn new(message: String) -> Self {
         match message.to_uppercase().as_str() {
-
             "GET" => Self::GET,
             "SET" => Self::SET,
             "DELETE" => Self::DELETE,
@@ -52,36 +56,34 @@ impl CommandList {
 }
 
 #[derive(Debug)]
-pub(crate) struct CommandManager { }
+pub(crate) struct CommandManager {}
 
 impl CommandManager {
-
     #[allow(unused_assignments)]
     pub(crate) async fn command_handle(
-        message: String, 
+        message: String,
         auth: &mut bool,
         current: &mut str,
         config: &DoreaFileConfig,
         database_manager: &Mutex<DataBaseManager>,
     ) -> (NetPacketState, Vec<u8>) {
-
         let message = message.trim().to_string();
 
         // init command argument information. (MIN, MAX) { if MAX was -1: infinite }
         let mut command_argument_info: HashMap<CommandList, (i16, i16)> = HashMap::new();
 
-        command_argument_info.insert(CommandList::GET, (1,1));
-        command_argument_info.insert(CommandList::SET, (2,3));
-        command_argument_info.insert(CommandList::DELETE, (1,1));
-        command_argument_info.insert(CommandList::CLEAN, (0,1));
-        command_argument_info.insert(CommandList::SELECT, (1,1));
-        command_argument_info.insert(CommandList::SEARCH, (1,-1));
-        command_argument_info.insert(CommandList::INFO, (1,3));
-        command_argument_info.insert(CommandList::EDIT, (1,3));
-        command_argument_info.insert(CommandList::PING, (0,0));
-        command_argument_info.insert(CommandList::ECHO, (1,-1));
-        command_argument_info.insert(CommandList::EVAL, (1,-1));
-        command_argument_info.insert(CommandList::AUTH, (1,1));
+        command_argument_info.insert(CommandList::GET, (1, 1));
+        command_argument_info.insert(CommandList::SET, (2, 3));
+        command_argument_info.insert(CommandList::DELETE, (1, 1));
+        command_argument_info.insert(CommandList::CLEAN, (0, 1));
+        command_argument_info.insert(CommandList::SELECT, (1, 1));
+        command_argument_info.insert(CommandList::SEARCH, (1, -1));
+        command_argument_info.insert(CommandList::INFO, (1, 3));
+        command_argument_info.insert(CommandList::EDIT, (1, 3));
+        command_argument_info.insert(CommandList::PING, (0, 0));
+        command_argument_info.insert(CommandList::ECHO, (1, -1));
+        command_argument_info.insert(CommandList::EVAL, (1, -1));
+        command_argument_info.insert(CommandList::AUTH, (1, 1));
 
         let mut slice: Vec<&str> = message.split(" ").collect();
 
@@ -92,21 +94,23 @@ impl CommandManager {
 
         let command = CommandList::new(command_str.to_string());
 
-        if command == CommandList::UNKNOWN { 
+        if command == CommandList::UNKNOWN {
             if command_str == "" {
-                return (
-                    NetPacketState::EMPTY,
-                    vec![]
-                );
+                return (NetPacketState::EMPTY, vec![]);
             }
             return (
-                NetPacketState::ERR, 
-                format!("Command {} not found.",command_str).as_bytes().to_vec()
+                NetPacketState::ERR,
+                format!("Command {} not found.", command_str)
+                    .as_bytes()
+                    .to_vec(),
             );
         }
 
         if !auth.clone() && command != CommandList::AUTH {
-            return (NetPacketState::NOAUTH,"Authentication failed.".as_bytes().to_vec());
+            return (
+                NetPacketState::NOAUTH,
+                "Authentication failed.".as_bytes().to_vec(),
+            );
         }
 
         let range = command_argument_info.get(&command).unwrap();
@@ -116,71 +120,62 @@ impl CommandManager {
         if (slice.len() as i16) < range.0 {
             return (
                 NetPacketState::ERR,
-                "Missing command parameters.".as_bytes().to_vec()
+                "Missing command parameters.".as_bytes().to_vec(),
             );
         }
 
         if (slice.len() as i16) > range.1 && range.1 != -1 {
             return (
                 NetPacketState::ERR,
-                "Exceeding parameter limits.".as_bytes().to_vec()
+                "Exceeding parameter limits.".as_bytes().to_vec(),
             );
         }
 
         // check database existed
-        if ! database_manager.lock().await.db_list.contains_key(current) {
-
+        if !database_manager.lock().await.db_list.contains_key(current) {
             let db = DataBase::init(
                 current.to_string(),
                 database_manager.lock().await.location.clone(),
-                config.cache.max_cache_number as usize
+                config.cache.index_cache_size as usize,
             );
 
-            database_manager.lock().await.db_list.insert(current.to_string(), db);
+            database_manager
+                .lock()
+                .await
+                .db_list
+                .insert(current.to_string(), db);
         }
 
         // start to command operation
 
         // log in to dorea db [AUTH]
         if command == CommandList::AUTH {
-
-            let input_password =  slice.get(0).unwrap();
+            let input_password = slice.get(0).unwrap();
 
             let local_password = &config.connection.connection_password;
 
             if input_password == local_password {
-                
                 *auth = true;
 
-                return (
-                    NetPacketState::OK,
-                    vec![]
-                );
-
+                return (NetPacketState::OK, vec![]);
             } else {
-                
                 return (
                     NetPacketState::ERR,
-                    "Password input failed".as_bytes().to_vec()
+                    "Password input failed".as_bytes().to_vec(),
                 );
-
             }
-
         }
 
         // Ping Pong !!!
         if command == CommandList::PING {
-            return (
-                NetPacketState::OK,
-                "PONG".as_bytes().to_vec()
-            );
+            return (NetPacketState::OK, "PONG".as_bytes().to_vec());
         }
 
-
         if command == CommandList::SET {
-
             let key = slice.get(0).unwrap();
             let value = slice.get(1).unwrap();
+
+            let data_value = DataValue::from(value);
 
             let mut expire = 0_u64;
 
@@ -188,21 +183,23 @@ impl CommandManager {
                 let temp = slice.get(2).unwrap();
                 expire = match temp.parse::<u64>() {
                     Ok(v) => v,
-                    Err(_) => 0
+                    Err(_) => 0,
                 }
             }
 
-            let db = database_manager.lock().await.db_list.get_mut(current).unwrap();
-
-            // db.set(key.to_string(), valu, expire);
+            database_manager
+                .lock()
+                .await
+                .db_list
+                .get_mut(current)
+                .unwrap()
+                .set(key.to_string(), data_value, expire);
         }
-
 
         // unknown operation.
         return (
             NetPacketState::ERR,
-            "Unknown operation.".as_bytes().to_vec()
+            "Unknown operation.".as_bytes().to_vec(),
         );
-
     }
 }

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
 
 use nom::{
     branch::alt,
@@ -12,7 +13,7 @@ use nom::{
     IResult,
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum DataValue {
     /// None Value
     ///
@@ -63,8 +64,8 @@ pub enum DataValue {
 }
 
 impl DataValue {
-    pub fn from(data: String) -> Self {
-        match ValueParser::parse(&data) {
+    pub fn from(data: &str) -> Self {
+        match ValueParser::parse(data) {
             Ok((_, v)) => v,
             Err(_) => Self::None,
         }
