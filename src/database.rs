@@ -81,11 +81,7 @@ impl DataBase {
             expire: expire,
         };
 
-        let index = self.file.write(data_node);
-
-
-        // save into cache lru
-        self.cache.put(key.clone(), index);
+        self.file.write(data_node,&mut self.cache);
     }
 }
 
@@ -181,7 +177,7 @@ impl DataFile {
         result
     }
 
-    pub fn write(&self, data: DataNode) -> IndexInfo {
+    pub fn write(&self, data: DataNode, lru: &mut LruCache<String, IndexInfo>) -> () {
         
         let _ = self.checkfile().unwrap();
 
@@ -230,7 +226,8 @@ impl DataFile {
 
         fs::write(index_path, temp.as_bytes()).unwrap();
 
-        index_info
+        // save into cache lru
+        lru.put(data.key.clone(), index_info);
     }
 
     pub fn checkfile(&self) -> crate::Result<()> {
@@ -279,9 +276,6 @@ impl DataFile {
     }
 
     fn get_file_id(&self) -> u32 {
-
-        let file = self.root.join("active.db");
-
 
         let mut count: u32 = 0;
 
