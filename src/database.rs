@@ -83,8 +83,12 @@ impl DataBase {
         self.file.write(data_node, &mut self.cache)
     }
 
-    pub fn get(&mut self, key: String) -> Option<DataNode> {
-        self.file.read(key, &mut self.cache)
+    pub fn get(&mut self, key: String) -> Option<DataValue> {
+        let res = self.file.read(key, &mut self.cache);
+        match res {
+            Some(d) => Some(d.value),
+            None => None,
+        }
     }
 
 }

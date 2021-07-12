@@ -251,7 +251,7 @@ impl ValueParser {
         )(message)
     }
 
-    fn parse_tuple(mesaage: &str) ->  {}
+    // fn parse_tuple(mesaage: &str) ->  {}
 
     fn parse(message: &str) -> IResult<&str, DataValue> {
         context(

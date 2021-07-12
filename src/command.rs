@@ -224,7 +224,7 @@ impl CommandManager {
                 Some(v) => {
                     return (
                         NetPacketState::OK,
-                        format!("{:?}",v).as_bytes().to_vec()
+                        v.to_string().as_bytes().to_vec()
                     );
                 },
                 None => {
