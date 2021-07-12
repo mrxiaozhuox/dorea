@@ -61,9 +61,16 @@ pub enum DataValue {
     /// DataValue::Tuple((DataValue::Boolean(true), DataValue::Boolean(false)));
     /// ```
     Tuple((Box<DataValue>, Box<DataValue>)),
+
+
+    /// Undefined Value
+    /// 
+    /// just use for data remove
+    Undefined,
 }
 
 impl DataValue {
+    
     pub fn from(data: &str) -> Self {
         match ValueParser::parse(data) {
             Ok((_, v)) => v,
@@ -98,6 +105,8 @@ impl DataValue {
             }
 
             DataValue::Tuple(tuple) => tuple.0.size() + tuple.1.size(),
+            
+            DataValue::Undefined => 0,
         }
     }
 }

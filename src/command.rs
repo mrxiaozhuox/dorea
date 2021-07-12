@@ -187,13 +187,53 @@ impl CommandManager {
                 }
             }
 
-            database_manager
+            let result = database_manager
                 .lock()
                 .await
                 .db_list
                 .get_mut(current)
                 .unwrap()
                 .set(key.to_string(), data_value, expire);
+
+            match result {
+                Ok(_) => {
+                    return (NetPacketState::OK, vec![]);
+                }
+                Err(_) => {
+                    return (
+                        NetPacketState::ERR,
+                        "Storage server error.".as_bytes().to_vec(),
+                    );
+                }
+            }
+        }
+
+        if command == CommandList::GET {
+            let key = slice.get(0).unwrap();
+
+            let result = database_manager
+                .lock()
+                .await
+                .db_list
+                .get_mut(current)
+                .unwrap()
+                .get(key.to_string());
+
+
+            match result {
+                Some(v) => {
+                    return (
+                        NetPacketState::OK,
+                        format!("{:?}",v).as_bytes().to_vec()
+                    );
+                },
+                None => {
+                    return (
+                        NetPacketState::ERR,
+                        "Data Not Found".as_bytes().to_vec()
+                    );
+                }
+            }
         }
 
         // unknown operation.

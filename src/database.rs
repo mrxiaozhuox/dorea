@@ -1,22 +1,23 @@
-use std::io::{BufRead, BufReader, Error, ErrorKind, Write};
-use std::{collections::HashMap, path::PathBuf};
-use std::fs::{self, rename};
 use std::fs::OpenOptions;
+use std::fs::{self, rename};
+use std::io::{BufRead, BufReader, Error, ErrorKind, Read, Seek, SeekFrom, Write};
+use std::{collections::HashMap, path::PathBuf};
 
-use serde::{Serialize, Deserialize};
+use nom::AsBytes;
+use serde::{Deserialize, Serialize};
 
 use bytes::{BufMut, BytesMut};
 use lru::LruCache;
-use serde_json::value::Index;
 
+use crate::Result;
 use crate::configuration::{self, DoreaFileConfig};
 use crate::value::DataValue;
 
 #[derive(Debug)]
 pub(crate) struct DataBaseManager {
-    pub(crate) db_list: HashMap<String,DataBase>,
+    pub(crate) db_list: HashMap<String, DataBase>,
     pub(crate) location: PathBuf,
-    config: DoreaFileConfig
+    config: DoreaFileConfig,
 }
 
 #[derive(Debug)]
@@ -37,17 +38,19 @@ pub struct DataNode {
 
 impl DataBaseManager {
     pub fn new(location: PathBuf) -> Self {
-
         let config = configuration::load_config(&location).unwrap();
 
         let mut db_list = HashMap::new();
 
-        db_list.insert(config.database.default_group.clone(), DataBase::init(
+        db_list.insert(
             config.database.default_group.clone(),
-            location.clone(),
-            config.cache.index_cache_size.into()
-        ));
-        
+            DataBase::init(
+                config.database.default_group.clone(),
+                location.clone(),
+                config.cache.index_cache_size.into(),
+            ),
+        );
+
         Self {
             db_list: db_list,
             location: location.clone(),
@@ -58,9 +61,7 @@ impl DataBaseManager {
 
 #[allow(dead_code)]
 impl DataBase {
-
     pub fn init(name: String, location: PathBuf, cache_size: usize) -> Self {
-
         let location = location.join(&name);
 
         Self {
@@ -70,20 +71,22 @@ impl DataBase {
             file: DataFile::new(&location, name.clone()),
             location: location,
         }
-
     }
 
-
-    pub fn set(&mut self, key: String, value: DataValue, expire: u64) {
-
+    pub fn set(&mut self, key: String, value: DataValue, expire: u64) -> Result<()> {
         let data_node = DataNode {
             key: key.clone(),
             value: value.clone(),
             expire: expire,
         };
 
-        self.file.write(data_node,&mut self.cache);
+        self.file.write(data_node, &mut self.cache)
     }
+
+    pub fn get(&mut self, key: String) -> Option<DataNode> {
+        self.file.read(key, &mut self.cache)
+    }
+
 }
 
 #[derive(Debug)]
@@ -93,7 +96,6 @@ struct DataFile {
 }
 
 impl DataFile {
-
     pub fn new(root: &PathBuf, name: String) -> Self {
         let mut db = Self {
             root: root.clone(),
@@ -109,27 +111,27 @@ impl DataFile {
 
     fn init_db(&mut self) -> crate::Result<()> {
 
-        if ! self.root.is_dir() {
+        if !self.root.is_dir() {
             match fs::create_dir_all(&self.root) {
-                Ok(_) => { /* continue */ },
-                Err(e) => {return Err(Box::new(e)); },
+                Ok(_) => { /* continue */ }
+                Err(e) => {
+                    return Err(Box::new(e));
+                }
             }
         }
-
 
         let save_file = self.root.join("active.db");
 
         // make data storage file
-        if ! save_file.is_file() {
+        if !save_file.is_file() {
             let mut content = BytesMut::new();
 
             let header_info = format!("Dorea::{} {}\r\n", self.name, crate::DOREA_VERSION);
-    
-            content.put(header_info.as_bytes());
-    
-            fs::write(save_file, content)?;    
-        }
 
+            content.put(header_info.as_bytes());
+
+            fs::write(save_file, content)?;
+        }
 
         let index_dir = self.root.join("index.pos");
 
@@ -138,23 +140,21 @@ impl DataFile {
             fs::create_dir_all(index_dir)?;
         }
 
-
         Ok(())
     }
 
-    fn check_db (&self) -> crate::Result<()> {
-
+    fn check_db(&self) -> crate::Result<()> {
         let mut result: crate::Result<()> = Ok(());
 
         // error: not found
-        if ! self.root.is_dir() {
+        if !self.root.is_dir() {
             result = Err(Box::new(Error::from(ErrorKind::NotFound)));
         }
 
         let save_file = self.root.join("active.db");
         let index_dir = self.root.join("index.pos");
 
-        if ! save_file.is_file() || ! index_dir.is_dir() {
+        if !save_file.is_file() || !index_dir.is_dir() {
             result = Err(Box::new(Error::from(ErrorKind::NotFound)));
         }
 
@@ -162,15 +162,16 @@ impl DataFile {
         let mut fin = BufReader::new(file);
         let mut line = String::new();
         fin.read_line(&mut line)?;
-        
+
         let item: Vec<&str> = line.split(" ").collect();
 
         if item.len() < 2 {
             result = Err(Box::new(Error::from(ErrorKind::NotFound)));
         }
 
+
         // the dorea data was unsupported.
-        if ! crate::COMPATIBLE_VERSION.contains(item.get(1).unwrap()) {
+        if !crate::COMPATIBLE_VERSION.contains(&item.get(1).unwrap().trim()) {
             fs::remove_dir_all(&self.root).unwrap();
             result = Err(Box::new(Error::from(ErrorKind::Unsupported)));
         }
@@ -178,21 +179,20 @@ impl DataFile {
         result
     }
 
-    pub fn write(&self, data: DataNode, lru: &mut LruCache<String, IndexInfo>) -> () {
-        
+    pub fn write(&self, data: DataNode, lru: &mut LruCache<String, IndexInfo>) -> Result<()> {
         let _ = self.checkfile().unwrap();
 
         let file = self.root.join("active.db");
 
         let v = bincode::serialize(&data).expect("serialize failed");
 
-        let mut f = OpenOptions::new().append(true).open(file).unwrap();
+        let mut f = OpenOptions::new().append(true).open(file)?;
 
-        let start_postion = f.metadata().unwrap().len();
+        let start_postion = f.metadata()?.len();
 
         f.write_all(&v[..]).expect("write error");
 
-        let end_postion = f.metadata().unwrap().len();
+        let end_postion = f.metadata()?.len();
 
         let index_info = IndexInfo {
             file_id: self.get_file_id(),
@@ -207,7 +207,6 @@ impl DataFile {
 
         for char in data.key.chars() {
             if index_count >= data.key.len() {
-
                 index_name = char.to_string();
                 break;
             }
@@ -217,64 +216,97 @@ impl DataFile {
             index_count += 1;
         }
 
-        if ! index_path.is_dir() {
+        if !index_path.is_dir() {
             fs::create_dir_all(&index_path).unwrap();
         }
 
         let index_path = index_path.join(&index_name);
 
-        let temp = serde_json::to_string(&index_info).unwrap();
+        let temp = serde_json::to_string(&index_info)?;
 
         fs::write(index_path, temp.as_bytes()).unwrap();
 
         // save into cache lru
         lru.put(data.key.clone(), index_info);
+
+        Ok(())
     }
 
     pub fn read(&self, key: String, lru: &mut LruCache<String, IndexInfo>) -> Option<DataNode> {
-        
+
         let index_info: IndexInfo;
 
         if lru.contains(&key) {
-
             index_info = lru.get(&key).unwrap().clone();
-            
         } else {
             let mut path = self.root.join("index.pos");
             for char in key.chars() {
                 path = path.join(char.to_string())
             }
 
-            if ! path.is_file() {
+            println!("{:?}",path);
+
+            if !path.is_file() {
                 return None;
             }
 
             let data = match fs::read_to_string(path) {
                 Ok(data) => data,
-                Err(_) => { return None; }
+                Err(_) => {
+                    return None;
+                }
             };
 
             index_info = match serde_json::from_str::<IndexInfo>(&data) {
                 Ok(v) => v,
-                Err(_) => { return None; }
+                Err(_) => {
+                    return None;
+                }
             };
         }
 
-        todo!()
+        let data_file: PathBuf;
+        if index_info.file_id == self.get_file_id() {
+            data_file = self.root.join("active.db");
+        } else {
+            data_file = self.root.join(format!("archive-{}.db", index_info.file_id));
+        }
+
+        if !data_file.is_file() {
+            return None;
+        }
+
+        let mut file = fs::File::open(data_file).unwrap();
+
+        file.seek(SeekFrom::Start(index_info.start_postion)).unwrap();
+
+        let mut buf: Vec<u8> = Vec::with_capacity((
+            index_info.end_postion - index_info.start_postion
+        ) as usize);
+
+        buf.resize((index_info.end_postion - index_info.start_postion) as usize, 0);
+
+        let len = file.read(&mut buf).unwrap();
+
+        let v= match bincode::deserialize::<DataNode>(&buf[0..len].as_bytes()) {
+            Ok(v) => v,
+            Err(_) => { return None; }
+        };
+
+        Some(v)
     }
 
     pub fn checkfile(&self) -> crate::Result<()> {
-            
         let file = self.root.join("active.db");
 
-        if ! file.is_file() {
+        if !file.is_file() {
             let mut content = BytesMut::new();
 
             let header_info = format!("Dorea::{} {}\r\n", self.name, crate::DOREA_VERSION);
-    
+
             content.put(header_info.as_bytes());
-    
-            fs::write(&file, content)?; 
+
+            fs::write(&file, content)?;
         }
 
         let size = file.metadata()?.len();
@@ -287,13 +319,11 @@ impl DataFile {
     }
 
     fn archive(&self) -> crate::Result<()> {
-
         let file = self.root.join("active.db");
 
         let count = self.get_file_id();
 
-        rename(&file, self.root.join(format!("archive-{}.db",count + 1)))?;
-
+        rename(&file, self.root.join(format!("archive-{}.db", count + 1)))?;
 
         // remake active file
         let mut content = BytesMut::new();
@@ -302,23 +332,25 @@ impl DataFile {
 
         content.put(header_info.as_bytes());
 
-        fs::write(&file, content)?;    
-
+        fs::write(&file, content)?;
 
         Ok(())
     }
 
     fn get_file_id(&self) -> u32 {
-
         let mut count: u32 = 0;
 
-        for entry in walkdir::WalkDir::new(&self.root).into_iter().filter_map(|e| e.ok()) {
+        for entry in walkdir::WalkDir::new(&self.root)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
             if entry.path().is_file() {
-                let info: nom::IResult<&str, &str> = nom::sequence::delimited(
-                    nom::bytes::complete::tag("archive-"), 
-                    nom::character::complete::digit1,
-                    nom::bytes::complete::tag(".db")
-                )(entry.path().file_name().unwrap().to_str().unwrap());
+                let info: nom::IResult<&str, &str> =
+                    nom::sequence::delimited(
+                        nom::bytes::complete::tag("archive-"),
+                        nom::character::complete::digit1,
+                        nom::bytes::complete::tag(".db"),
+                    )(entry.path().file_name().unwrap().to_str().unwrap());
 
                 if info.is_ok() && info.unwrap().0 == "" {
                     count += 1;
@@ -327,9 +359,7 @@ impl DataFile {
         }
 
         count
-
     }
-
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
