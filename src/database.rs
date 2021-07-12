@@ -7,6 +7,7 @@ use serde::{Serialize, Deserialize};
 
 use bytes::{BufMut, BytesMut};
 use lru::LruCache;
+use serde_json::value::Index;
 
 use crate::configuration::{self, DoreaFileConfig};
 use crate::value::DataValue;
@@ -230,6 +231,38 @@ impl DataFile {
         lru.put(data.key.clone(), index_info);
     }
 
+    pub fn read(&self, key: String, lru: &mut LruCache<String, IndexInfo>) -> Option<DataNode> {
+        
+        let index_info: IndexInfo;
+
+        if lru.contains(&key) {
+
+            index_info = lru.get(&key).unwrap().clone();
+            
+        } else {
+            let mut path = self.root.join("index.pos");
+            for char in key.chars() {
+                path = path.join(char.to_string())
+            }
+
+            if ! path.is_file() {
+                return None;
+            }
+
+            let data = match fs::read_to_string(path) {
+                Ok(data) => data,
+                Err(_) => { return None; }
+            };
+
+            index_info = match serde_json::from_str::<IndexInfo>(&data) {
+                Ok(v) => v,
+                Err(_) => { return None; }
+            };
+        }
+
+        todo!()
+    }
+
     pub fn checkfile(&self) -> crate::Result<()> {
             
         let file = self.root.join("active.db");
@@ -299,7 +332,7 @@ impl DataFile {
 
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct IndexInfo {
     file_id: u32,
     start_postion: u64,
