@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
 
 use nom::{
     branch::alt,
@@ -62,15 +62,58 @@ pub enum DataValue {
     /// ```
     Tuple((Box<DataValue>, Box<DataValue>)),
 
-
     /// Undefined Value
-    /// 
+    ///
     /// just use for data remove
     Undefined,
 }
 
+impl std::string::ToString for DataValue {
+    fn to_string(&self) -> String {
+        match self {
+            DataValue::None => "none".to_string(),
+            DataValue::String(s) => format!("\"{}\"", s),
+            DataValue::Number(n) => n.to_string(),
+            DataValue::Boolean(bool) => match bool {
+                true => "true".to_string(),
+                false => "false".to_string(),
+            },
+            DataValue::List(l) => {
+                let mut res = String::from("[");
+
+                for v in l {
+                    res += &format!("{},", v.to_string());
+                }
+
+                res = res[..res.len() - 1].to_string();
+                res += "]";
+
+                res
+            }
+            DataValue::Dict(d) => {
+                let mut res = String::from("{");
+
+                for v in d {
+                    res += &format!("\"{}\":{},", v.0, v.1.to_string());
+                }
+
+                res = res[..res.len() - 1].to_string();
+                res += "}";
+
+                res
+            }
+            DataValue::Tuple(v) => {
+                let first = v.0.to_string();
+                let second = v.1.to_string();
+
+                format!("({},{})", first, second)
+            }
+            DataValue::Undefined => "undefined".to_string(),
+        }
+    }
+}
+
 impl DataValue {
-    
     pub fn from(data: &str) -> Self {
         match ValueParser::parse(data) {
             Ok((_, v)) => v,
@@ -105,7 +148,7 @@ impl DataValue {
             }
 
             DataValue::Tuple(tuple) => tuple.0.size() + tuple.1.size(),
-            
+
             DataValue::Undefined => 0,
         }
     }
@@ -207,6 +250,8 @@ impl ValueParser {
             ),
         )(message)
     }
+
+    fn parse_tuple(mesaage: &str) ->  {}
 
     fn parse(message: &str) -> IResult<&str, DataValue> {
         context(
