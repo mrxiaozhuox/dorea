@@ -252,7 +252,21 @@ impl ValueParser {
     }
 
     fn parse_tuple(message: &str) -> IResult<&str, (Box<DataValue>, Box<DataValue>)> {
-        todo!()
+        context(
+            "tuple",
+            delimited(
+                tag("("),
+                map(
+                    separated_pair(
+                        delimited(multispace0, ValueParser::parse, multispace0),
+                        tag(","),
+                        delimited(multispace0, ValueParser::parse, multispace0),
+                    ),
+                    |pair: (DataValue, DataValue)| (Box::new(pair.0), Box::new(pair.1)),
+                ),
+                tag(")"),
+            ),
+        )(message)
     }
 
     fn parse(message: &str) -> IResult<&str, DataValue> {
@@ -268,6 +282,7 @@ impl ValueParser {
                     }),
                     map(ValueParser::parse_list, DataValue::List),
                     map(ValueParser::parse_dict, DataValue::Dict),
+                    map(ValueParser::parse_tuple, DataValue::Tuple),
                 )),
                 multispace0,
             ),
@@ -281,7 +296,7 @@ mod test {
     use crate::value::{DataValue, ValueParser};
 
     #[test]
-    fn test() {
+    fn list() {
         let value = "[1, 2, 3, 4, 5, 6]";
         assert_eq!(
             ValueParser::parse(value),
@@ -295,6 +310,21 @@ mod test {
                     DataValue::Number(5_f64),
                     DataValue::Number(6_f64),
                 ])
+            ))
+        );
+    }
+
+    #[test]
+    fn tuple() {
+        let value = "(true,1)";
+        assert_eq!(
+            ValueParser::parse(value),
+            Ok((
+                "",
+                DataValue::Tuple((
+                    Box::new(DataValue::Boolean(true)),
+                    Box::new(DataValue::Number(1_f64))
+                ))
             ))
         );
     }
