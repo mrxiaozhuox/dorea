@@ -136,6 +136,7 @@ impl CommandManager {
             let db = DataBase::init(
                 current.to_string(),
                 database_manager.lock().await.location.clone(),
+                config.database.clone(),
             );
 
             database_manager
@@ -206,11 +207,8 @@ impl CommandManager {
                 Ok(_) => {
                     return (NetPacketState::OK, vec![]);
                 }
-                Err(_) => {
-                    return (
-                        NetPacketState::ERR,
-                        "Storage server error.".as_bytes().to_vec(),
-                    );
+                Err(e) => {
+                    return (NetPacketState::ERR, e.to_string().as_bytes().to_vec());
                 }
             }
         }

@@ -5,20 +5,20 @@ use serde::{Serialize, Deserialize};
 
 /// Dorea File Config Struct
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct DoreaFileConfig {
+pub struct DoreaFileConfig {
     pub(crate) connection: ConnectionConifg,
     pub(crate) database: DataBaseConfig,
     pub(crate) cache: CacheConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct ConnectionConifg {
+pub struct ConnectionConifg {
     pub(crate) max_connect_number: u16,
     pub(crate) connection_password: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct DataBaseConfig {
+pub struct DataBaseConfig {
     pub(crate) max_group_number: u16,
     pub(crate) default_group: String,
     pub(crate) pre_load_group: Vec<String>,
@@ -26,7 +26,7 @@ pub(crate) struct DataBaseConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct CacheConfig {
+pub struct CacheConfig {
     pub(crate) group_cache_size: u16,
     pub(crate) check_interval: u16,
 }
@@ -61,7 +61,7 @@ fn init_config (path: PathBuf) -> Result<()> {
             max_group_number: 20,
             default_group: String::from("default"),
             pre_load_group: vec![String::from("default")],
-            max_key_number: 1024,
+            max_key_number: 51200,
         },
 
         cache: CacheConfig {

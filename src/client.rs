@@ -15,8 +15,6 @@ impl DoreaClient {
 
         let mut conn = TcpStream::connect(addr).await?;
 
-        println!("CONN");
-
         network::NetPacket::make("ping".as_bytes().to_vec(), network::NetPacketState::IGNORE)
             .send(&mut conn)
             .await?;
@@ -57,7 +55,7 @@ impl DoreaClient {
 
         let command_byte = command.as_bytes().to_vec();
 
-        println!("{:?}",NetPacket::make(command_byte.clone(), NetPacketState::IGNORE).to_string());
+        // println!("{}",NetPacket::make(command_byte.clone(), NetPacketState::IGNORE).to_string());
 
         NetPacket::make(command_byte, NetPacketState::IGNORE)
             .send(&mut self.connection)

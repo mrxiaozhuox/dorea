@@ -76,7 +76,7 @@ impl Frame {
 
         let (mut reader, _) = socket.split();
 
-        let mut buf = [0_u8; 20];
+        let mut buf = [0_u8; 1024];
         let mut response = BytesMut::with_capacity(50);
 
         let size = reader.read(&mut buf).await?;
@@ -99,7 +99,6 @@ impl Frame {
                 return Err(anyhow::anyhow!("size parse error"));
             }
         };
-
 
         // parse state
         let (remain, state) = match Frame::parse_state(&remain) {

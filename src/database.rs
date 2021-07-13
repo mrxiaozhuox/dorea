@@ -3,12 +3,14 @@ use std::fs::{self, rename};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::{collections::HashMap, path::PathBuf};
 
+use futures::lock::Mutex;
 use nom::AsBytes;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use bytes::{BufMut, BytesMut};
 
-use crate::configuration::{self, DoreaFileConfig};
+use crate::configuration::{self, DataBaseConfig, DoreaFileConfig};
 use crate::value::DataValue;
 use crate::Result;
 
@@ -19,7 +21,6 @@ pub(crate) struct DataBaseManager {
     pub(crate) db_list: HashMap<String, DataBase>,
     pub(crate) location: PathBuf,
     config: DoreaFileConfig,
-    total_info: TotalInfo,
 }
 
 #[derive(Debug)]
@@ -29,7 +30,6 @@ pub struct DataBase {
     timestamp: i64,
     location: PathBuf,
     file: DataFile,
-    total_info: &mut TotalInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -39,23 +39,20 @@ pub struct DataNode {
     expire: u64,
 }
 
+static TOTAL_INFO: Lazy<Mutex<TotalInfo>> = Lazy::new(|| Mutex::new(TotalInfo { index_number: 0 }));
+
 impl DataBaseManager {
     pub fn new(location: PathBuf) -> Self {
         let config = configuration::load_config(&location).unwrap();
 
         let mut db_list = HashMap::new();
 
-        let mut total = TotalInfo {
-            index_number: 0,
-            active_info: 0,
-        };
-
         db_list.insert(
             config.database.default_group.clone(),
             DataBase::init(
                 config.database.default_group.clone(),
                 location.clone(),
-                &mut total,
+                config.database.clone(),
             ),
         );
 
@@ -63,7 +60,6 @@ impl DataBaseManager {
             db_list: db_list,
             location: location.clone(),
             config: config,
-            total_info: total,
         };
 
         obj
@@ -72,16 +68,15 @@ impl DataBaseManager {
 
 #[allow(dead_code)]
 impl DataBase {
-    pub fn init(name: String, location: PathBuf, total: &mut TotalInfo) -> Self {
+    pub fn init(name: String, location: PathBuf, config: DataBaseConfig) -> Self {
         let location = location.join(&name);
 
         Self {
             name: name.clone(),
             index: HashMap::new(),
             timestamp: chrono::Local::now().timestamp(),
-            file: DataFile::new(&location, name.clone()),
+            file: DataFile::new(&location, name.clone(), config.max_key_number),
             location: location,
-            total_info: total,
         }
     }
 
@@ -108,13 +103,15 @@ impl DataBase {
 struct DataFile {
     root: PathBuf,
     name: String,
+    max_index_number: u32,
 }
 
 impl DataFile {
-    pub fn new(root: &PathBuf, name: String) -> Self {
+    pub fn new(root: &PathBuf, name: String, max_index_size: u32) -> Self {
         let mut db = Self {
             root: root.clone(),
             name: name,
+            max_index_number: max_index_size,
         };
 
         db.init_db().unwrap();
@@ -186,7 +183,12 @@ impl DataFile {
         data: DataNode,
         index: &mut HashMap<String, IndexInfo>,
     ) -> Result<()> {
-        // let _ = self.checkfile().unwrap();
+
+        if TOTAL_INFO.lock().await.index_get() > self.max_index_number {
+            return Err(anyhow!("exceeded max index number"));
+        }
+
+        let _ = self.checkfile().unwrap();
 
         let file = self.root.join("active.db");
 
@@ -211,7 +213,9 @@ impl DataFile {
         };
 
         // add totoal_index
-        if !index.contains_key(&data.key) {}
+        if !index.contains_key(&data.key) {
+            TOTAL_INFO.lock().await.index_add();
+        }
 
         index.insert(data.key.clone(), index_info);
 
@@ -348,17 +352,16 @@ struct IndexInfo {
     time_stamp: (i64, u64),
 }
 
-#[derive(Debug)]
 struct TotalInfo {
-    index_number: usize,
-    active_info: u32,
+    index_number: u32,
 }
 
 impl TotalInfo {
-    fn idx_get(&self) -> usize {
+    fn index_get(&self) -> u32 {
         self.index_number
     }
-    fn idx_add(&mut self) {
+
+    fn index_add(&mut self) {
         self.index_number += 1;
     }
 }
