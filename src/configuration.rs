@@ -21,12 +21,13 @@ pub(crate) struct ConnectionConifg {
 pub(crate) struct DataBaseConfig {
     pub(crate) max_group_number: u16,
     pub(crate) default_group: String,
-    pub(crate) readonly_group: Vec<String>,
+    pub(crate) pre_load_group: Vec<String>,
+    pub(crate) max_key_number: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct CacheConfig {
-    pub(crate) index_cache_size: u16,
+    pub(crate) group_cache_size: u16,
     pub(crate) check_interval: u16,
 }
 
@@ -59,11 +60,12 @@ fn init_config (path: PathBuf) -> Result<()> {
         database: DataBaseConfig {
             max_group_number: 20,
             default_group: String::from("default"),
-            readonly_group: vec![String::from("dorea")],
+            pre_load_group: vec![String::from("default")],
+            max_key_number: 1024,
         },
 
         cache: CacheConfig {
-            index_cache_size: 128,
+            group_cache_size: 128,
             check_interval: (10 * 1000),
         },
 

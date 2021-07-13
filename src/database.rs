@@ -1,32 +1,35 @@
 use std::fs::OpenOptions;
 use std::fs::{self, rename};
-use std::io::{BufRead, BufReader, Error, ErrorKind, Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::{collections::HashMap, path::PathBuf};
 
 use nom::AsBytes;
 use serde::{Deserialize, Serialize};
 
 use bytes::{BufMut, BytesMut};
-use lru::LruCache;
 
-use crate::Result;
 use crate::configuration::{self, DoreaFileConfig};
 use crate::value::DataValue;
+use crate::Result;
+
+use anyhow::anyhow;
 
 #[derive(Debug)]
 pub(crate) struct DataBaseManager {
     pub(crate) db_list: HashMap<String, DataBase>,
     pub(crate) location: PathBuf,
     config: DoreaFileConfig,
+    total_info: TotalInfo,
 }
 
 #[derive(Debug)]
 pub struct DataBase {
     name: String,
-    cache: LruCache<String, IndexInfo>,
+    index: HashMap<String, IndexInfo>,
     timestamp: i64,
     location: PathBuf,
     file: DataFile,
+    total_info: &mut TotalInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -42,55 +45,63 @@ impl DataBaseManager {
 
         let mut db_list = HashMap::new();
 
+        let mut total = TotalInfo {
+            index_number: 0,
+            active_info: 0,
+        };
+
         db_list.insert(
             config.database.default_group.clone(),
             DataBase::init(
                 config.database.default_group.clone(),
                 location.clone(),
-                config.cache.index_cache_size.into(),
+                &mut total,
             ),
         );
 
-        Self {
+        let obj = Self {
             db_list: db_list,
             location: location.clone(),
             config: config,
-        }
+            total_info: total,
+        };
+
+        obj
     }
 }
 
 #[allow(dead_code)]
 impl DataBase {
-    pub fn init(name: String, location: PathBuf, cache_size: usize) -> Self {
+    pub fn init(name: String, location: PathBuf, total: &mut TotalInfo) -> Self {
         let location = location.join(&name);
 
         Self {
             name: name.clone(),
-            cache: LruCache::new(cache_size),
+            index: HashMap::new(),
             timestamp: chrono::Local::now().timestamp(),
             file: DataFile::new(&location, name.clone()),
             location: location,
+            total_info: total,
         }
     }
 
-    pub fn set(&mut self, key: String, value: DataValue, expire: u64) -> Result<()> {
+    pub async fn set(&mut self, key: String, value: DataValue, expire: u64) -> Result<()> {
         let data_node = DataNode {
             key: key.clone(),
             value: value.clone(),
             expire: expire,
         };
 
-        self.file.write(data_node, &mut self.cache)
+        self.file.write(data_node, &mut self.index).await
     }
 
-    pub fn get(&mut self, key: String) -> Option<DataValue> {
-        let res = self.file.read(key, &mut self.cache);
+    pub async fn get(&mut self, key: String) -> Option<DataValue> {
+        let res = self.file.read(key, &mut self.index).await;
         match res {
             Some(d) => Some(d.value),
             None => None,
         }
     }
-
 }
 
 #[derive(Debug)]
@@ -106,42 +117,30 @@ impl DataFile {
             name: name,
         };
 
-        if db.check_db().is_err() {
-            db.init_db().unwrap();
-        }
+        db.init_db().unwrap();
 
         db
     }
 
     fn init_db(&mut self) -> crate::Result<()> {
-
-        if !self.root.is_dir() {
-            match fs::create_dir_all(&self.root) {
-                Ok(_) => { /* continue */ }
-                Err(e) => {
-                    return Err(Box::new(e));
-                }
+        if self.check_db().is_err() {
+            if !self.root.is_dir() {
+                fs::create_dir_all(&self.root)?;
             }
-        }
 
-        let save_file = self.root.join("active.db");
+            let save_file = self.root.join("active.db");
 
-        // make data storage file
-        if !save_file.is_file() {
-            let mut content = BytesMut::new();
+            // make data storage file
+            if !save_file.is_file() {
+                self.active()?;
+            }
 
-            let header_info = format!("Dorea::{} {}\r\n", self.name, crate::DOREA_VERSION);
+            let record_in = self.root.join("record.in");
 
-            content.put(header_info.as_bytes());
-
-            fs::write(save_file, content)?;
-        }
-
-        let index_dir = self.root.join("index.pos");
-
-        // make index.pos dir
-        if ! index_dir.is_dir() {
-            fs::create_dir_all(index_dir)?;
+            // make record.in dir
+            if !record_in.is_file() {
+                fs::write(record_in, b"1")?;
+            }
         }
 
         Ok(())
@@ -152,43 +151,49 @@ impl DataFile {
 
         // error: not found
         if !self.root.is_dir() {
-            result = Err(Box::new(Error::from(ErrorKind::NotFound)));
+            result = Err(anyhow!("root dir not found"));
         }
 
         let save_file = self.root.join("active.db");
-        let index_dir = self.root.join("index.pos");
+        let index_dir = self.root.join("record.in");
 
         if !save_file.is_file() || !index_dir.is_dir() {
-            result = Err(Box::new(Error::from(ErrorKind::NotFound)));
+            result = Err(anyhow!("file not found"));
         }
 
-        let file = fs::File::open(save_file)?;
-        let mut fin = BufReader::new(file);
-        let mut line = String::new();
-        fin.read_line(&mut line)?;
+        let mut file = fs::File::open(save_file)?;
 
-        let item: Vec<&str> = line.split(" ").collect();
+        let mut buf = [0; 33];
 
-        if item.len() < 2 {
-            result = Err(Box::new(Error::from(ErrorKind::NotFound)));
+        file.read_exact(&mut buf)?;
+
+        if buf.get(buf.len() - 1).unwrap() == &b';' {
+            result = Err(anyhow!("version unspported"));
         }
 
+        let check_code = String::from_utf8_lossy(&buf[0..buf.len() - 1]).to_string();
 
         // the dorea data was unsupported.
-        if !crate::COMPATIBLE_VERSION.contains(&item.get(1).unwrap().trim()) {
-            fs::remove_dir_all(&self.root).unwrap();
-            result = Err(Box::new(Error::from(ErrorKind::Unsupported)));
+        if !crate::COMPATIBLE_VERSION.contains(&check_code) {
+            panic!("database storage structure unsupported.");
         }
 
         result
     }
 
-    pub fn write(&self, data: DataNode, lru: &mut LruCache<String, IndexInfo>) -> Result<()> {
-        let _ = self.checkfile().unwrap();
+    pub async fn write(
+        &self,
+        data: DataNode,
+        index: &mut HashMap<String, IndexInfo>,
+    ) -> Result<()> {
+        // let _ = self.checkfile().unwrap();
 
         let file = self.root.join("active.db");
 
-        let v = bincode::serialize(&data).expect("serialize failed");
+        let mut v = bincode::serialize(&data).expect("serialize failed");
+
+        // add ; symbol
+        v.push(59);
 
         let mut f = OpenOptions::new().append(true).open(file)?;
 
@@ -196,78 +201,36 @@ impl DataFile {
 
         f.write_all(&v[..]).expect("write error");
 
-        let end_postion = f.metadata()?.len();
+        let end_postion: u64 = start_postion + v.len() as u64;
 
         let index_info = IndexInfo {
             file_id: self.get_file_id(),
             start_postion: start_postion,
             end_postion: end_postion,
-            expire_info: data.expire,
+            time_stamp: (chrono::Local::now().timestamp(), data.expire),
         };
 
-        let mut index_path = self.root.join("index.pos");
-        let mut index_count = 1;
-        let mut index_name: String = String::from("_");
+        // add totoal_index
+        if !index.contains_key(&data.key) {}
 
-        for char in data.key.chars() {
-            if index_count >= data.key.len() {
-                index_name = char.to_string();
-                break;
-            }
-
-            index_path = index_path.join(char.to_string());
-
-            index_count += 1;
-        }
-
-        if !index_path.is_dir() {
-            fs::create_dir_all(&index_path).unwrap();
-        }
-
-        let index_path = index_path.join(&index_name);
-
-        let temp = serde_json::to_string(&index_info)?;
-
-        fs::write(index_path, temp.as_bytes()).unwrap();
-
-        // save into cache lru
-        lru.put(data.key.clone(), index_info);
+        index.insert(data.key.clone(), index_info);
 
         Ok(())
     }
 
-    pub fn read(&self, key: String, lru: &mut LruCache<String, IndexInfo>) -> Option<DataNode> {
+    pub async fn read(
+        &self,
+        key: String,
+        index: &mut HashMap<String, IndexInfo>,
+    ) -> Option<DataNode> {
+        if !index.contains_key(&key) {}
 
-        let index_info: IndexInfo;
-
-        if lru.contains(&key) {
-            index_info = lru.get(&key).unwrap().clone();
-        } else {
-            let mut path = self.root.join("index.pos");
-            for char in key.chars() {
-                path = path.join(char.to_string())
-            }
-
-            println!("{:?}",path);
-
-            if !path.is_file() {
+        let index_info: IndexInfo = match index.get(&key) {
+            Some(v) => v.clone(),
+            None => {
                 return None;
             }
-
-            let data = match fs::read_to_string(path) {
-                Ok(data) => data,
-                Err(_) => {
-                    return None;
-                }
-            };
-
-            index_info = match serde_json::from_str::<IndexInfo>(&data) {
-                Ok(v) => v,
-                Err(_) => {
-                    return None;
-                }
-            };
-        }
+        };
 
         let data_file: PathBuf;
         if index_info.file_id == self.get_file_id() {
@@ -282,19 +245,24 @@ impl DataFile {
 
         let mut file = fs::File::open(data_file).unwrap();
 
-        file.seek(SeekFrom::Start(index_info.start_postion)).unwrap();
+        file.seek(SeekFrom::Start(index_info.start_postion))
+            .unwrap();
 
-        let mut buf: Vec<u8> = Vec::with_capacity((
-            index_info.end_postion - index_info.start_postion
-        ) as usize);
+        let mut buf: Vec<u8> =
+            Vec::with_capacity((index_info.end_postion - index_info.start_postion) as usize);
 
-        buf.resize((index_info.end_postion - index_info.start_postion) as usize, 0);
+        buf.resize(
+            (index_info.end_postion - index_info.start_postion) as usize,
+            0,
+        );
 
         let len = file.read(&mut buf).unwrap();
 
-        let v= match bincode::deserialize::<DataNode>(&buf[0..len].as_bytes()) {
+        let v = match bincode::deserialize::<DataNode>(&buf[0..len].as_bytes()) {
             Ok(v) => v,
-            Err(_) => { return None; }
+            Err(_) => {
+                return None;
+            }
         };
 
         Some(v)
@@ -304,13 +272,7 @@ impl DataFile {
         let file = self.root.join("active.db");
 
         if !file.is_file() {
-            let mut content = BytesMut::new();
-
-            let header_info = format!("Dorea::{} {}\r\n", self.name, crate::DOREA_VERSION);
-
-            content.put(header_info.as_bytes());
-
-            fs::write(&file, content)?;
+            self.active()?;
         }
 
         let size = file.metadata()?.len();
@@ -318,6 +280,24 @@ impl DataFile {
         if size >= (1024 * 1024 * 1024) {
             self.archive()?;
         }
+
+        Ok(())
+    }
+
+    fn active(&self) -> crate::Result<()> {
+        let file = self.root.join("active.db");
+
+        let mut content = BytesMut::new();
+
+        let header_info = format!("Dorea::{}", crate::DOREA_VERSION);
+
+        let digest = md5::compute(header_info.as_bytes());
+
+        content.put(format!("{:x}", digest).as_bytes());
+
+        content.put_u8(b';');
+
+        fs::write(&file, content)?;
 
         Ok(())
     }
@@ -330,13 +310,7 @@ impl DataFile {
         rename(&file, self.root.join(format!("archive-{}.db", count + 1)))?;
 
         // remake active file
-        let mut content = BytesMut::new();
-
-        let header_info = format!("Dorea::{} {}\r\n", self.name, crate::DOREA_VERSION);
-
-        content.put(header_info.as_bytes());
-
-        fs::write(&file, content)?;
+        self.active()?;
 
         Ok(())
     }
@@ -371,5 +345,20 @@ struct IndexInfo {
     file_id: u32,
     start_postion: u64,
     end_postion: u64,
-    expire_info: u64,
+    time_stamp: (i64, u64),
+}
+
+#[derive(Debug)]
+struct TotalInfo {
+    index_number: usize,
+    active_info: u32,
+}
+
+impl TotalInfo {
+    fn idx_get(&self) -> usize {
+        self.index_number
+    }
+    fn idx_add(&mut self) {
+        self.index_number += 1;
+    }
 }

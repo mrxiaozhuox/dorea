@@ -23,15 +23,6 @@ pub(crate) async fn process(
         auth = true;
     }
 
-    let _readonly: bool;
-
-    // check readonly state
-    if config.database.readonly_group.contains(&current) {
-        _readonly = true;
-    } else {
-        _readonly = false;
-    }
-
     let mut frame = Frame::new();
 
     let mut message: Vec<u8>;

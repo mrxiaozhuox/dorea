@@ -136,7 +136,6 @@ impl CommandManager {
             let db = DataBase::init(
                 current.to_string(),
                 database_manager.lock().await.location.clone(),
-                config.cache.index_cache_size as usize,
             );
 
             database_manager
@@ -177,6 +176,13 @@ impl CommandManager {
 
             let data_value = DataValue::from(value);
 
+            if data_value == DataValue::None {
+                return (
+                    NetPacketState::ERR,
+                    "Unknown data struct.".as_bytes().to_vec(),
+                );
+            }
+
             let mut expire = 0_u64;
 
             if slice.len() == 3 {
@@ -193,7 +199,8 @@ impl CommandManager {
                 .db_list
                 .get_mut(current)
                 .unwrap()
-                .set(key.to_string(), data_value, expire);
+                .set(key.to_string(), data_value, expire)
+                .await;
 
             match result {
                 Ok(_) => {
@@ -217,21 +224,19 @@ impl CommandManager {
                 .db_list
                 .get_mut(current)
                 .unwrap()
-                .get(key.to_string());
-
+                .get(key.to_string())
+                .await;
 
             match result {
                 Some(v) => {
-                    return (
-                        NetPacketState::OK,
-                        v.to_string().as_bytes().to_vec()
-                    );
-                },
+                    if v == DataValue::None {
+                        return (NetPacketState::ERR, "Data Not Found".as_bytes().to_vec());
+                    }
+
+                    return (NetPacketState::OK, v.to_string().as_bytes().to_vec());
+                }
                 None => {
-                    return (
-                        NetPacketState::ERR,
-                        "Data Not Found".as_bytes().to_vec()
-                    );
+                    return (NetPacketState::ERR, "Data Not Found".as_bytes().to_vec());
                 }
             }
         }

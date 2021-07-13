@@ -1,5 +1,3 @@
-use std::io::{Error, ErrorKind};
-
 use bytes::{BufMut, BytesMut};
 use nom::bytes::complete::{tag, take_until, take_while1};
 use nom::character::complete::alpha1;
@@ -20,9 +18,11 @@ pub enum NetPacketState {
     ERR,
     EMPTY,
     NOAUTH,
+    IGNORE,
 }
 
 impl NetPacket {
+
     pub(crate) fn make(body: Vec<u8>, state: NetPacketState) -> Self {
         Self {
             body: body,
@@ -46,7 +46,11 @@ impl std::string::ToString for NetPacket {
         let mut text = String::new();
 
         text.push_str(format!("$: {} | ", body.as_bytes().len() + 5).as_str());
-        text.push_str(format!("%: {:?} | ", self.state).as_str());
+        
+        if self.state != NetPacketState::IGNORE {
+            text.push_str(format!("%: {:?} | ", self.state).as_str());
+        }
+
         text.push_str(format!("#: B64'{}';", body).as_str());
 
         text
@@ -55,6 +59,7 @@ impl std::string::ToString for NetPacket {
 
 pub struct Frame {
     legacy_content: Vec<u8>,
+    pub latest_state: NetPacketState,
 }
 
 impl Frame {
@@ -62,6 +67,7 @@ impl Frame {
     pub fn new() -> Self {
         Self {
             legacy_content: Vec::new(),
+            latest_state: NetPacketState::EMPTY,
         }
     }
 
@@ -90,13 +96,13 @@ impl Frame {
         ) {
             Ok((remain, size)) => (remain.to_string(), size),
             Err(_) => {
-                return Err(Box::new(Error::new(ErrorKind::NotFound, "size parsing error")));
+                return Err(anyhow::anyhow!("size parse error"));
             }
         };
 
 
         // parse state
-        let (remain, _state) = match Frame::parse_state(&remain) {
+        let (remain, state) = match Frame::parse_state(&remain) {
             Ok(v) => v,
             Err(_) =>{ (message.as_str(), NetPacketState::EMPTY) }
         };
@@ -104,7 +110,7 @@ impl Frame {
         let (remain, mut data) = match Frame::parse_content(&remain) {
             Ok((remain, data)) => (remain.to_string(), data.to_string()),
             Err(_) => {
-                return Err(Box::new(Error::new(ErrorKind::NotFound, "content parsing error")));
+                return Err(anyhow::anyhow!("content parse error"));
             }
         };
 
@@ -137,6 +143,7 @@ impl Frame {
 
         // unuseful information
         // println!("{:?}",state);
+        self.latest_state = state;
 
         // if data was B64: change it.
         if &data[0..4] == "B64'" && &data[data.len() - 1..] == "'" {
