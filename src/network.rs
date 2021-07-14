@@ -76,7 +76,7 @@ impl Frame {
 
         let (mut reader, _) = socket.split();
 
-        let mut buf = [0_u8; 1024];
+        let mut buf = [0_u8; 40];
         let mut response = BytesMut::with_capacity(50);
 
         let size = reader.read(&mut buf).await?;
@@ -127,7 +127,7 @@ impl Frame {
             if diff > 1024 {
                 max_buf_read = 1024;
             } else {
-                // + 1 was ;
+                // + 1 for ;
                 max_buf_read = diff + 1;
             }
 
