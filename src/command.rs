@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use tokio::sync::Mutex;
 
 use crate::{
-    configuration::DoreaFileConfig,
+    configure::DoreaFileConfig,
     database::{DataBase, DataBaseManager},
     network::NetPacketState,
     value::DataValue,

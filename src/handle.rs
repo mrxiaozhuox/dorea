@@ -2,7 +2,7 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 
 use crate::command::CommandManager;
-use crate::configuration::DoreaFileConfig;
+use crate::configure::DoreaFileConfig;
 use crate::database::DataBaseManager;
 use crate::network::{Frame, NetPacket, NetPacketState};
 use crate::Result;

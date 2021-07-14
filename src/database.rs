@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use bytes::{BufMut, BytesMut};
 
-use crate::configuration::{self, DataBaseConfig, DoreaFileConfig};
+use crate::configure::{self, DataBaseConfig, DoreaFileConfig};
 use crate::value::DataValue;
 use crate::Result;
 
@@ -43,7 +43,7 @@ static TOTAL_INFO: Lazy<Mutex<TotalInfo>> = Lazy::new(|| Mutex::new(TotalInfo { 
 
 impl DataBaseManager {
     pub fn new(location: PathBuf) -> Self {
-        let config = configuration::load_config(&location).unwrap();
+        let config = configure::load_config(&location).unwrap();
 
         let mut db_list = HashMap::new();
 

@@ -27,7 +27,7 @@ pub mod value;
 pub mod network;
 
 mod command;
-mod configuration;
+mod configure;
 mod database;
 mod handle;
 mod logger;

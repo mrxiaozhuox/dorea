@@ -1,11 +1,12 @@
 use std::sync::Arc;
 use std::{fs, path::PathBuf};
 
+use log::info;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tokio::task;
 
-use crate::configuration::DoreaFileConfig;
+use crate::configure::DoreaFileConfig;
 use crate::database::DataBaseManager;
 use crate::handle;
 
@@ -50,7 +51,12 @@ impl DoreaServer {
 
         let addr = format!("{}:{}",options.hostname, options.port);
 
-        let config = crate::configuration::load_config(&document_path).unwrap();
+        // try to load logger system
+        crate::logger::init_logger().expect("logger init failed");
+        
+        let config = crate::configure::load_config(&document_path).unwrap();
+
+        info!("configure loaded from: {:?}", document_path);
 
         let listner = match TcpListener::bind(&addr).await {
             Ok(listener) => listener,
@@ -73,6 +79,8 @@ impl DoreaServer {
     }
 
     pub async fn listen(&mut self) {
+
+        info!("dorea is running, ready to accept connections.");
 
         loop {
             
