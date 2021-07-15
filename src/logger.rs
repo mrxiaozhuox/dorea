@@ -28,8 +28,10 @@ pub(crate) fn init_logger() -> Result<Handle, SetLoggerError> {
         | |  | | | |  | | |  _  /  |  __|     / /\\ \\  
         | |__| | | |__| | | | \\ \\  | |____   / ____ \\ 
         |_____/   \\____/  |_|  \\_\\ |______| /_/    \\_\\
-                                                             
-        "
+
+        dorea data storage system: {}
+        ",
+        crate::DOREA_VERSION
     );
 
     log4rs::init_config(config)

@@ -36,7 +36,7 @@ pub struct DataBase {
 pub struct DataNode {
     key: String,
     value: DataValue,
-    expire: u64,
+    time_stamp: (i64, u64),
 }
 
 static TOTAL_INFO: Lazy<Mutex<TotalInfo>> = Lazy::new(|| Mutex::new(TotalInfo { index_number: 0 }));
@@ -45,16 +45,7 @@ impl DataBaseManager {
     pub fn new(location: PathBuf) -> Self {
         let config = configure::load_config(&location).unwrap();
 
-        let mut db_list = HashMap::new();
-
-        db_list.insert(
-            config.database.default_group.clone(),
-            DataBase::init(
-                config.database.default_group.clone(),
-                location.clone(),
-                config.database.clone(),
-            ),
-        );
+        let db_list = DataBaseManager::load_database(&config, location.clone());
 
         let obj = Self {
             db_list: db_list,
@@ -64,6 +55,27 @@ impl DataBaseManager {
 
         obj
     }
+
+    fn load_database(config: &DoreaFileConfig, location: PathBuf) -> HashMap<String, DataBase> {
+        let config = config.clone();
+
+        let mut db_list = HashMap::new();
+
+        let groups = &config.database.pre_load_group;
+
+        for db in groups {
+            db_list.insert(
+                db.to_string(),
+                DataBase::init(
+                    config.database.default_group.clone(),
+                    location.clone(),
+                    config.database.clone(),
+                ),
+            );
+        }
+
+        db_list
+    }
 }
 
 #[allow(dead_code)]
@@ -71,11 +83,17 @@ impl DataBase {
     pub fn init(name: String, location: PathBuf, config: DataBaseConfig) -> Self {
         let location = location.join(&name);
 
+        let data_file = DataFile::new(&location, name.clone(), config.max_key_number);
+
+        let mut index_list = HashMap::new();
+
+        let _ = data_file.load_index(&mut index_list);
+
         Self {
             name: name.clone(),
-            index: HashMap::new(),
+            index: index_list,
             timestamp: chrono::Local::now().timestamp(),
-            file: DataFile::new(&location, name.clone(), config.max_key_number),
+            file: data_file,
             location: location,
         }
     }
@@ -84,7 +102,7 @@ impl DataBase {
         let data_node = DataNode {
             key: key.clone(),
             value: value.clone(),
-            expire: expire,
+            time_stamp: (chrono::Local::now().timestamp(), expire),
         };
 
         self.file.write(data_node, &mut self.index).await
@@ -117,6 +135,90 @@ impl DataFile {
         db.init_db().unwrap();
 
         db
+    }
+
+    pub fn load_index(&self, index: &mut HashMap<String, IndexInfo>) -> crate::Result<()> {
+        if !self.root.is_dir() {
+            return Err(anyhow!("root dir not found"));
+        }
+
+        for entry in walkdir::WalkDir::new(&self.root)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            if entry.path().is_file() {
+                let info: nom::IResult<&str, &str> =
+                    nom::sequence::delimited(
+                        nom::bytes::complete::tag("archive-"),
+                        nom::character::complete::digit1,
+                        nom::bytes::complete::tag(".db"),
+                    )(entry.path().file_name().unwrap().to_str().unwrap());
+
+                if info.is_ok() {
+                    let file_id = info.as_ref().unwrap().1.parse::<u32>().unwrap();
+
+                    // load index from db file.
+                    let mut file = match OpenOptions::new().read(true).open(entry.path()) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            continue;
+                        }
+                    };
+
+                    let file_size = file.metadata().unwrap().len();
+                    let file_size = file_size - 33;
+                    let mut readed_size = 0;
+
+                    file.seek(SeekFrom::Start(33))?;
+
+                    let mut legacy: Vec<u8> = vec![];
+                    let mut position: (u64, u64) = (33, 33);
+                    let mut buf = [0_u8; 1024];
+
+                    while readed_size < file_size {
+                        let v = file.read(&mut buf)?;
+
+                        if buf.contains(&b';') {
+                            for char in buf.iter() {
+
+                                if char == &b';' {
+                                    let t = match bincode::deserialize::<DataNode>(&legacy[..]) {
+                                        Ok(t) => t,
+                                        Err(_) => {
+                                            break;
+                                        }
+                                    };
+
+                                    let index_info = IndexInfo {
+                                        file_id,
+                                        start_postion: position.0,
+                                        end_postion: position.1,
+                                        time_stamp: t.time_stamp.clone(),
+                                    };
+
+                                    println!("{} idx: {:?}",t.key, index_info);
+
+                                    index.insert(t.key.clone(), index_info);
+
+                                    position = (position.1 + 1, position.1 + 1);
+                                }
+
+                                legacy.push(*char);
+                                position.1 += 1;
+
+                            }
+                        } else {
+                            legacy.append(&mut buf.to_vec());
+                            position.1 += buf.len() as u64;
+                        }
+
+                        readed_size += v as u64;
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn init_db(&mut self) -> crate::Result<()> {
@@ -183,7 +285,6 @@ impl DataFile {
         data: DataNode,
         index: &mut HashMap<String, IndexInfo>,
     ) -> Result<()> {
-
         if TOTAL_INFO.lock().await.index_get() > self.max_index_number {
             return Err(anyhow!("exceeded max index number"));
         }
@@ -209,7 +310,7 @@ impl DataFile {
             file_id: self.get_file_id(),
             start_postion: start_postion,
             end_postion: end_postion,
-            time_stamp: (chrono::Local::now().timestamp(), data.expire),
+            time_stamp: data.time_stamp,
         };
 
         // add totoal_index
@@ -227,7 +328,6 @@ impl DataFile {
         key: String,
         index: &mut HashMap<String, IndexInfo>,
     ) -> Option<DataNode> {
-        if !index.contains_key(&key) {}
 
         let index_info: IndexInfo = match index.get(&key) {
             Some(v) => v.clone(),
@@ -242,6 +342,8 @@ impl DataFile {
         } else {
             data_file = self.root.join(format!("archive-{}.db", index_info.file_id));
         }
+
+        println!("{:?}",data_file);
 
         if !data_file.is_file() {
             return None;
@@ -320,27 +422,41 @@ impl DataFile {
     }
 
     fn get_file_id(&self) -> u32 {
-        let mut count: u32 = 0;
 
-        for entry in walkdir::WalkDir::new(&self.root)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
-            if entry.path().is_file() {
-                let info: nom::IResult<&str, &str> =
-                    nom::sequence::delimited(
-                        nom::bytes::complete::tag("archive-"),
-                        nom::character::complete::digit1,
-                        nom::bytes::complete::tag(".db"),
-                    )(entry.path().file_name().unwrap().to_str().unwrap());
+        let fp = self.root.join("record.in");
 
-                if info.is_ok() && info.unwrap().0 == "" {
-                    count += 1;
-                }
-            }
+        let mut fp = OpenOptions::new().read(true).open(fp).unwrap();
+
+        let mut num = String::new();
+
+        fp.read_to_string(&mut num).unwrap();
+
+        match num.parse::<u32>() {
+            Ok(v) => v,
+            Err(_) => 1,
         }
 
-        count
+        // let mut count: u32 = 0;
+
+        // for entry in walkdir::WalkDir::new(&self.root)
+        //     .into_iter()
+        //     .filter_map(|e| e.ok())
+        // {
+        //     if entry.path().is_file() {
+        //         let info: nom::IResult<&str, &str> =
+        //             nom::sequence::delimited(
+        //                 nom::bytes::complete::tag("archive-"),
+        //                 nom::character::complete::digit1,
+        //                 nom::bytes::complete::tag(".db"),
+        //             )(entry.path().file_name().unwrap().to_str().unwrap());
+
+        //         if info.is_ok() && info.unwrap().0 == "" {
+        //             count += 1;
+        //         }
+        //     }
+        // }
+
+        // count
     }
 }
 
