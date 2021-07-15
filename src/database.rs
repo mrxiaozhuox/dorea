@@ -4,6 +4,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::{collections::HashMap, path::PathBuf};
 
 use futures::lock::Mutex;
+use log::info;
 use nom::AsBytes;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -142,20 +143,29 @@ impl DataFile {
             return Err(anyhow!("root dir not found"));
         }
 
+        let mut count = 0;
+
         for entry in walkdir::WalkDir::new(&self.root)
             .into_iter()
             .filter_map(|e| e.ok())
         {
             if entry.path().is_file() {
-                let info: nom::IResult<&str, &str> =
-                    nom::sequence::delimited(
-                        nom::bytes::complete::tag("archive-"),
-                        nom::character::complete::digit1,
-                        nom::bytes::complete::tag(".db"),
-                    )(entry.path().file_name().unwrap().to_str().unwrap());
+                let file_name = entry.path().file_name().unwrap().to_str().unwrap();
 
-                if info.is_ok() {
-                    let file_id = info.as_ref().unwrap().1.parse::<u32>().unwrap();
+                let info: nom::IResult<&str, &str> = nom::sequence::delimited(
+                    nom::bytes::complete::tag("archive-"),
+                    nom::character::complete::digit1,
+                    nom::bytes::complete::tag(".db"),
+                )(file_name);
+
+                if info.is_ok() || file_name == "active.db" {
+                    let file_id: u32;
+
+                    if file_name == "active.db" {
+                        file_id = self.get_file_id();
+                    } else {
+                        file_id = info.as_ref().unwrap().1.parse::<u32>().unwrap();
+                    }
 
                     // load index from db file.
                     let mut file = match OpenOptions::new().read(true).open(entry.path()) {
@@ -166,50 +176,26 @@ impl DataFile {
                     };
 
                     let file_size = file.metadata().unwrap().len();
-                    let file_size = file_size - 33;
+                    let file_size = file_size - 34;
                     let mut readed_size = 0;
 
-                    file.seek(SeekFrom::Start(33))?;
+                    file.seek(SeekFrom::Start(34))?;
 
                     let mut legacy: Vec<u8> = vec![];
-                    let mut position: (u64, u64) = (33, 33);
+                    let mut position: (u64, u64) = (34, 34);
                     let mut buf = [0_u8; 1024];
 
                     while readed_size < file_size {
+
                         let v = file.read(&mut buf)?;
+                        let mut bs = bytes::BytesMut::with_capacity(v);
 
-                        if buf.contains(&b';') {
-                            for char in buf.iter() {
+                        bs.put(&buf[0..v]);
 
-                                if char == &b';' {
-                                    let t = match bincode::deserialize::<DataNode>(&legacy[..]) {
-                                        Ok(t) => t,
-                                        Err(_) => {
-                                            break;
-                                        }
-                                    };
+                        // let mut rec = 0;
 
-                                    let index_info = IndexInfo {
-                                        file_id,
-                                        start_postion: position.0,
-                                        end_postion: position.1,
-                                        time_stamp: t.time_stamp.clone(),
-                                    };
-
-                                    println!("{} idx: {:?}",t.key, index_info);
-
-                                    index.insert(t.key.clone(), index_info);
-
-                                    position = (position.1 + 1, position.1 + 1);
-                                }
-
-                                legacy.push(*char);
-                                position.1 += 1;
-
-                            }
-                        } else {
-                            legacy.append(&mut buf.to_vec());
-                            position.1 += buf.len() as u64;
+                        for rec in 0..bs.len() {
+                            
                         }
 
                         readed_size += v as u64;
@@ -217,6 +203,12 @@ impl DataFile {
                 }
             }
         }
+
+        info!(
+            "index information loaded from {:?} [{}].",
+            self.root.file_name().unwrap(),
+            count,
+        );
 
         Ok(())
     }
@@ -266,7 +258,7 @@ impl DataFile {
 
         file.read_exact(&mut buf)?;
 
-        if buf.get(buf.len() - 1).unwrap() == &b';' {
+        if buf.get(buf.len() - 2).unwrap() == &b'\r' && buf.get(buf.len() - 2).unwrap() == &b'\n' {
             result = Err(anyhow!("version unspported"));
         }
 
@@ -296,7 +288,8 @@ impl DataFile {
         let mut v = bincode::serialize(&data).expect("serialize failed");
 
         // add ; symbol
-        v.push(59);
+        v.push(13);
+        v.push(10);
 
         let mut f = OpenOptions::new().append(true).open(file)?;
 
@@ -328,7 +321,6 @@ impl DataFile {
         key: String,
         index: &mut HashMap<String, IndexInfo>,
     ) -> Option<DataNode> {
-
         let index_info: IndexInfo = match index.get(&key) {
             Some(v) => v.clone(),
             None => {
@@ -343,7 +335,7 @@ impl DataFile {
             data_file = self.root.join(format!("archive-{}.db", index_info.file_id));
         }
 
-        println!("{:?}",data_file);
+        println!("{:?}", data_file);
 
         if !data_file.is_file() {
             return None;
@@ -383,7 +375,7 @@ impl DataFile {
 
         let size = file.metadata()?.len();
 
-        if size >= (1024 * 1024 * 1024) {
+        if size >= (1024 * 1024) {
             self.archive()?;
         }
 
@@ -401,7 +393,7 @@ impl DataFile {
 
         content.put(format!("{:x}", digest).as_bytes());
 
-        content.put_u8(b';');
+        content.put("\r\n".as_bytes());
 
         fs::write(&file, content)?;
 
@@ -415,6 +407,12 @@ impl DataFile {
 
         rename(&file, self.root.join(format!("archive-{}.db", count + 1)))?;
 
+        let mut f = OpenOptions::new()
+            .write(true)
+            .open(self.root.join("record.in"))?;
+
+        f.write((self.get_file_id() + 1).to_string().as_bytes())?;
+
         // remake active file
         self.active()?;
 
@@ -422,7 +420,6 @@ impl DataFile {
     }
 
     fn get_file_id(&self) -> u32 {
-
         let fp = self.root.join("record.in");
 
         let mut fp = OpenOptions::new().read(true).open(fp).unwrap();

@@ -80,7 +80,7 @@ mod test {
     async fn ping() {
         let mut dorea = DoreaClient::connect(("127.0.0.1", 3450)).await.unwrap();
 
-        for i in 0..10000 {
+        for i in 0..10 {
             dorea.setex(&i.to_string(),DataValue::Number(i as f64),0).await.unwrap();
         }
     }
