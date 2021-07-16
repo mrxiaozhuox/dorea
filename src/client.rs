@@ -51,6 +51,21 @@ impl DoreaClient {
         Err(anyhow::anyhow!(result))
     }
 
+    pub async fn get(&mut self, key: &str) -> crate::Result<DataValue> {
+        let command = format!("get {}", key);
+
+        let v = self.execute(&command).await?;
+        if v.0 == NetPacketState::OK {
+            let info = String::from_utf8_lossy(&v.1).to_string();
+            return Ok(DataValue::from(&info));
+        }
+
+        let result = String::from_utf8_lossy(&v.1).to_string();
+
+        Err(anyhow::anyhow!(result))
+
+    }
+
     pub async fn execute(&mut self, command: &str) -> crate::Result<(NetPacketState, Vec<u8>)> {
 
         let command_byte = command.as_bytes().to_vec();
@@ -77,11 +92,22 @@ mod test {
     use super::DoreaClient;
 
     #[tokio::test]
-    async fn ping() {
+    async fn write() {
         let mut dorea = DoreaClient::connect(("127.0.0.1", 3450)).await.unwrap();
 
-        for i in 0..100000 {
+        for i in 0..1000 {
             dorea.setex(&i.to_string(),DataValue::Number(i as f64),0).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn read() {
+
+        let mut dorea = DoreaClient::connect(("127.0.0.1", 3450)).await.unwrap();
+
+        for i in 0..100 {
+            let v = dorea.get(&i.to_string()).await.unwrap();
+            println!("{:?}",v);
         }
     }
 }
