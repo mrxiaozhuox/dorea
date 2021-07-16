@@ -396,8 +396,6 @@ impl DataFile {
             data_file = self.root.join(format!("archive-{}.db", index_info.file_id));
         }
 
-        println!("{:?}", data_file);
-
         if !data_file.is_file() {
             return None;
         }
