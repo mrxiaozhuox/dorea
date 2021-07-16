@@ -76,7 +76,7 @@ impl Frame {
 
         let (mut reader, _) = socket.split();
 
-        let mut buf = [0_u8; 40];
+        let mut buf = [0_u8; 50];
         let mut response = BytesMut::with_capacity(50);
 
         let size = reader.read(&mut buf).await?;

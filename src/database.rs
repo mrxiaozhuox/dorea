@@ -187,15 +187,76 @@ impl DataFile {
 
                     while readed_size < file_size {
 
+                        // println!("{} < {}", readed_size, file_size);
+
                         let v = file.read(&mut buf)?;
                         let mut bs = bytes::BytesMut::with_capacity(v);
 
                         bs.put(&buf[0..v]);
 
-                        // let mut rec = 0;
+                        // println!("{:?}",buf);
+
+                        let mut slice_symbol: bool = false;
 
                         for rec in 0..bs.len() {
-                            
+                            // is slice end
+
+                            if &bs[rec] == &b'\r' {
+
+                                if rec == (bs.len() - 1) {
+
+                                    let mut read_one = [0_u8; 1];
+                                    match file.read(&mut read_one) {
+                                        Ok(_) => {
+
+                                            readed_size += 1;
+
+                                            if read_one[0] != b'\n' {
+                                                legacy.push(bs[rec]);
+                                                position.1 += 1;
+
+                                                continue;
+                                            }
+                                        },
+                                        Err(e) => { panic!("{}",e.to_string()); }
+                                    };
+
+                                } else if &bs[rec + 1] != &b'\n' {
+                                    legacy.push(bs[rec]);
+                                    position.1 += 1;
+                                    continue;
+                                }
+
+                                let v = match bincode::deserialize::<DataNode>(&legacy[..]) {
+                                    Ok(v) => v,
+                                    Err(_) => break,
+                                };
+
+                                let info = IndexInfo {
+                                    file_id: file_id,
+                                    start_postion: position.0,
+                                    end_postion: position.1,
+                                    time_stamp: v.time_stamp,
+                                };
+
+                                if !index.contains_key(&v.key) {
+                                    count += 1;
+                                }
+
+                                index.insert(v.key.clone(), info);
+                                slice_symbol = true;
+                                position = (position.1 + 2, position.1 + 2);
+
+                                legacy.clear();
+
+                            } else {
+                                if slice_symbol && &bs[rec] == &b'\n' {
+                                    slice_symbol = false;
+                                } else {
+                                    legacy.push(bs[rec]);
+                                    position.1 += 1;
+                                }
+                            }
                         }
 
                         readed_size += v as u64;
