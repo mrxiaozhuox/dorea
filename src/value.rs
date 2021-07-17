@@ -23,6 +23,7 @@ pub enum DataValue {
     /// String Value
     ///
     /// ```
+    /// use dorea::value::DataValue;
     /// DataValue::String("hello world".to_string());
     /// ```
     String(String),
@@ -30,6 +31,7 @@ pub enum DataValue {
     /// Number Value
     ///
     /// ```
+    /// use dorea::value::DataValue;
     /// DataValue::Number(10_f64);
     /// ```
     Number(f64),
@@ -37,6 +39,7 @@ pub enum DataValue {
     /// Boolean Value
     ///
     /// ```
+    /// use dorea::value::DataValue;
     /// DataValue::Boolean(true);
     /// ```
     Boolean(bool),
@@ -44,28 +47,26 @@ pub enum DataValue {
     /// List Value
     ///
     /// ```
-    /// DataValue::List(vec![DataValue::Integer(1), DataValue::Integer(2), DataValue::Integer(3)]);
+    /// use dorea::value::DataValue;
+    /// DataValue::List(vec![DataValue::Number(1.0), DataValue::Number(2.0), DataValue::Number(3.0)]);
     /// ```
     List(Vec<DataValue>),
 
     /// Dict Value
     ///
     /// ```
-    /// DataValue::List(HashMap::new());
+    /// use dorea::value::DataValue;
+    /// DataValue::Dict(std::collections::HashMap::new());
     /// ```
     Dict(HashMap<String, DataValue>),
 
     /// Tuple Value
     ///
     /// ```
-    /// DataValue::Tuple((DataValue::Boolean(true), DataValue::Boolean(false)));
+    /// use dorea::value::DataValue;
+    /// DataValue::Tuple((Box::new(DataValue::Boolean(true)), Box::new(DataValue::Boolean(false))));
     /// ```
     Tuple((Box<DataValue>, Box<DataValue>)),
-
-    /// Undefined Value
-    ///
-    /// just use for data remove
-    Undefined,
 }
 
 impl std::string::ToString for DataValue {
@@ -108,7 +109,6 @@ impl std::string::ToString for DataValue {
 
                 format!("({},{})", first, second)
             }
-            DataValue::Undefined => "undefined".to_string(),
         }
     }
 }
@@ -148,8 +148,6 @@ impl DataValue {
             }
 
             DataValue::Tuple(tuple) => tuple.0.size() + tuple.1.size(),
-
-            DataValue::Undefined => 0,
         }
     }
 }

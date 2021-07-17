@@ -12,7 +12,7 @@
     </a>
 	</p>
 	<p align="center">
-    <strong>Dorea is a lightweight database system, you can use it in any programing language.</strong>
+    <strong>Dorea is a key-value data storage system. It is based on the Bitcask storage model</strong>
 	</p>
 	<p align="center">
     <a href="http://dorea.mrxzx.info/">Documentation</a> | 
@@ -21,3 +21,35 @@
 	</p>
 </p>
 
+## Features
+
+> Some Information for `dorea`
+
+
+
+### Data Sturct
+
+`Dorea` have the basic data type and some compound type.
+
+- String
+- Number
+- Boolean
+- List \<DataValue>
+- Dict \<String, DataValue>
+- Tuple \<DataValue, DataValue>
+
+
+
+## Storage Model
+
+`dorea` based on the `Bitcask` storage model. **(Log)**
+
+All **insert, update, delete** operations are implemented as appends.
+
+```
+key: foo | value: "bar" | timestamp: 1626470590043 # Insert Value
+key: foo | value: "new" | timestamp: 1626470590043 # Update Value (append info)
+key: foo | value:  none | timestamp: 1626470590043 # Remove Value (append info)
+```
+
+When a storage file reaches a maximum capacity, it is archived and a new write file is created.

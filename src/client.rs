@@ -84,30 +84,30 @@ impl DoreaClient {
     }
 }
 
-#[cfg(test)]
-mod test {
+// #[cfg(test)]
+// mod test {
 
-    use crate::value::DataValue;
+//     use crate::value::DataValue;
 
-    use super::DoreaClient;
+//     use super::DoreaClient;
 
-    #[tokio::test]
-    async fn write() {
-        let mut dorea = DoreaClient::connect(("127.0.0.1", 3450)).await.unwrap();
+//     #[tokio::test]
+//     async fn write() {
+//         let mut dorea = DoreaClient::connect(("127.0.0.1", 3450)).await.unwrap();
 
-        for i in 0..1000 {
-            dorea.setex(&i.to_string(),DataValue::Number(i as f64),0).await.unwrap();
-        }
-    }
+//         for i in 0..1000 {
+//             dorea.setex(&i.to_string(),DataValue::Number(i as f64),0).await.unwrap();
+//         }
+//     }
 
-    #[tokio::test]
-    async fn read() {
+//     #[tokio::test]
+//     async fn read() {
 
-        let mut dorea = DoreaClient::connect(("127.0.0.1", 3450)).await.unwrap();
+//         let mut dorea = DoreaClient::connect(("127.0.0.1", 3450)).await.unwrap();
 
-        for i in 0..100 {
-            let v = dorea.get(&i.to_string()).await.unwrap();
-            println!("{:?}",v);
-        }
-    }
-}
+//         for i in 0..100 {
+//             let v = dorea.get(&i.to_string()).await.unwrap();
+//             println!("{:?}",v);
+//         }
+//     }
+// }
