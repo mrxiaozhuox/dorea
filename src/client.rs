@@ -10,12 +10,12 @@ pub struct DoreaClient {
 }
 
 impl DoreaClient {
-    pub async fn connect(addr: (&'static str, u16)) -> crate::Result<Self> {
+    pub async fn connect(addr: (&'static str, u16), password: &str) -> crate::Result<Self> {
         let addr = format!("{}:{}", addr.0, addr.1);
 
         let mut conn = TcpStream::connect(addr).await?;
 
-        network::NetPacket::make("ping".as_bytes().to_vec(), network::NetPacketState::IGNORE)
+        network::NetPacket::make(format!("auth {}", password).as_bytes().to_vec(), network::NetPacketState::IGNORE)
             .send(&mut conn)
             .await?;
 
@@ -40,6 +40,22 @@ impl DoreaClient {
         expire: usize,
     ) -> crate::Result<()> {
         let command = format!("set {} {} {}", key, value.to_string(), expire);
+
+        let v = self.execute(&command).await?;
+        if v.0 == NetPacketState::OK {
+            return Ok(());
+        }
+
+        let result = String::from_utf8_lossy(&v.1).to_string();
+
+        Err(anyhow::anyhow!(result))
+    }
+
+    pub async fn delete(
+        &mut self,
+        key: &str,
+    ) -> crate::Result<()> {
+        let command = format!("delete {} ", key);
 
         let v = self.execute(&command).await?;
         if v.0 == NetPacketState::OK {
@@ -84,30 +100,22 @@ impl DoreaClient {
     }
 }
 
-// #[cfg(test)]
-// mod test {
+#[cfg(test)]
+mod client_test {
 
-//     use crate::value::DataValue;
+    use crate::value::DataValue;
+    use super::DoreaClient;
 
-//     use super::DoreaClient;
+    // client test code
 
-//     #[tokio::test]
-//     async fn write() {
-//         let mut dorea = DoreaClient::connect(("127.0.0.1", 3450)).await.unwrap();
-
-//         for i in 0..1000 {
-//             dorea.setex(&i.to_string(),DataValue::Number(i as f64),0).await.unwrap();
-//         }
-//     }
-
-//     #[tokio::test]
-//     async fn read() {
-
-//         let mut dorea = DoreaClient::connect(("127.0.0.1", 3450)).await.unwrap();
-
-//         for i in 0..100 {
-//             let v = dorea.get(&i.to_string()).await.unwrap();
-//             println!("{:?}",v);
-//         }
-//     }
-// }
+    #[test]
+    fn test() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut c = DoreaClient::connect(
+                ("127.0.0.1", 3450),
+                ""
+            ).await.unwrap();
+        });
+    }
+}

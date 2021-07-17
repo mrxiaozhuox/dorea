@@ -49,9 +49,9 @@ impl DataBaseManager {
         let db_list = DataBaseManager::load_database(&config, location.clone());
 
         let obj = Self {
-            db_list: db_list,
+            db_list,
             location: location.clone(),
-            config: config,
+            config,
         };
 
         obj
@@ -95,7 +95,7 @@ impl DataBase {
             index: index_list,
             timestamp: chrono::Local::now().timestamp(),
             file: data_file,
-            location: location,
+            location,
         }
     }
 
@@ -129,7 +129,7 @@ impl DataFile {
     pub fn new(root: &PathBuf, name: String, max_index_size: u32) -> Self {
         let mut db = Self {
             root: root.clone(),
-            name: name,
+            name,
             max_index_number: max_index_size,
         };
 
@@ -187,8 +187,6 @@ impl DataFile {
 
                     while readed_size < file_size {
 
-                        // println!("{} < {}", readed_size, file_size);
-
                         let v = file.read(&mut buf)?;
                         let mut bs = bytes::BytesMut::with_capacity(v);
 
@@ -233,17 +231,25 @@ impl DataFile {
                                 };
 
                                 let info = IndexInfo {
-                                    file_id: file_id,
-                                    start_postion: position.0,
-                                    end_postion: position.1,
+                                    file_id,
+                                    start_position: position.0,
+                                    end_position: position.1,
                                     time_stamp: v.time_stamp,
                                 };
 
-                                if !index.contains_key(&v.key) {
-                                    count += 1;
+                                if v.value != DataValue::None {
+                                    if !index.contains_key(&v.key) {
+                                        count += 1;
+                                    }
+
+                                    index.insert(v.key.clone(), info);
+                                } else {
+                                    if index.contains_key(&v.key) {
+                                        index.remove(&v.key);
+                                        count -= 1;
+                                    }
                                 }
 
-                                index.insert(v.key.clone(), info);
                                 slice_symbol = true;
                                 position = (position.1 + 2, position.1 + 2);
 
@@ -320,7 +326,7 @@ impl DataFile {
         file.read_exact(&mut buf)?;
 
         if buf.get(buf.len() - 2).unwrap() == &b'\r' && buf.get(buf.len() - 2).unwrap() == &b'\n' {
-            result = Err(anyhow!("version unspported"));
+            result = Err(anyhow!("version nonsupport"));
         }
 
         let check_code = String::from_utf8_lossy(&buf[0..buf.len() - 1]).to_string();
@@ -342,32 +348,32 @@ impl DataFile {
             return Err(anyhow!("exceeded max index number"));
         }
 
-        let _ = self.checkfile().unwrap();
+        let _ = self.check_file().unwrap();
 
         let file = self.root.join("active.db");
 
         let mut v = bincode::serialize(&data).expect("serialize failed");
 
-        // add ; symbol
+        // add \r\n symbol
         v.push(13);
         v.push(10);
 
         let mut f = OpenOptions::new().append(true).open(file)?;
 
-        let start_postion = f.metadata()?.len();
+        let start_position = f.metadata()?.len();
 
         f.write_all(&v[..]).expect("write error");
 
-        let end_postion: u64 = start_postion + v.len() as u64;
+        let end_position: u64 = start_position + v.len() as u64;
 
         let index_info = IndexInfo {
             file_id: self.get_file_id(),
-            start_postion: start_postion,
-            end_postion: end_postion,
+            start_position,
+            end_position,
             time_stamp: data.time_stamp,
         };
 
-        // add totoal_index
+        // add total index number
         if !index.contains_key(&data.key) {
             TOTAL_INFO.lock().await.index_add();
         }
@@ -402,14 +408,14 @@ impl DataFile {
 
         let mut file = fs::File::open(data_file).unwrap();
 
-        file.seek(SeekFrom::Start(index_info.start_postion))
+        file.seek(SeekFrom::Start(index_info.start_position))
             .unwrap();
 
         let mut buf: Vec<u8> =
-            Vec::with_capacity((index_info.end_postion - index_info.start_postion) as usize);
+            Vec::with_capacity((index_info.end_position - index_info.start_position) as usize);
 
         buf.resize(
-            (index_info.end_postion - index_info.start_postion) as usize,
+            (index_info.end_position - index_info.start_position) as usize,
             0,
         );
 
@@ -425,7 +431,7 @@ impl DataFile {
         Some(v)
     }
 
-    pub fn checkfile(&self) -> crate::Result<()> {
+    pub fn check_file(&self) -> crate::Result<()> {
         let file = self.root.join("active.db");
 
         if !file.is_file() {
@@ -491,36 +497,14 @@ impl DataFile {
             Ok(v) => v,
             Err(_) => 1,
         }
-
-        // let mut count: u32 = 0;
-
-        // for entry in walkdir::WalkDir::new(&self.root)
-        //     .into_iter()
-        //     .filter_map(|e| e.ok())
-        // {
-        //     if entry.path().is_file() {
-        //         let info: nom::IResult<&str, &str> =
-        //             nom::sequence::delimited(
-        //                 nom::bytes::complete::tag("archive-"),
-        //                 nom::character::complete::digit1,
-        //                 nom::bytes::complete::tag(".db"),
-        //             )(entry.path().file_name().unwrap().to_str().unwrap());
-
-        //         if info.is_ok() && info.unwrap().0 == "" {
-        //             count += 1;
-        //         }
-        //     }
-        // }
-
-        // count
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct IndexInfo {
     file_id: u32,
-    start_postion: u64,
-    end_postion: u64,
+    start_position: u64,
+    end_position: u64,
     time_stamp: (i64, u64),
 }
 

@@ -1,3 +1,26 @@
+//! dorea::value - DataValue Parser
+//!
+//! ```
+//! use dorea::value::DataValue;
+//! use std::collections::HashMap;
+//!
+//! DataValue::String("Hello World".to_string());
+//! DataValue::Number(1_f64);
+//! DataValue::Boolean(true);
+//! DataValue::List(vec![
+//!     DataValue::Number(3.14_f64),
+//! ]);
+//! DataValue::Dict(HashMap::new());
+//! DataValue::Tuple((
+//!     Box::new(DataValue::Number(1_f64)),
+//!     Box::new(DataValue::Number(2_f64)),
+//! ));
+//!
+//! assert!(DataValue::from("\"info\""),DataValue::String("info".to_string()));
+//!
+//! ```
+
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -48,7 +71,11 @@ pub enum DataValue {
     ///
     /// ```
     /// use dorea::value::DataValue;
-    /// DataValue::List(vec![DataValue::Number(1.0), DataValue::Number(2.0), DataValue::Number(3.0)]);
+    ///     DataValue::List(vec![
+    ///     DataValue::Number(1.0),
+    ///     DataValue::Number(2.0),
+    ///     DataValue::Number(3.0)
+    /// ]);
     /// ```
     List(Vec<DataValue>),
 
@@ -64,7 +91,12 @@ pub enum DataValue {
     ///
     /// ```
     /// use dorea::value::DataValue;
-    /// DataValue::Tuple((Box::new(DataValue::Boolean(true)), Box::new(DataValue::Boolean(false))));
+    /// DataValue::Tuple(
+    ///     (
+    ///         Box::new(DataValue::Boolean(true)),
+    ///         Box::new(DataValue::Boolean(false))
+    ///     )
+    /// );
     /// ```
     Tuple((Box<DataValue>, Box<DataValue>)),
 }
@@ -114,6 +146,26 @@ impl std::string::ToString for DataValue {
 }
 
 impl DataValue {
+
+    /// parse `&str` to `DataValue` type:
+    /// - String: "xxx"
+    /// - Number: 114514
+    /// - Boolean: true
+    /// - List: \[1,2,3,4,5\]
+    /// - dict: {"hello": "world"}
+    /// - tuple: (1,2)
+    /// ```
+    /// use dorea::value::DataValue;
+    ///
+    /// assert!(
+    ///     DataValue::from("[1,2,3]"),
+    ///     DataValue::List(vec![
+    ///         DataValue::Number(1.0),
+    ///         DataValue::Number(2.0),
+    ///         DataValue::Number(3.0),
+    ///     ]);
+    /// );
+    /// ```
     pub fn from(data: &str) -> Self {
         match ValueParser::parse(data) {
             Ok((_, v)) => v,

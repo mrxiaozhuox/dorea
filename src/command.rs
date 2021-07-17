@@ -154,15 +154,15 @@ impl CommandManager {
 
             let local_password = &config.connection.connection_password;
 
-            if input_password == local_password {
+            return if input_password == local_password || local_password == "" {
                 *auth = true;
 
-                return (NetPacketState::OK, vec![]);
+                (NetPacketState::OK, vec![])
             } else {
-                return (
+                (
                     NetPacketState::ERR,
                     "Password input failed".as_bytes().to_vec(),
-                );
+                )
             }
         }
 
@@ -203,12 +203,12 @@ impl CommandManager {
                 .set(key.to_string(), data_value, expire)
                 .await;
 
-            match result {
+            return match result {
                 Ok(_) => {
-                    return (NetPacketState::OK, vec![]);
+                    (NetPacketState::OK, vec![])
                 }
                 Err(e) => {
-                    return (NetPacketState::ERR, e.to_string().as_bytes().to_vec());
+                    (NetPacketState::ERR, e.to_string().as_bytes().to_vec())
                 }
             }
         }
@@ -225,16 +225,38 @@ impl CommandManager {
                 .get(key.to_string())
                 .await;
 
-            match result {
+            return match result {
                 Some(v) => {
                     if v == DataValue::None {
                         return (NetPacketState::ERR, "Data Not Found".as_bytes().to_vec());
                     }
 
-                    return (NetPacketState::OK, v.to_string().as_bytes().to_vec());
+                    (NetPacketState::OK, v.to_string().as_bytes().to_vec())
                 }
                 None => {
-                    return (NetPacketState::ERR, "Data Not Found".as_bytes().to_vec());
+                    (NetPacketState::ERR, "Data Not Found".as_bytes().to_vec())
+                }
+            }
+        }
+
+        if command == CommandList::DELETE {
+            let key = slice.get(0).unwrap();
+
+            let result = database_manager
+                .lock()
+                .await
+                .db_list
+                .get_mut(current)
+                .unwrap()
+                .set(key.to_string(),DataValue::None,0)
+                .await;
+
+            return match result {
+                Ok(_) => {
+                    (NetPacketState::OK, vec![])
+                }
+                Err(e) => {
+                    (NetPacketState::ERR, e.to_string().as_bytes().to_vec())
                 }
             }
         }
