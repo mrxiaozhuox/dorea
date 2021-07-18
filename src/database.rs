@@ -3,7 +3,6 @@ use std::fs::{self, rename};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::{collections::HashMap, path::PathBuf};
 
-use futures::lock::Mutex;
 use log::info;
 use nom::AsBytes;
 use once_cell::sync::Lazy;
@@ -16,6 +15,7 @@ use crate::value::DataValue;
 use crate::Result;
 
 use anyhow::anyhow;
+use tokio::sync::Mutex;
 
 #[derive(Debug)]
 pub(crate) struct DataBaseManager {

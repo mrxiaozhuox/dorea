@@ -108,14 +108,14 @@ mod client_test {
 
     // client test code
 
-    #[test]
-    fn test() {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let mut c = DoreaClient::connect(
-                ("127.0.0.1", 3450),
-                ""
-            ).await.unwrap();
-        });
-    }
+    // #[test]
+    // fn test() {
+    //     let rt = tokio::runtime::Runtime::new().unwrap();
+    //     rt.block_on(async {
+    //         let mut c = DoreaClient::connect(
+    //             ("127.0.0.1", 3450),
+    //             ""
+    //         ).await.unwrap();
+    //     });
+    // }
 }
