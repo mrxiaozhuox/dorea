@@ -16,8 +16,6 @@
 //!     Box::new(DataValue::Number(2_f64)),
 //! ));
 //!
-//! assert!(DataValue::from("\"info\""),DataValue::String("info".to_string()));
-//!
 //! ```
 
 
@@ -157,13 +155,13 @@ impl DataValue {
     /// ```
     /// use dorea::value::DataValue;
     ///
-    /// assert!(
+    /// assert_eq!(
     ///     DataValue::from("[1,2,3]"),
     ///     DataValue::List(vec![
-    ///         DataValue::Number(1.0),
-    ///         DataValue::Number(2.0),
-    ///         DataValue::Number(3.0),
-    ///     ]);
+    ///         DataValue::Number(1_f64),
+    ///         DataValue::Number(2_f64),
+    ///         DataValue::Number(3_f64),
+    ///     ])
     /// );
     /// ```
     pub fn from(data: &str) -> Self {
