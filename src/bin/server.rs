@@ -4,6 +4,20 @@ use clap::{App, Arg};
 
 use std::path::PathBuf;
 
+const TEMPLATE: &'static str = "
+⎐ {bin} - (V{version}) ⎐
+
+USAGE:
+  {usage}
+
+OPTIONS:
+{options}
+
+Dorea-Core: https://github.com/doreadb/dorea.git
+Dorea-Repo: https://github.com/doreadb/
+
+";
+
 #[tokio::main]
 async fn main() {
 
@@ -27,8 +41,15 @@ async fn main() {
             Arg::with_name("WORKSPACE")
                 .short("w")
                 .long("workspace")
-                .default_value("$DOREA_DOCUMENT_PATH")
+                .default_value("$DOREA_DOC")
         )
+        .arg(
+            Arg::with_name("ENV")
+                .short("e")
+                .long("env")
+                .default_value("MAIN")
+        )
+        .template(TEMPLATE)
         .get_matches();
 
     let hostname = matches.value_of("HOSTNAME").unwrap().to_string();
@@ -36,7 +57,7 @@ async fn main() {
     let workspace = matches.value_of("WORKSPACE").unwrap();
 
     let workspace: Option<PathBuf> = match workspace {
-        "$DOREA_DOCUMENT_PATH" => None,
+        "$DOREA_DOC" => None,
         other => { Some(PathBuf::from(other)) }
     };
 

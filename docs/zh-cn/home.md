@@ -1,8 +1,8 @@
-`Dorea` 是一款使用 `Rust` 高性能 Key-Value 存储系统。
+`Dorea` 是一款使用 `Rust` 开发的高性能 Key-Value 存储系统。
 
 ## 存储模型
 
-`Dorea` 使用了日志型存储方案：**BitCask**
+`Dorea` 使用了日志型存储方案：**Bitcask**
 
 日志存储只有一种操作：**追加**，对于任何数据的处理都是追加完成的。
 
