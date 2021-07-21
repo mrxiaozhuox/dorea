@@ -1,7 +1,20 @@
+# build dorea-core latest version
+# dorea: https://github.com/doreadb/dorea.git
+# crate: https://crates.io/crates/dorea
+# document: https://dorea.mrxzx.info
+# author: ZhuoEr Liu <mrxzx@qq.com> [ https://blog.wwsg18.com ]
+
+# dorea-server --hostname 0.0.0.0 --port 3450 --workspace .
+
+# dorea key-value database
+
 # use rust(latest version)
 FROM rust:latest
 
+# some information
 LABEL MAINTAINER="ZhuoEr Liu <mrxzx@qq.com>"
+ENV DOREA_VERSION="3.0"
+ENV DOREA_WEBSITE="https://dorea.mrxzx.info"
 
 # dorea-core work dir
 WORKDIR /usr/src/dorea-core
