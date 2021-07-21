@@ -103,6 +103,19 @@ impl DoreaClient {
         Err(anyhow::anyhow!(result))
     }
 
+    pub async fn select(&mut self, db_name: &str) -> crate::Result<()> {
+        let command = format!("select {}", db_name);
+
+        let v = self.execute(&command).await?;
+        if v.0 == NetPacketState::OK {
+            return Ok(());
+        }
+
+        let result = String::from_utf8_lossy(&v.1).to_string();
+
+        Err(anyhow::anyhow!(result))
+    }
+
     pub async fn execute(&mut self, command: &str) -> crate::Result<(NetPacketState, Vec<u8>)> {
 
         let command_byte = command.as_bytes().to_vec();
@@ -136,11 +149,16 @@ mod client_test {
     //         ""
     //     ).await.unwrap();
     //
-    //     c.setex("hello", DataValue::Number(1.0), 0).await;
-    //     c.delete("hello").await;
-    //     c.setex("world",DataValue::Boolean(true), 0).await;
-    //     println!("{:?}",c.get("world").await);
-    //     println!("clean state: {:?}",c.clean().await);
-    //     println!("{:?}",c.get("world").await);
+    //     let list = ["sam", "kevin", "leo"];
+    //
+    //     for i in list {
+    //         c.select(i).await.unwrap();
+    //         c.setex("name",DataValue::String(i.to_string()), 0).await;
+    //     }
+    //
+    //     for i in list {
+    //         c.select(i).await.unwrap();
+    //         println!("{}: {:?}", i, c.get("name").await);
+    //     }
     // }
 }

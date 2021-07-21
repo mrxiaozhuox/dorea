@@ -63,7 +63,7 @@ impl CommandManager {
     pub(crate) async fn command_handle(
         message: String,
         auth: &mut bool,
-        current: &mut str,
+        current: &mut String,
         config: &DoreaFileConfig,
         database_manager: &Mutex<DataBaseManager>,
     ) -> (NetPacketState, Vec<u8>) {
@@ -286,6 +286,7 @@ impl CommandManager {
 
             return match database_manager.lock().await.select_to(db_name) {
                 Ok(_) => {
+                    *current = db_name.to_string();
                     (NetPacketState::OK, vec![])
                 }
                 Err(e) => {
