@@ -116,16 +116,16 @@ mod client_test {
 
     // client test code
 
-    #[tokio::test]
-    async fn test() {
-        let mut c = DoreaClient::connect(
-            ("127.0.0.1", 3450),
-            ""
-        ).await.unwrap();
-
-        c.setex("hello", DataValue::Number(1.0), 0).await;
-        c.delete("hello").await;
-        c.setex("world",DataValue::Boolean(true), 0).await;
-        println!("{:?}",c.get("world").await);
-    }
+    // #[tokio::test]
+    // async fn test() {
+    //     let mut c = DoreaClient::connect(
+    //         ("127.0.0.1", 3450),
+    //         ""
+    //     ).await.unwrap();
+    //
+    //     c.setex("hello", DataValue::Number(1.0), 0).await;
+    //     c.delete("hello").await;
+    //     c.setex("world",DataValue::Boolean(true), 0).await;
+    //     println!("{:?}",c.get("world").await);
+    // }
 }
