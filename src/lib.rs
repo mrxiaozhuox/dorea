@@ -26,6 +26,9 @@ pub mod value;
 #[cfg(feature = "processor")]
 pub mod network;
 
+#[cfg(feature = "processor")]
+pub mod macros;
+
 mod command;
 mod configure;
 mod database;

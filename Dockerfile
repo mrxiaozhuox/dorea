@@ -1,6 +1,6 @@
 FROM rust:latest
 
-MAINTAINER ZhuoEr Liu <mrxzx@qq.com>
+LABEL MAINTAINER="ZhuoEr Liu <mrxzx@qq.com>"
 
 WORKDIR /usr/src/doreadb
 

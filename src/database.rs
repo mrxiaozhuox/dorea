@@ -35,12 +35,15 @@ pub struct DataBase {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DataNode {
+    crc: u32,
     key: String,
     value: DataValue,
     time_stamp: (i64, u64),
 }
 
 static TOTAL_INFO: Lazy<Mutex<TotalInfo>> = Lazy::new(|| Mutex::new(TotalInfo { index_number: 0 }));
+
+pub const CASTAGNOLI: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_ISCSI);
 
 impl DataBaseManager {
     pub fn new(location: PathBuf) -> Self {
@@ -100,7 +103,12 @@ impl DataBase {
     }
 
     pub async fn set(&mut self, key: String, value: DataValue, expire: u64) -> Result<()> {
+
+        let mut crc_digest = CASTAGNOLI.digest();
+        crc_digest.update(&value.to_string().as_bytes());
+
         let data_node = DataNode {
+            crc: crc_digest.finalize(),
             key: key.clone(),
             value: value.clone(),
             time_stamp: (chrono::Local::now().timestamp(), expire),

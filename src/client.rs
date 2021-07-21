@@ -15,9 +15,17 @@ impl DoreaClient {
 
         let mut conn = TcpStream::connect(addr).await?;
 
-        network::NetPacket::make(format!("auth {}", password).as_bytes().to_vec(), network::NetPacketState::IGNORE)
-            .send(&mut conn)
-            .await?;
+        if password != "" {
+            network::NetPacket::make(
+                format!("auth {}", password).as_bytes().to_vec(),
+                network::NetPacketState::IGNORE
+            ).send(&mut conn).await?;
+        } else {
+            network::NetPacket::make(
+                "ping".as_bytes().to_vec(),
+                network::NetPacketState::IGNORE
+            ).send(&mut conn).await?;
+        }
 
         let mut frame = Frame::new();
 
@@ -108,14 +116,16 @@ mod client_test {
 
     // client test code
 
-    // #[test]
-    // fn test() {
-    //     let rt = tokio::runtime::Runtime::new().unwrap();
-    //     rt.block_on(async {
-    //         let mut c = DoreaClient::connect(
-    //             ("127.0.0.1", 3450),
-    //             ""
-    //         ).await.unwrap();
-    //     });
-    // }
+    #[tokio::test]
+    async fn test() {
+        let mut c = DoreaClient::connect(
+            ("127.0.0.1", 3450),
+            ""
+        ).await.unwrap();
+
+        c.setex("hello", DataValue::Number(1.0), 0).await;
+        c.delete("hello").await;
+        c.setex("world",DataValue::Boolean(true), 0).await;
+        println!("{:?}",c.get("world").await);
+    }
 }
