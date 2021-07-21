@@ -248,10 +248,43 @@ impl CommandManager {
                 .db_list
                 .get_mut(current)
                 .unwrap()
-                .set(key.to_string(),DataValue::None,0)
+                .delete(&key.to_string())
                 .await;
 
             return match result {
+                Ok(_) => {
+                    (NetPacketState::OK, vec![])
+                }
+                Err(e) => {
+                    (NetPacketState::ERR, e.to_string().as_bytes().to_vec())
+                }
+            }
+        }
+
+        if command == CommandList::CLEAN {
+            let result = database_manager
+                .lock()
+                .await
+                .db_list
+                .get_mut(current)
+                .unwrap()
+                .clean() /* clean all data */
+                .await;
+
+            return match result {
+                Ok(_) => {
+                    (NetPacketState::OK, vec![])
+                }
+                Err(e) => {
+                    (NetPacketState::ERR, e.to_string().as_bytes().to_vec())
+                }
+            }
+        }
+
+        if command == CommandList::SELECT {
+            let db_name = slice.get(0).unwrap();
+
+            return match database_manager.lock().await.select_to(db_name) {
                 Ok(_) => {
                     (NetPacketState::OK, vec![])
                 }

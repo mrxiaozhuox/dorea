@@ -60,6 +60,24 @@ impl DataBaseManager {
         obj
     }
 
+    pub fn select_to(&mut self, name: &str) -> Result<()> {
+
+        if self.db_list.contains_key(name) {
+            return Ok(())
+        } else {
+            self.db_list.insert(
+              name.to_string(),
+              DataBase::init(
+                  name.to_string(),
+                  self.location.clone(),
+                  self.config.database.clone()
+                )
+            );
+        }
+
+        Ok(())
+    }
+
     fn load_database(config: &DoreaFileConfig, location: PathBuf) -> HashMap<String, DataBase> {
         let config = config.clone();
 
@@ -71,7 +89,7 @@ impl DataBaseManager {
             db_list.insert(
                 db.to_string(),
                 DataBase::init(
-                    config.database.default_group.clone(),
+                    db.to_string(),
                     location.clone(),
                     config.database.clone(),
                 ),
@@ -123,6 +141,37 @@ impl DataBase {
             Some(d) => Some(d.value),
             None => None,
         }
+    }
+
+    pub async fn delete(&mut self, key: &String) -> Result<()> {
+
+        match self.set(key.clone(), DataValue::None, 0).await {
+            Ok(_) => {
+                self.index.remove(&key.to_string()); Ok(())
+            }
+            Err(e) => { Err(e) }
+        }
+    }
+
+    pub async fn clean(&mut self) -> Result<()> {
+
+        // traverse all file and remove it
+        for entry in walkdir::WalkDir::new(&self.location)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            if entry.path().is_file() {
+                fs::remove_file(entry.path())?;
+            }
+        }
+
+        // clean index hashMap
+        self.index = HashMap::new();
+
+        // re-init storage file struct
+        self.file.init_db()?;
+
+        Ok(())
     }
 }
 
