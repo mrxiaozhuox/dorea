@@ -149,16 +149,17 @@ mod client_test {
     //         ""
     //     ).await.unwrap();
     //
-    //     let list = ["sam", "kevin", "leo"];
-    //
-    //     for i in list {
-    //         c.select(i).await.unwrap();
-    //         c.setex("name",DataValue::String(i.to_string()), 0).await;
-    //     }
-    //
-    //     for i in list {
-    //         c.select(i).await.unwrap();
-    //         println!("{}: {:?}", i, c.get("name").await);
-    //     }
+    // //
+    // //     let list = ["sam", "kevin", "leo"];
+    // //
+    // //     for i in list {
+    // //         c.select(i).await.unwrap();
+    // //         c.setex("name",DataValue::String(i.to_string()), 0).await;
+    // //     }
+    // //
+    // //     for i in list {
+    // //         c.select(i).await.unwrap();
+    // //         println!("{}: {:?}", i, c.get("name").await);
+    // //     }
     // }
 }

@@ -295,6 +295,27 @@ impl CommandManager {
             }
         }
 
+        if command == CommandList::INFO {
+            let argument: &str = slice.get(0).unwrap();
+
+            if argument == "current" {
+                return (NetPacketState::OK, current.as_bytes().to_vec())
+            }
+
+            if argument == "version" {
+                return (
+                    NetPacketState::OK,
+                    crate::DOREA_VERSION.as_bytes().to_vec()
+                );
+            }
+
+            // unknown operation.
+            return (
+                NetPacketState::ERR,
+                "Unknown operation.".as_bytes().to_vec(),
+            );
+        }
+
         // unknown operation.
         return (
             NetPacketState::ERR,
