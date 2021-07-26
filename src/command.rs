@@ -200,7 +200,7 @@ impl CommandManager {
                 .db_list
                 .get_mut(current)
                 .unwrap()
-                .set(key.to_string(), data_value, expire)
+                .set(key, data_value, expire)
                 .await;
 
             return match result {
@@ -214,7 +214,7 @@ impl CommandManager {
         }
 
         if command == CommandList::GET {
-            let key = slice.get(0).unwrap();
+            let key = slice.get(0).unwrap().to_string();
 
             let result = database_manager
                 .lock()
@@ -222,7 +222,7 @@ impl CommandManager {
                 .db_list
                 .get_mut(current)
                 .unwrap()
-                .get(key.to_string())
+                .get(&key)
                 .await;
 
             return match result {
@@ -309,11 +309,37 @@ impl CommandManager {
                 );
             }
 
+            if argument == "max-connect-number" || argument == "mcn" {
+                return (
+                    NetPacketState::OK,
+                    config.connection.max_connect_number.to_string().as_bytes().to_vec()
+                )
+            }
+
             // unknown operation.
             return (
                 NetPacketState::ERR,
                 "Unknown operation.".as_bytes().to_vec(),
             );
+        }
+
+        if command == CommandList::EDIT {
+            let key: &str = slice.get(0).unwrap();
+
+            let value = database_manager.lock().await
+                .db_list.get_mut(current).unwrap()
+                .get(key).await;
+
+            if value.is_none() {
+                return (
+                    NetPacketState::ERR,
+                    format!("Key '{}' not found.", key).as_bytes().to_vec(),
+                );
+            }
+
+            let _value = value.unwrap();
+
+            // todo!
         }
 
         // unknown operation.

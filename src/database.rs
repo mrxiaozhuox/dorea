@@ -120,14 +120,14 @@ impl DataBase {
         }
     }
 
-    pub async fn set(&mut self, key: String, value: DataValue, expire: u64) -> Result<()> {
+    pub async fn set(&mut self, key: &str, value: DataValue, expire: u64) -> Result<()> {
 
         let mut crc_digest = CASTAGNOLI.digest();
         crc_digest.update(&value.to_string().as_bytes());
 
         let data_node = DataNode {
             crc: crc_digest.finalize(),
-            key: key.clone(),
+            key: key.to_string(),
             value: value.clone(),
             time_stamp: (chrono::Local::now().timestamp(), expire),
         };
@@ -135,22 +135,26 @@ impl DataBase {
         self.file.write(data_node, &mut self.index).await
     }
 
-    pub async fn get(&mut self, key: String) -> Option<DataValue> {
-        let res = self.file.read(key, &mut self.index).await;
+    pub async fn get(&mut self, key: &str) -> Option<DataValue> {
+        let res = self.file.read(key.to_string(), &mut self.index).await;
         match res {
             Some(d) => Some(d.value),
             None => None,
         }
     }
 
-    pub async fn delete(&mut self, key: &String) -> Result<()> {
+    pub async fn delete(&mut self, key: &str) -> Result<()> {
 
-        match self.set(key.clone(), DataValue::None, 0).await {
+        match self.set(key, DataValue::None, 0).await {
             Ok(_) => {
                 self.index.remove(&key.to_string()); Ok(())
             }
             Err(e) => { Err(e) }
         }
+    }
+
+    pub async fn contains_key(&mut self, key: &str) -> bool {
+        self.index.contains_key(key)
     }
 
     pub async fn clean(&mut self) -> Result<()> {
