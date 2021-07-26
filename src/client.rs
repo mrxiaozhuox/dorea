@@ -137,8 +137,8 @@ impl DoreaClient {
 #[cfg(test)]
 mod client_test {
 
-    use crate::value::DataValue;
-    use super::DoreaClient;
+    // use crate::value::DataValue;
+    // use super::DoreaClient;
 
     // client test code
 

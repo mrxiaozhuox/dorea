@@ -79,7 +79,7 @@ impl CommandManager {
         command_argument_info.insert(CommandList::SELECT, (1, 1));
         command_argument_info.insert(CommandList::SEARCH, (1, -1));
         command_argument_info.insert(CommandList::INFO, (1, 3));
-        command_argument_info.insert(CommandList::EDIT, (1, 3));
+        command_argument_info.insert(CommandList::EDIT, (2, 3));
         command_argument_info.insert(CommandList::PING, (0, 0));
         command_argument_info.insert(CommandList::ECHO, (1, -1));
         command_argument_info.insert(CommandList::EVAL, (1, -1));
@@ -325,6 +325,7 @@ impl CommandManager {
 
         if command == CommandList::EDIT {
             let key: &str = slice.get(0).unwrap();
+            let operation: &str = slice.get(1).unwrap();
 
             let value = database_manager.lock().await
                 .db_list.get_mut(current).unwrap()
@@ -337,9 +338,29 @@ impl CommandManager {
                 );
             }
 
-            let _value = value.unwrap();
+            let value = value.unwrap();
 
-            // todo!
+            // data_value was none_value
+            if value == DataValue::None {
+                return (
+                    NetPacketState::ERR,
+                    format!("Key '{}' not found.", key).as_bytes().to_vec(),
+                );
+            }
+
+            // let mut result: DataValue = DataValue::None;
+            if operation == "incr" {
+
+                let mut incr_num = 1;
+
+                if slice.len() >= 3 {
+                    let number: &str = slice.get(2).unwrap();
+                    incr_num = number.parse::<i32>().unwrap_or(1);
+                }
+
+                edit_operation::incr(value, incr_num);
+            }
+
         }
 
         // unknown operation.
@@ -347,5 +368,53 @@ impl CommandManager {
             NetPacketState::ERR,
             "Unknown operation.".as_bytes().to_vec(),
         );
+    }
+}
+
+mod edit_operation {
+
+    use crate::value::DataValue;
+
+    pub fn incr(value: DataValue, num: i32) -> DataValue {
+
+        let mut result = value.clone();
+
+        if let DataValue::Number(x) = value {
+            result = DataValue::Number(((x as i32) + num) as f64);
+        }
+
+        if let DataValue::List(x) = value {
+            let mut temp: Vec<DataValue> = vec![];
+            for item in x {
+                temp.push(incr(item, num));
+            }
+
+            result = DataValue::List(temp);
+        }
+
+        return result;
+    }
+
+    #[test]
+    fn test_incr() {
+        let v = incr(DataValue::List(
+            vec![
+                DataValue::Number(1_f64),
+                DataValue::Number(2_f64),
+                DataValue::Number(3_f64),
+                DataValue::Number(4_f64),
+                DataValue::Number(5_f64),
+            ]
+        ),1);
+
+        assert_eq!(v, DataValue::List(
+            vec![
+                DataValue::Number(2_f64),
+                DataValue::Number(3_f64),
+                DataValue::Number(4_f64),
+                DataValue::Number(5_f64),
+                DataValue::Number(6_f64),
+            ]
+        ));
     }
 }
