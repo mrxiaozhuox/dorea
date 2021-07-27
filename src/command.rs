@@ -8,6 +8,7 @@ use crate::{
     network::NetPacketState,
     value::DataValue,
 };
+use serde_json::error::Category::Data;
 
 #[allow(dead_code)]
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -81,7 +82,7 @@ impl CommandManager {
         command_argument_info.insert(CommandList::SELECT, (1, 1));
         command_argument_info.insert(CommandList::SEARCH, (1, -1));
         command_argument_info.insert(CommandList::INFO, (1, 3));
-        command_argument_info.insert(CommandList::EDIT, (2, 3));
+        command_argument_info.insert(CommandList::EDIT, (2, -1));
         command_argument_info.insert(CommandList::PING, (0, 0));
         command_argument_info.insert(CommandList::ECHO, (1, -1));
         command_argument_info.insert(CommandList::EVAL, (1, -1));
@@ -340,10 +341,10 @@ impl CommandManager {
                 );
             }
 
-            let value = value.unwrap();
+            let origin_value = value.unwrap();
 
             // data_value was none_value
-            if value == DataValue::None {
+            if origin_value == DataValue::None {
                 return (
                     NetPacketState::ERR,
                     format!("Key '{}' not found.", key).as_bytes().to_vec(),
@@ -360,11 +361,42 @@ impl CommandManager {
                     incr_num = number.parse::<i32>().unwrap_or(1);
                 }
 
-                _result = edit_operation::incr(value, incr_num);
+                _result = edit_operation::incr(origin_value.clone(), incr_num);
             }
 
-            if operation == "set" {
-               todo!() 
+            if operation == "set" || operation == "compset" {
+
+                // compset 操作至少需要 4 个参数
+                // Index_Key, Operation, Index_Info, Data
+                if slice.len() < 3 {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Missing command parameters.").as_bytes().to_vec(),
+                    );
+                }
+
+                let data: &str = slice.get(2).unwrap();
+                let mut idx: &str = "";
+
+                if slice.len() >= 4 {
+                    idx = slice.get(3).unwrap();
+                }
+
+                let data_val = DataValue::from(data);
+
+                if data_val == DataValue::None {
+                    // 数据解析错误，抛出结束
+                    return (
+                        NetPacketState::ERR,
+                        format!("Data parse error.").as_bytes().to_vec(),
+                    );
+                }
+
+                _result = edit_operation::compset(origin_value.clone(), (
+                    idx.to_string(),
+                    data_val
+                ));
+
             }
         }
 
@@ -479,7 +511,7 @@ mod edit_operation {
     }
 
     #[test]
-    fn test_set() {
+    fn test_compset() {
         let v = compset(DataValue::List(
             vec![
                 DataValue::String("foo".to_string()),
