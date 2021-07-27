@@ -69,7 +69,9 @@ impl CommandManager {
     ) -> (NetPacketState, Vec<u8>) {
         let message = message.trim().to_string();
 
-        // init command argument information. (MIN, MAX) { if MAX was -1: infinite }
+        // 初始化命令列表（配置参数数量范围）
+        // 为 -1 则代表允许无限参数
+        // PS：这段代码主要方便后期新增命令
         let mut command_argument_info: HashMap<CommandList, (i16, i16)> = HashMap::new();
 
         command_argument_info.insert(CommandList::GET, (1, 1));
@@ -361,7 +363,7 @@ impl CommandManager {
                 _result = edit_operation::incr(value, incr_num);
             }
 
-            if operation == "insert" {
+            if operation == "set" {
                todo!() 
             }
         }
@@ -413,14 +415,44 @@ mod edit_operation {
         return value;
     }
 
-    pub fn insert(origin: DataValue, key: String, value: DataValue) -> DataValue {
+    pub fn compset(origin: DataValue, info: (
+        String,
+        DataValue
+    )) -> DataValue {
 
         if let DataValue::Dict(mut x) = origin.clone() {
-            x.insert(key, value);
+            x.insert(info.0, info.1);
             return DataValue::Dict(x);
         }
 
-        return origin;
+        if let DataValue::List(mut x) = origin.clone() {
+            let index: isize = info.0.parse::<isize>().unwrap_or(-1);
+            if index == -1 || index > (x.len() + 1) as isize {
+                // 如果索引信息不存在或大于最大索引数，则向后插入
+                x.push(info.1);
+            } else {
+                // 否则直接对原有数据进行更新
+                x[index as usize] = info.1;
+            }
+
+            return DataValue::List(x);
+        }
+
+        if let DataValue::Tuple(mut x) = origin.clone() {
+            let index: isize = info.0.parse::<isize>().unwrap_or(-1);
+
+            // 对元组进行更新（就俩值）
+            if index == 0 {
+                x.0 = Box::from(info.1);
+            } else if index == 1 {
+                x.1 = Box::from(info.1);
+            }
+
+            return DataValue::Tuple(x);
+        }
+
+        // 非复合类型直接将 origin 替换为 info.1 数据
+        return info.1;
     }
 
     #[test]
@@ -442,6 +474,25 @@ mod edit_operation {
                 DataValue::Number(4_f64),
                 DataValue::Number(5_f64),
                 DataValue::Number(6_f64),
+            ]
+        ));
+    }
+
+    #[test]
+    fn test_set() {
+        let v = compset(DataValue::List(
+            vec![
+                DataValue::String("foo".to_string()),
+                DataValue::String("bar".to_string()),
+                DataValue::String("sam".to_string()),
+            ]
+        ), ("2".to_string(), DataValue::String("dor".to_string())));
+
+        assert_eq!(v, DataValue::List(
+            vec![
+                DataValue::String("foo".to_string()),
+                DataValue::String("bar".to_string()),
+                DataValue::String("dor".to_string()),
             ]
         ));
     }
