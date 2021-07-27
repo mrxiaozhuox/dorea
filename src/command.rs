@@ -348,7 +348,7 @@ impl CommandManager {
                 );
             }
 
-            // let mut result: DataValue = DataValue::None;
+            let mut _result: DataValue = DataValue::None;
             if operation == "incr" {
 
                 let mut incr_num = 1;
@@ -358,9 +358,12 @@ impl CommandManager {
                     incr_num = number.parse::<i32>().unwrap_or(1);
                 }
 
-                edit_operation::incr(value, incr_num);
+                _result = edit_operation::incr(value, incr_num);
             }
 
+            if operation == "insert" {
+               todo!() 
+            }
         }
 
         // unknown operation.
@@ -374,25 +377,50 @@ impl CommandManager {
 mod edit_operation {
 
     use crate::value::DataValue;
+    use std::collections::HashMap;
 
     pub fn incr(value: DataValue, num: i32) -> DataValue {
 
-        let mut result = value.clone();
-
-        if let DataValue::Number(x) = value {
-            result = DataValue::Number(((x as i32) + num) as f64);
+        if let DataValue::Number(x) = value.clone() {
+            return DataValue::Number(((x as i32) + num) as f64);
         }
 
-        if let DataValue::List(x) = value {
+        if let DataValue::List(x) = value.clone() {
             let mut temp: Vec<DataValue> = vec![];
             for item in x {
                 temp.push(incr(item, num));
             }
 
-            result = DataValue::List(temp);
+            return DataValue::List(temp);
         }
 
-        return result;
+        if let DataValue::Dict(x) = value.clone() {
+            let mut temp: HashMap<String, DataValue> = HashMap::new();
+            for (head, item) in x {
+                temp.insert(head, incr(item, num));
+            }
+
+            return DataValue::Dict(temp);
+        }
+
+        if let DataValue::Tuple(x) = value.clone() {
+            return DataValue::Tuple((
+                Box::from(incr(*x.0, num)),
+                Box::from(incr(*x.1, num)),
+            ));
+        }
+
+        return value;
+    }
+
+    pub fn insert(origin: DataValue, key: String, value: DataValue) -> DataValue {
+
+        if let DataValue::Dict(mut x) = origin.clone() {
+            x.insert(key, value);
+            return DataValue::Dict(x);
+        }
+
+        return origin;
     }
 
     #[test]
