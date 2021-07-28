@@ -138,7 +138,15 @@ impl DataBase {
     pub async fn get(&mut self, key: &str) -> Option<DataValue> {
         let res = self.file.read(key.to_string(), &mut self.index).await;
         match res {
-            Some(d) => Some(d.value),
+            Some(d) => {
+
+                if (d.time_stamp.0 as u64 + d.time_stamp.1) < chrono::Local::now().timestamp() as u64 {
+                    let _ = self.delete(key);
+                    return Some(DataValue::None);
+                }
+
+                Some(d.value)
+            },
             None => None,
         }
     }

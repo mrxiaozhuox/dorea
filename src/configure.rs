@@ -48,6 +48,8 @@ pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
 
 }
 
+// 初始化日志系统
+// default - console
 fn init_config (path: PathBuf) -> Result<()> {
 
     let config = DoreaFileConfig {

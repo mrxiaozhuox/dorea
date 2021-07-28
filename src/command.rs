@@ -8,7 +8,6 @@ use crate::{
     network::NetPacketState,
     value::DataValue,
 };
-use serde_json::error::Category::Data;
 
 #[allow(dead_code)]
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -327,6 +326,7 @@ impl CommandManager {
         }
 
         if command == CommandList::EDIT {
+
             let key: &str = slice.get(0).unwrap();
             let operation: &str = slice.get(1).unwrap();
 
@@ -397,6 +397,21 @@ impl CommandManager {
                     data_val
                 ));
 
+            }
+
+            // 将新的数据值重新并入数据库中
+            // todo: 过期时间还未声明完成（_expire_）
+            return match database_manager.lock().await.db_list
+                .get_mut(current).unwrap()
+                .set(key, _result, 0)
+                .await
+            {
+                Ok(_) => {
+                    (NetPacketState::OK, vec![])
+                }
+                Err(err) => {
+                    (NetPacketState::ERR, err.to_string().as_bytes().to_vec())
+                }
             }
         }
 
