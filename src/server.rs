@@ -14,6 +14,7 @@ pub struct DoreaServer {
     _server_options: ServerOption,
     server_listener: TcpListener,
     server_config: DoreaFileConfig,
+    startup_time: i64,
 
     connection_number: Arc<Mutex<ConnectNumber>>,
     db_manager: Arc<Mutex<DataBaseManager>>,
@@ -56,7 +57,7 @@ impl DoreaServer {
 
         info!("configure loaded from: {:?}", document_path);
 
-        let listner = match TcpListener::bind(&addr).await {
+        let listener = match TcpListener::bind(&addr).await {
             Ok(listener) => listener,
             Err(e) => {
                 panic!("Server startup error: {}", e);
@@ -65,10 +66,11 @@ impl DoreaServer {
 
         Self {
             _server_options: options,
-            server_listener: listner,
+            server_listener: listener,
             server_config: config.clone(),
             connection_number: Arc::new(Mutex::new(ConnectNumber { num: 0 })),
             db_manager: Arc::new(Mutex::new(DataBaseManager::new(document_path.clone()))),
+            startup_time: chrono::Local::now().timestamp() + 100,
         }
     }
 

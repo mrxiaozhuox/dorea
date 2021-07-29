@@ -10,6 +10,15 @@ pub struct DoreaClient {
 }
 
 impl DoreaClient {
+
+    /// connect dorea-server
+    ///
+    /// ```rust
+    /// use dorea::client::DoreaClient;
+    /// let mut client = DoreaClient::connect(("127.0.0.1", 3450), "").await.unwrap();
+    /// let result = client.execute("PING").await.unwrap();
+    /// println!("{:?}", result);
+    /// ```
     pub async fn connect(addr: (&'static str, u16), password: &str) -> crate::Result<Self> {
         let addr = format!("{}:{}", addr.0, addr.1);
 
@@ -116,11 +125,23 @@ impl DoreaClient {
         Err(anyhow::anyhow!(result))
     }
 
+    pub async fn info(&mut self, dtype: InfoType) -> crate::Result<String> {
+        let command = format!("info {}", dtype.to_string());
+
+        let v = self.execute(&command).await?;
+        if v.0 == NetPacketState::OK {
+            let info = String::from_utf8_lossy(&v.1).to_string();
+            return Ok(info);
+        }
+
+        let result = String::from_utf8_lossy(&v.1).to_string();
+
+        Err(anyhow::anyhow!(result))
+    }
+
     pub async fn execute(&mut self, command: &str) -> crate::Result<(NetPacketState, Vec<u8>)> {
 
         let command_byte = command.as_bytes().to_vec();
-
-        // println!("{}",NetPacket::make(command_byte.clone(), NetPacketState::IGNORE).to_string());
 
         NetPacket::make(command_byte, NetPacketState::IGNORE)
             .send(&mut self.connection)
@@ -131,6 +152,34 @@ impl DoreaClient {
         let result = frame.parse_frame(&mut self.connection).await?;
 
         Ok((frame.latest_state, result))
+    }
+}
+
+#[derive(Debug)]
+pub enum InfoType {
+    CurrentDataBase,
+    MaxConnectionNumber,
+    CurrentConnectionNumber,
+    PreloadDatabaseList,
+    ServerStartupTime,
+    ServerVersion,
+    // DataType(String),
+}
+
+impl std::string::ToString for InfoType {
+    fn to_string(&self) -> String {
+        match self {
+            InfoType::CurrentDataBase => "current",
+            InfoType::MaxConnectionNumber => "max-connect-num",
+            InfoType::CurrentConnectionNumber => "current-connect-num",
+            InfoType::PreloadDatabaseList => "preload-db-list",
+            InfoType::ServerStartupTime => "server-startup-time",
+            InfoType::ServerVersion => "version",
+            // InfoType::DataType(v) => {
+            //     format!("${} type", v).as_str()
+            // },
+            // _ => "", /* 预留数据 */
+        }.to_string()
     }
 }
 

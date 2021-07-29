@@ -585,7 +585,6 @@ impl TotalInfo {
     fn index_get(&self) -> u32 {
         self.index_number
     }
-
     fn index_add(&mut self) {
         self.index_number += 1;
     }
