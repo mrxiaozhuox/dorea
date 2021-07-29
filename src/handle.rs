@@ -13,6 +13,7 @@ pub(crate) async fn process(
     config: DoreaFileConfig,
     current: String,
     database_manager: &Mutex<DataBaseManager>,
+    startup_time: i64
 ) -> Result<()> {
 
     let mut current = current;
@@ -58,7 +59,16 @@ pub(crate) async fn process(
             .await;
 
         if res.0 != NetPacketState::EMPTY {
-            NetPacket::make(res.1, res.0).send(socket).await?;
+
+            // 将预设的数据转换为数据本值
+            let body = match String::from_utf8_lossy(&res.1[..]).to_string().as_str() {
+                "@[SERVER_STARTUP_TIME]" => {
+                    startup_time.to_string().as_bytes().to_vec()
+                }
+                _ => { res.1 } /* 不是预设数据，不处理 */
+            };
+
+            NetPacket::make(body, res.0).send(socket).await?;
         } else {
             // if is empty: connection closed
             return Ok(());

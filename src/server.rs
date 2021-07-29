@@ -112,8 +112,16 @@ impl DoreaServer {
 
             let connect_num = Arc::clone(&self.connection_number);
 
+            let startup_time = self.startup_time;
+
             task::spawn(async move {
-                let _ = handle::process(&mut socket, config, current, &db_manager).await;
+                let _ = handle::process(
+                    &mut socket,
+                    config,
+                    current,
+                    &db_manager,
+                    startup_time,
+                ).await;
 
                 // connection number -1;
                 connect_num.lock().await.low();

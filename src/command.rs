@@ -318,6 +318,13 @@ impl CommandManager {
                 )
             }
 
+            if argument == "server-startup-time" || argument == "stt" {
+                return (
+                    NetPacketState::OK,
+                    "@[SERVER_STARTUP_TIME]".as_bytes().to_vec()
+                )
+            }
+
             // unknown operation.
             return (
                 NetPacketState::ERR,
