@@ -17,6 +17,10 @@ exclude = [
 name = "dorea-server"
 path = "src/bin/server.rs"
 
+[[bin]]
+name = "dorea-cli"
+path = "src/bin/cli.rs"
+
 [features]
 
 # default features: all feature.
@@ -34,6 +38,9 @@ processor = []
 [dependencies]
 tokio = { version = "1.6.1", features = ['full'] }
 anyhow = "1.0.42"
+
+# I/O Tool
+rustyline = "8.2.0"
 
 # LRU Queue
 lru = "0.6.5"

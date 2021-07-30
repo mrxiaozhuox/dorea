@@ -15,9 +15,16 @@ impl DoreaClient {
     ///
     /// ```rust
     /// use dorea::client::DoreaClient;
-    /// let mut client = DoreaClient::connect(("127.0.0.1", 3450), "").await.unwrap();
-    /// let result = client.execute("PING").await.unwrap();
-    /// println!("{:?}", result);
+    /// #[tokio::main]
+    /// pub async fn main() {
+    ///     match DoreaClient::connect(("127.0.0.1", 3450), "").await {
+    ///         Ok(mut c) => {
+    ///             let result = c.execute("PING").await.unwrap();
+    ///             println!("{:?}", result);
+    ///         }
+    ///         Err(_) => { println!("Connection error"); }
+    ///     };
+    /// }
     /// ```
     pub async fn connect(addr: (&'static str, u16), password: &str) -> crate::Result<Self> {
         let addr = format!("{}:{}", addr.0, addr.1);

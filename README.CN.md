@@ -19,6 +19,10 @@
     <a href="https://crates.io/crates/dorea">Crates.io</a> | 
     <a href="https://docs.rs/dorea/">Core 文档</a>
 	</p>
+	<p align="center">
+    <a href="https://github.com/mrxiaozhuox/dorea/blob/master/README.CN.md">简体中文</a> | 
+    <a href="https://github.com/mrxiaozhuox/dorea/blob/master/README.md">English</a>
+	</p>
 </p>
 
 
