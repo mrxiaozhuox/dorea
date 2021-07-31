@@ -1,6 +1,8 @@
 use clap::clap_app;
 use dorea::client::{DoreaClient, InfoType};
 use rustyline::Editor;
+use dorea::network::NetPacketState;
+use anyhow::Error;
 
 #[tokio::main]
 pub async fn main() {
@@ -45,7 +47,7 @@ pub async fn main() {
         password
     ).await;
 
-    let c = match c {
+    let mut c = match c {
         Ok(c) => c,
         Err(err) => {
             panic!("{:?}", err);
@@ -58,8 +60,22 @@ pub async fn main() {
     loop {
         let cmd = readline.readline(&prompt);
         match cmd {
-            Ok(s) => {}
-            Err(_) => {}
+            Ok(cmd) => {
+                let res = execute(&cmd, &mut c).await;
+                println!("[{:?}]: {}",res.0, res.1);
+            }
+            Err(_) => { std::process::exit(0); } /* exit cli system */
         }
+    }
+}
+
+// cli 命令运行
+pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState, String) {
+    let res = client.execute(&command).await;
+    return match res {
+        Ok(p) => {
+            (p.0, String::from_utf8(p.1).unwrap_or(String::new()))
+        }
+        Err(err) => { (NetPacketState::ERR ,err.to_string()) }
     }
 }
