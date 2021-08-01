@@ -174,33 +174,26 @@ impl CommandManager {
         }
 
         if command == CommandList::SET {
+            let key = slice.get(0).unwrap();
+            let value = slice.get(1).unwrap();
 
-            let mut section = slice.clone();
-
-            let key = section.remove(0);
-
-            // 尝试读取 expire 信息
-            let mut expire = 0_u64;
-            if section.len() > 2 {
-                let temp = section.get(section.len() - 1).unwrap();
-                expire = match temp.parse::<u64>() {
-                    Ok(v) => {
-                        section.remove(section.len() - 1);
-                        v
-                    },
-                    Err(_) => 0,
-                }
-            }
-
-            let value: String = section.join(" ");
-
-            let data_value = DataValue::from(&value);
+            let data_value = DataValue::from(value);
 
             if data_value == DataValue::None {
                 return (
                     NetPacketState::ERR,
                     "Unknown data struct.".as_bytes().to_vec(),
                 );
+            }
+
+            let mut expire = 0_u64;
+
+            if slice.len() == 3 {
+                let temp = slice.get(2).unwrap();
+                expire = match temp.parse::<u64>() {
+                    Ok(v) => v,
+                    Err(_) => 0,
+                }
             }
 
             let result = database_manager
@@ -482,7 +475,7 @@ mod edit_operation {
     )) -> DataValue {
 
         if let DataValue::Dict(mut x) = origin.clone() {
-            x.insert(info.0, info.1);
+            if info.0 != String::from("") { x.insert(info.0, info.1); }
             return DataValue::Dict(x);
         }
 
@@ -493,7 +486,7 @@ mod edit_operation {
                 x.push(info.1);
             } else {
                 // 否则直接对原有数据进行更新
-                x[index as usize] = info.1;
+                x.insert(index as usize, info.1);
             }
 
             return DataValue::List(x);
@@ -513,6 +506,10 @@ mod edit_operation {
         }
 
         return origin;
+    }
+
+    pub fn remove(value: DataValue, key: String) {
+        todo!()
     }
 
     #[test]
@@ -539,8 +536,8 @@ mod edit_operation {
     }
 
     #[test]
-    fn test_compset() {
-        let v = compset(DataValue::List(
+    fn test_insert() {
+        let v = insert(DataValue::List(
             vec![
                 DataValue::String("foo".to_string()),
                 DataValue::String("bar".to_string()),
@@ -553,6 +550,7 @@ mod edit_operation {
                 DataValue::String("foo".to_string()),
                 DataValue::String("bar".to_string()),
                 DataValue::String("dor".to_string()),
+                DataValue::String("sam".to_string()),
             ]
         ));
     }

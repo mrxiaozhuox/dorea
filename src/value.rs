@@ -116,7 +116,8 @@ impl std::string::ToString for DataValue {
                     res += &format!("{},", v.to_string());
                 }
 
-                res = res[..res.len() - 1].to_string();
+                if res.len() > 1 { res = res[..res.len() - 1].to_string(); }
+
                 res += "]";
 
                 res
@@ -128,7 +129,8 @@ impl std::string::ToString for DataValue {
                     res += &format!("\"{}\":{},", v.0, v.1.to_string());
                 }
 
-                res = res[..res.len() - 1].to_string();
+                if res.len() > 1 { res = res[..res.len() - 1].to_string(); }
+
                 res += "}";
 
                 res
@@ -167,10 +169,12 @@ impl DataValue {
     pub fn from(data: &str) -> Self {
 
         let mut data = data.to_string();
-        if &data[0..2] == "b:" && &data[data.len() - 1..] == ":" {
-            let temp = &data[2 .. data.len() - 1];
-            let temp = base64::decode(temp).unwrap_or(vec![]);
-            data = String::from_utf8(temp).unwrap_or(String::new());
+        if data.len() >= 3 {
+            if &data[0..2] == "b:" && &data[data.len() - 1..] == ":" {
+                let temp = &data[2 .. data.len() - 1];
+                let temp = base64::decode(temp).unwrap_or(vec![]);
+                data = String::from_utf8(temp).unwrap_or(String::new());
+            }
         }
 
         match ValueParser::parse(&data) {
