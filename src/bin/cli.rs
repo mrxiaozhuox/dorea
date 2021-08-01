@@ -1,8 +1,7 @@
 use clap::clap_app;
-use dorea::client::{DoreaClient, InfoType};
+use dorea::client::{DoreaClient};
 use rustyline::Editor;
 use dorea::network::NetPacketState;
-use anyhow::Error;
 
 #[tokio::main]
 pub async fn main() {
@@ -57,6 +56,7 @@ pub async fn main() {
 
     let prompt = format!("{}:{} ~> ",hostname,port);
     let mut readline = Editor::<()>::new();
+
     loop {
         let cmd = readline.readline(&prompt);
         match cmd {

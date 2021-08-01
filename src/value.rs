@@ -165,7 +165,15 @@ impl DataValue {
     /// );
     /// ```
     pub fn from(data: &str) -> Self {
-        match ValueParser::parse(data) {
+
+        let mut data = data.to_string();
+        if &data[0..2] == "b:" && &data[data.len() - 1..] == ":" {
+            let temp = &data[2 .. data.len() - 1];
+            let temp = base64::decode(temp).unwrap_or(vec![]);
+            data = String::from_utf8(temp).unwrap_or(String::new());
+        }
+
+        match ValueParser::parse(&data) {
             Ok((_, v)) => v,
             Err(_) => Self::None,
         }
@@ -318,6 +326,7 @@ impl ValueParser {
     }
 
     fn parse(message: &str) -> IResult<&str, DataValue> {
+
         context(
             "value",
             delimited(
@@ -334,7 +343,7 @@ impl ValueParser {
                 )),
                 multispace0,
             ),
-        )(message)
+        )(&message)
     }
 }
 

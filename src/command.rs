@@ -75,7 +75,7 @@ impl CommandManager {
         let mut command_argument_info: HashMap<CommandList, (i16, i16)> = HashMap::new();
 
         command_argument_info.insert(CommandList::GET, (1, 1));
-        command_argument_info.insert(CommandList::SET, (2, 3));
+        command_argument_info.insert(CommandList::SET, (2, -1));
         command_argument_info.insert(CommandList::DELETE, (1, 1));
         command_argument_info.insert(CommandList::CLEAN, (0, 1));
         command_argument_info.insert(CommandList::SELECT, (1, 1));
@@ -174,26 +174,33 @@ impl CommandManager {
         }
 
         if command == CommandList::SET {
-            let key = slice.get(0).unwrap();
-            let value = slice.get(1).unwrap();
 
-            let data_value = DataValue::from(value);
+            let mut section = slice.clone();
+
+            let key = section.remove(0);
+
+            // 尝试读取 expire 信息
+            let mut expire = 0_u64;
+            if section.len() > 2 {
+                let temp = section.get(section.len() - 1).unwrap();
+                expire = match temp.parse::<u64>() {
+                    Ok(v) => {
+                        section.remove(section.len() - 1);
+                        v
+                    },
+                    Err(_) => 0,
+                }
+            }
+
+            let value: String = section.join(" ");
+
+            let data_value = DataValue::from(&value);
 
             if data_value == DataValue::None {
                 return (
                     NetPacketState::ERR,
                     "Unknown data struct.".as_bytes().to_vec(),
                 );
-            }
-
-            let mut expire = 0_u64;
-
-            if slice.len() == 3 {
-                let temp = slice.get(2).unwrap();
-                expire = match temp.parse::<u64>() {
-                    Ok(v) => v,
-                    Err(_) => 0,
-                }
             }
 
             let result = database_manager
@@ -371,9 +378,9 @@ impl CommandManager {
                 _result = edit_operation::incr(origin_value.clone(), incr_num);
             }
 
-            if operation == "set" || operation == "compset" {
+            if operation == "insert" {
 
-                // compset 操作至少需要 4 个参数
+                // insert 操作至少需要 4 个参数
                 // Index_Key, Operation, Index_Info, Data
                 if slice.len() < 3 {
                     return (
@@ -399,7 +406,7 @@ impl CommandManager {
                     );
                 }
 
-                _result = edit_operation::compset(origin_value.clone(), (
+                _result = edit_operation::insert(origin_value.clone(), (
                     idx.to_string(),
                     data_val
                 ));
@@ -469,7 +476,7 @@ mod edit_operation {
         return value;
     }
 
-    pub fn compset(origin: DataValue, info: (
+    pub fn insert(origin: DataValue, info: (
         String,
         DataValue
     )) -> DataValue {
@@ -505,8 +512,7 @@ mod edit_operation {
             return DataValue::Tuple(x);
         }
 
-        // 非复合类型直接将 origin 替换为 info.1 数据
-        return info.1;
+        return origin;
     }
 
     #[test]

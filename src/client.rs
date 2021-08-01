@@ -63,7 +63,12 @@ impl DoreaClient {
         value: DataValue,
         expire: usize,
     ) -> crate::Result<()> {
-        let command = format!("set {} {} {}", key, value.to_string(), expire);
+        let command = format!(
+            "set {} b:{}: {}",
+            key,
+            base64::encode(value.to_string()),
+            expire
+        );
 
         let v = self.execute(&command).await?;
         if v.0 == NetPacketState::OK {

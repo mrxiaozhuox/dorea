@@ -140,9 +140,12 @@ impl DataBase {
         match res {
             Some(d) => {
 
-                if (d.time_stamp.0 as u64 + d.time_stamp.1) < chrono::Local::now().timestamp() as u64 {
-                    let _ = self.delete(key);
-                    return Some(DataValue::None);
+                // 过期时间判定
+                if d.time_stamp.1 != 0 {
+                    if (d.time_stamp.0 as u64 + d.time_stamp.1) < chrono::Local::now().timestamp() as u64 {
+                        let _ = self.delete(key);
+                        return Some(DataValue::None);
+                    }
                 }
 
                 Some(d.value)
