@@ -481,7 +481,7 @@ mod edit_operation {
 
         if let DataValue::List(mut x) = origin.clone() {
             let index: isize = info.0.parse::<isize>().unwrap_or(-1);
-            if index == -1 || index > (x.len() + 1) as isize {
+            if index == -1 || index > (x.len() - 1) as isize {
                 // 如果索引信息不存在或大于最大索引数，则向后插入
                 x.push(info.1);
             } else {
@@ -508,8 +508,38 @@ mod edit_operation {
         return origin;
     }
 
-    pub fn remove(value: DataValue, key: String) {
-        todo!()
+    pub fn remove(value: DataValue, key: String) -> DataValue {
+
+        if let DataValue::Dict(mut x) = value.clone() {
+            if x.contains_key(&key) { x.remove(&key); }
+            return DataValue::Dict(x);
+        }
+
+        if let DataValue::List(mut x) = value.clone() {
+            let index: isize = key.parse::<isize>().unwrap_or(-1);
+            if index == -1 || index  > (x.len() - 1) as isize {
+                // 索引不存在则不进行删除
+            } else {
+               x.remove(index as usize);
+            }
+
+            return DataValue::List(x);
+        }
+
+        if let DataValue::Tuple(mut x) = value.clone() {
+            let index: isize = key.parse::<isize>().unwrap_or(-1);
+
+            // 如果对元组进行删除，则将其更新为 DataValue::None
+            if index == 0 {
+                x.0 = Box::from(DataValue::None);
+            } else if index == 1 {
+                x.1 = Box::from(DataValue::None);
+            }
+
+            return DataValue::Tuple(x);
+        }
+
+        return value;
     }
 
     #[test]
@@ -543,7 +573,7 @@ mod edit_operation {
                 DataValue::String("bar".to_string()),
                 DataValue::String("sam".to_string()),
             ]
-        ), ("2".to_string(), DataValue::String("dor".to_string())));
+        ), ("1".to_string(), DataValue::String("dor".to_string())));
 
         assert_eq!(v, DataValue::List(
             vec![
@@ -554,4 +584,23 @@ mod edit_operation {
             ]
         ));
     }
+
+    #[test]
+    fn test_remove() {
+        let v = remove(DataValue::List(
+            vec![
+                DataValue::String("foo".to_string()),
+                DataValue::String("bar".to_string()),
+                DataValue::String("sam".to_string()),
+            ]
+        ), String::from("2"));
+
+        assert_eq!(v, DataValue::List(
+            vec![
+                DataValue::String("foo".to_string()),
+                DataValue::String("bar".to_string()),
+            ]
+        ));
+    }
+
 }
