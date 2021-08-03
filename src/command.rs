@@ -358,13 +358,25 @@ impl CommandManager {
                 );
             }
 
+            let mut sub_arg = slice.clone();
+            for _ in 0..1 { sub_arg.remove(0); }
+
             let mut _result: DataValue = DataValue::None;
+
             if operation == "incr" {
+
+                // 检查参数数量
+                if sub_arg.len() > 1 {
+                    return (
+                        NetPacketState::ERR,
+                        "Exceeding parameter limits.".as_bytes().to_vec(),
+                    );
+                }
 
                 let mut incr_num = 1;
 
-                if slice.len() >= 3 {
-                    let number: &str = slice.get(2).unwrap();
+                if sub_arg.len() == 1 {
+                    let number: &str = sub_arg.get(0).unwrap();
                     incr_num = number.parse::<i32>().unwrap_or(1);
                 }
 
@@ -373,20 +385,25 @@ impl CommandManager {
 
             if operation == "insert" {
 
-                // insert 操作至少需要 4 个参数
-                // Index_Key, Operation, Index_Info, Data
-                if slice.len() < 3 {
+                // 检查参数数量
+                if sub_arg.len() < 1 {
                     return (
                         NetPacketState::ERR,
                         format!("Missing command parameters.").as_bytes().to_vec(),
                     );
                 }
+                if sub_arg.len() > 2 {
+                    return (
+                        NetPacketState::ERR,
+                        "Exceeding parameter limits.".as_bytes().to_vec(),
+                    );
+                }
 
-                let data: &str = slice.get(2).unwrap();
+                let data: &str = sub_arg.get(0).unwrap();
                 let mut idx: &str = "";
 
-                if slice.len() >= 4 {
-                    idx = slice.get(3).unwrap();
+                if sub_arg.len() == 2 {
+                    idx = sub_arg.get(1).unwrap();
                 }
 
                 let data_val = DataValue::from(data);
@@ -403,6 +420,27 @@ impl CommandManager {
                     idx.to_string(),
                     data_val
                 ));
+
+            }
+
+            if operation == "remove" {
+
+                if sub_arg.len() < 1 {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Missing command parameters.").as_bytes().to_vec(),
+                    );
+                }
+                if sub_arg.len() > 1 {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Exceeding parameter limits.").as_bytes().to_vec(),
+                    );
+                }
+
+                let key = sub_arg.get(0).unwrap();
+
+                _result = edit_operation::remove(origin_value.clone(), key.to_string());
 
             }
 
@@ -508,15 +546,17 @@ mod edit_operation {
         return origin;
     }
 
-    pub fn remove(value: DataValue, key: String) -> DataValue {
+    pub fn remove(origin: DataValue, key: String) -> DataValue {
 
-        if let DataValue::Dict(mut x) = value.clone() {
+        if let DataValue::Dict(mut x) = origin.clone() {
             if x.contains_key(&key) { x.remove(&key); }
             return DataValue::Dict(x);
         }
 
-        if let DataValue::List(mut x) = value.clone() {
+        if let DataValue::List(mut x) = origin.clone() {
+
             let index: isize = key.parse::<isize>().unwrap_or(-1);
+
             if index == -1 || index  > (x.len() - 1) as isize {
                 // 索引不存在则不进行删除
             } else {
@@ -526,7 +566,7 @@ mod edit_operation {
             return DataValue::List(x);
         }
 
-        if let DataValue::Tuple(mut x) = value.clone() {
+        if let DataValue::Tuple(mut x) = origin.clone() {
             let index: isize = key.parse::<isize>().unwrap_or(-1);
 
             // 如果对元组进行删除，则将其更新为 DataValue::None
@@ -537,6 +577,18 @@ mod edit_operation {
             }
 
             return DataValue::Tuple(x);
+        }
+
+        return origin;
+    }
+
+
+    /// 列表（数组）专用方法，其他复合类型无法使用
+    pub fn push(origin: DataValue, value: DataValue) -> DataValue {
+
+        if let DataValue::List(mut x) = origin.clone() {
+            x.push(value); /* 插入新的数据 */
+            return DataValue::List(x);
         }
 
         return value;
@@ -578,8 +630,8 @@ mod edit_operation {
         assert_eq!(v, DataValue::List(
             vec![
                 DataValue::String("foo".to_string()),
-                DataValue::String("bar".to_string()),
                 DataValue::String("dor".to_string()),
+                DataValue::String("bar".to_string()),
                 DataValue::String("sam".to_string()),
             ]
         ));

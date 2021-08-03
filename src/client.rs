@@ -165,7 +165,24 @@ impl DoreaClient {
 
         Ok((frame.latest_state, result))
     }
+
+    // pub async fn list(&mut self, key:&str) -> Option<CompList> {
+    //     let list = self.get(key).await;
+    //     if let Err(_) = list { return None; }
+    //
+    // }
 }
+
+
+// pub struct CompList<'a> {
+//     client: DoreaClient
+// }
+//
+// impl CompList {
+//     pub fn new(client: DoreaClient) -> CompList {
+//
+//     }
+// }
 
 #[derive(Debug)]
 pub enum InfoType {
