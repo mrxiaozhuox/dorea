@@ -1,3 +1,10 @@
+//! > PS: This file is very important
+//!
+//! All command manager will in this '.rs' file.
+//!
+//! If you want modify(create) some new command, you should edit this file.
+//!
+//! Author: (ZhuoEr Liu <mrxzx@qq.com>)
 use std::collections::HashMap;
 
 use tokio::sync::Mutex;
@@ -332,6 +339,15 @@ impl CommandManager {
             );
         }
 
+
+        // 操作列表：
+        // incr 数值自增（对复合数据使用则会对里面每一个数字进行自增）
+        // insert 插入数据（对于指定 key 或 index ）
+        // remove 删除数据（对于指定 key 或 index ）
+        // push 在数组末尾插入元素（仅支持 list ）
+        // pop 弹出数组末尾元素 （仅支持 list ）
+        // sort 对数组进行排序（仅支持 list ）
+        // reverse 对数组进行反转（仅支持 list ）
         if command == CommandList::EDIT {
 
             let key: &str = slice.get(0).unwrap();
@@ -359,7 +375,7 @@ impl CommandManager {
             }
 
             let mut sub_arg = slice.clone();
-            for _ in 0..1 { sub_arg.remove(0); }
+            for _ in 0..2 { sub_arg.remove(0); }
 
             let mut _result: DataValue = DataValue::None;
 
@@ -425,16 +441,10 @@ impl CommandManager {
 
             if operation == "remove" {
 
-                if sub_arg.len() < 1 {
+                if sub_arg.len() != 1 {
                     return (
                         NetPacketState::ERR,
-                        format!("Missing command parameters.").as_bytes().to_vec(),
-                    );
-                }
-                if sub_arg.len() > 1 {
-                    return (
-                        NetPacketState::ERR,
-                        format!("Exceeding parameter limits.").as_bytes().to_vec(),
+                        format!("Parameter non-specification").as_bytes().to_vec(),
                     );
                 }
 
@@ -442,6 +452,75 @@ impl CommandManager {
 
                 _result = edit_operation::remove(origin_value.clone(), key.to_string());
 
+            }
+
+            // push 数据到复合类型
+            // 【 本操作仅对 list 生效 】
+            if operation == "push" {
+
+                println!("{:?}", sub_arg);
+
+                if sub_arg.len() != 1 {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Parameter non-specification").as_bytes().to_vec(),
+                    );
+                }
+
+                let data = sub_arg.get(0).unwrap();
+
+                let data_val = DataValue::from(data);
+
+                if data_val == DataValue::None {
+                    // 数据解析错误，抛出结束
+                    return (
+                        NetPacketState::ERR,
+                        format!("Data parse error.").as_bytes().to_vec(),
+                    );
+                }
+
+                _result = edit_operation::push(
+                    origin_value.clone(),
+                    data_val
+                );
+            }
+
+            // 【 本操作仅对 list 生效 】
+            if operation == "pop" {
+                if sub_arg.len() > 0 {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Parameter non-specification").as_bytes().to_vec(),
+                    );
+                }
+
+                _result = edit_operation::pop(origin_value.clone());
+            }
+
+            if operation == "sort" {
+
+                if sub_arg.len() > 1 {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Parameter non-specification").as_bytes().to_vec(),
+                    );
+                }
+
+                let asc: bool;
+
+                // 检查排序方式
+                if sub_arg.len() > 0 {
+                    let temp: &str = sub_arg.get(0).unwrap_or(&"asc");
+                    if temp.to_uppercase() == "DESC" {
+                        asc = false;
+                    } else {
+                        asc = true;
+                    }
+                } else {
+                    asc = true;
+                }
+
+                _result = edit_operation::sort(origin_value.clone(), asc);
             }
 
             // 将新的数据值重新并入数据库中
@@ -583,7 +662,7 @@ mod edit_operation {
     }
 
 
-    /// 列表（数组）专用方法，其他复合类型无法使用
+    // 列表（数组）专用方法，其他复合类型无法使用
     pub fn push(origin: DataValue, value: DataValue) -> DataValue {
 
         if let DataValue::List(mut x) = origin.clone() {
@@ -591,7 +670,28 @@ mod edit_operation {
             return DataValue::List(x);
         }
 
-        return value;
+        return origin;
+    }
+
+    // 列表（数组）专用方法，其他复合类型无法使用
+    pub fn pop(origin: DataValue) -> DataValue {
+        if let DataValue::List(mut x) = origin.clone() {
+            x.pop();
+            return DataValue::List(x);
+        }
+
+        return origin;
+    }
+
+    // 列表（数组）专用方法，其他复合类型无法使用
+    pub fn sort(origin: DataValue, asc: bool) -> DataValue {
+        if let DataValue::List(mut x) = origin.clone() {
+            x.sort();
+            if !asc { x.reverse(); }
+            return DataValue::List(x);
+        }
+
+        return origin;
     }
 
     #[test]

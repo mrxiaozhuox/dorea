@@ -174,15 +174,6 @@ impl DoreaClient {
 }
 
 
-// pub struct CompList<'a> {
-//     client: DoreaClient
-// }
-//
-// impl CompList {
-//     pub fn new(client: DoreaClient) -> CompList {
-//
-//     }
-// }
 
 #[derive(Debug)]
 pub enum InfoType {
@@ -211,47 +202,3 @@ impl std::string::ToString for InfoType {
         }.to_string()
     }
 }
-
-// #[cfg(test)]
-// mod client_test {
-//
-//     use crate::value::DataValue;
-//     use super::DoreaClient;
-//
-//
-//     #[tokio::test]
-//     async fn test() {
-//         let mut c = DoreaClient::connect(
-//             ("127.0.0.1", 3450),
-//             ""
-//         ).await.unwrap();
-//
-//         c.setex("hello", DataValue::List(vec![
-//             DataValue::Number(1.0),
-//             DataValue::Number(2.0),
-//             DataValue::Number(3.0),
-//             DataValue::Number(4.0),
-//             DataValue::Number(5.0),
-//             DataValue::Number(6.0),
-//         ]), 0).await;
-//
-//         let v = c.execute("edit hello incr 2").await;
-//
-//         let v = c.get("hello").await;
-//
-//         println!("{:?}",v);
-//
-//     //
-//     //     let list = ["sam", "kevin", "leo"];
-//     //
-//     //     for i in list {
-//     //         c.select(i).await.unwrap();
-//     //         c.setex("name",DataValue::String(i.to_string()), 0).await;
-//     //     }
-//     //
-//     //     for i in list {
-//     //         c.select(i).await.unwrap();
-//     //         println!("{}: {:?}", i, c.get("name").await);
-//     //     }
-//     }
-// }

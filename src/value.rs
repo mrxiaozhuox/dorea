@@ -33,8 +33,9 @@ use nom::{
     sequence::{delimited, preceded, separated_pair},
     IResult,
 };
+use std::cmp::Ordering;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DataValue {
     /// None Value
     ///
@@ -145,6 +146,26 @@ impl std::string::ToString for DataValue {
     }
 }
 
+impl std::cmp::Ord for DataValue {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.weight().partial_cmp(&other.weight()).unwrap_or(Ordering::Equal)
+    }
+}
+
+impl std::cmp::PartialOrd for DataValue {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl std::cmp::PartialEq for DataValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.to_string() == other.to_string()
+    }
+}
+
+impl std::cmp::Eq for DataValue {}
+
 impl DataValue {
 
     /// parse `&str` to `DataValue` type:
@@ -183,6 +204,57 @@ impl DataValue {
         }
     }
 
+    pub fn weight(&self) -> f64 {
+
+        if let DataValue::Number(n) = self {
+            return *n;
+        }
+
+        // 计算数组的权重值
+        if let DataValue::List(l) = self {
+            let mut total = 0_f64;
+            for item in l {
+                let mut temp = item.weight();
+                if temp == f64::MAX { temp = 0_f64; }
+                total += temp;
+            }
+            return total;
+        }
+
+        if let DataValue::Dict(d) = self {
+            let mut total = 0_f64;
+            for (_, item) in d {
+                let mut temp = item.weight();
+                if temp == f64::MAX { temp = 0_f64; }
+                total += temp;
+            }
+            return total;
+        }
+
+        if let DataValue::Tuple(v) = self {
+            let mut total = 0_f64;
+
+            // 元组值0
+            let mut temp = v.0.weight();
+            if temp == f64::MAX { temp = 0_f64; }
+            total += temp;
+
+            // 元组值1
+            let mut temp = v.1.weight();
+            if temp == f64::MAX { temp = 0_f64; }
+            total += temp;
+
+            return total;
+        }
+
+        f64::MAX
+    }
+
+    // 数据权值计算
+    // Number(f64) 的权值等于它本身
+    // 其他基本类型的权值为 f64::MAX
+    // 复合类型则会进行递归计算
+    // 权值主要用于排序等操作
     pub fn size(&self) -> usize {
         match self {
             DataValue::None => 0,
