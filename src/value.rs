@@ -204,6 +204,11 @@ impl DataValue {
         }
     }
 
+    // 数据权值计算
+    // Number(f64) 的权值等于它本身
+    // 其他基本类型的权值为 f64::MAX
+    // 复合类型则会进行递归计算
+    // 权值主要用于排序等操作
     pub fn weight(&self) -> f64 {
 
         if let DataValue::Number(n) = self {
@@ -250,11 +255,6 @@ impl DataValue {
         f64::MAX
     }
 
-    // 数据权值计算
-    // Number(f64) 的权值等于它本身
-    // 其他基本类型的权值为 f64::MAX
-    // 复合类型则会进行递归计算
-    // 权值主要用于排序等操作
     pub fn size(&self) -> usize {
         match self {
             DataValue::None => 0,

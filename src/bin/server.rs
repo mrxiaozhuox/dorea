@@ -79,7 +79,7 @@ async fn main() {
     let mut server = DoreaServer::bind(ServerOption {
         hostname: Box::leak(hostname.into_boxed_str()),
         port: 3450,
-        document_path: workspace,
+        document_path: workspace.clone(),
         quiet_runtime: false
     }).await;
 

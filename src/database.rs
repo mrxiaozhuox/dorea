@@ -24,7 +24,7 @@ pub(crate) struct DataBaseManager {
     config: DoreaFileConfig,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DataBase {
     name: String,
     index: HashMap<String, IndexInfo>,
@@ -143,7 +143,7 @@ impl DataBase {
                 // 过期时间判定
                 if d.time_stamp.1 != 0 {
                     if (d.time_stamp.0 as u64 + d.time_stamp.1) < chrono::Local::now().timestamp() as u64 {
-                        let _ = self.delete(key);
+                        let _ = self.delete(key).await;
                         return Some(DataValue::None);
                     }
                 }
@@ -154,9 +154,19 @@ impl DataBase {
         }
     }
 
+    pub async fn meta_data(&mut self, key: &str) -> Option<DataNode> {
+        let res = self.file.read(key.to_string(), &mut self.index).await;
+        match res {
+            Some(d) => {
+                Some(d)
+            },
+            None => None,
+        }
+    }
+
     pub async fn delete(&mut self, key: &str) -> Result<()> {
 
-        match self.set(key, DataValue::None, 0).await {
+        return match self.set(key, DataValue::None, 0).await {
             Ok(_) => {
                 self.index.remove(&key.to_string()); Ok(())
             }
@@ -188,9 +198,27 @@ impl DataBase {
 
         Ok(())
     }
+
+    pub async fn keys(self) -> Vec<String> {
+        let mut temp = vec![];
+        for (i, _) in self.index {
+            temp.push(i);
+        }
+
+        temp
+    }
 }
 
-#[derive(Debug)]
+impl DataNode {
+    pub(crate) fn timestamp(self) -> (i64, u64) {
+        self.time_stamp
+    }
+    pub(crate) fn weight(self) -> f64 {
+        self.value.weight()
+    }
+}
+
+#[derive(Debug, Clone)]
 struct DataFile {
     root: PathBuf,
     name: String,
@@ -591,4 +619,9 @@ impl TotalInfo {
     fn index_add(&mut self) {
         self.index_number += 1;
     }
+}
+
+// 将 total_index 数据公开到外部
+pub async fn total_index_number() -> u32 {
+    TOTAL_INFO.lock().await.index_get()
 }

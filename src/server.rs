@@ -9,6 +9,13 @@ use tokio::task;
 use crate::configure::DoreaFileConfig;
 use crate::database::DataBaseManager;
 use crate::handle;
+use once_cell::sync::Lazy;
+
+
+// 判断服务器是否已被初始化过
+static INIT_STATE: Lazy<Mutex<InitState>> = Lazy::new(|| Mutex::new(InitState { state: false }));
+
+struct InitState { state: bool }
 
 pub struct DoreaServer {
     _server_options: ServerOption,
@@ -29,6 +36,14 @@ pub struct ServerOption {
 
 impl DoreaServer {
     pub async fn bind(options: ServerOption) -> Self {
+
+        // 检查服务器对象在同一程序中是否被多次创建
+        if INIT_STATE.lock().await.state {
+            panic!("Server objects can only be created once!");
+        } else {
+            INIT_STATE.lock().await.state = true;
+        }
+
         let document_path = match &options.document_path {
             Some(buf) => buf.clone(),
             None => {

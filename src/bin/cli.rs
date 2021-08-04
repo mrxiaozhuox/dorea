@@ -3,8 +3,6 @@ use dorea::client::{DoreaClient};
 use rustyline::Editor;
 use dorea::network::NetPacketState;
 use dorea::value::DataValue;
-use anyhow::Error;
-use std::future::Future;
 use std::process::exit;
 
 #[tokio::main]

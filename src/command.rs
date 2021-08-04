@@ -304,6 +304,14 @@ impl CommandManager {
             }
         }
 
+        // 操作列表
+        // current 获取当前组信息
+        // version 获取当前dorea版本号
+        // max-connect-number 最大连接数
+        // server-startup-time 服务器启动时间
+        // keys 返回组下所有 Key 信息
+        // @key 数据内部信息获取
+
         if command == CommandList::INFO {
             let argument: &str = slice.get(0).unwrap();
 
@@ -314,7 +322,7 @@ impl CommandManager {
             if argument == "version" {
                 return (
                     NetPacketState::OK,
-                    crate::DOREA_VERSION.as_bytes().to_vec()
+                    format!("V{:?}", crate::DOREA_VERSION).as_bytes().to_vec()
                 );
             }
 
@@ -325,11 +333,74 @@ impl CommandManager {
                 )
             }
 
+            if argument == "total-index-number" || argument == "tin" {
+                return (
+                    NetPacketState::OK,
+                    format!(
+                        "{}",
+                        crate::database::total_index_number().await
+                    ).as_bytes().to_vec()
+                )
+            }
+
             if argument == "server-startup-time" || argument == "stt" {
                 return (
                     NetPacketState::OK,
                     "@[SERVER_STARTUP_TIME]".as_bytes().to_vec()
                 )
+            }
+
+            if argument == "keys" {
+
+                let list = database_manager.lock().await
+                    .db_list.get(current).unwrap()
+                    .clone().keys().await;
+
+                return (NetPacketState::OK, format!("{:?}", list).as_bytes().to_vec());
+            }
+
+            if &argument[0..1] == "@" {
+
+                let var = &argument[1..];
+                let data = database_manager.lock().await
+                    .db_list
+                    .get_mut(current)
+                    .unwrap()
+                    .meta_data(var).await;
+
+                if data.is_none() {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Key '{}' not found.", var).as_bytes().to_vec(),
+                    );
+                }
+                let data = data.unwrap();
+
+                let mut sub_arg = slice.clone();
+                sub_arg.remove(0);
+
+                if sub_arg.len() > 1 {
+                    return (
+                        NetPacketState::ERR,
+                        "Exceeding parameter limits.".as_bytes().to_vec(),
+                    );
+                }
+
+                let sub_info: &str = sub_arg.get(0).unwrap_or(&"");
+                let mut _result: String = format!("{:?}", data);
+
+                if sub_info == "expire" {
+                    _result = data.timestamp().1.to_string();
+                } else if sub_info == "timestamp" {
+                    _result = format!("{:?}", data.timestamp());
+                } else if sub_info == "weight" {
+                    _result = data.weight().to_string();
+                }
+
+                return (
+                    NetPacketState::OK,
+                    _result.as_bytes().to_vec()
+                );
             }
 
             // unknown operation.
@@ -377,7 +448,7 @@ impl CommandManager {
             let mut sub_arg = slice.clone();
             for _ in 0..2 { sub_arg.remove(0); }
 
-            let mut _result: DataValue = DataValue::None;
+            let mut _result: DataValue = origin_value.clone();
 
             if operation == "incr" {
 
@@ -396,10 +467,8 @@ impl CommandManager {
                     incr_num = number.parse::<i32>().unwrap_or(1);
                 }
 
-                _result = edit_operation::incr(origin_value.clone(), incr_num);
-            }
-
-            if operation == "insert" {
+                _result = edit_operation::incr(origin_value, incr_num);
+            }else if operation == "insert" {
 
                 // 检查参数数量
                 if sub_arg.len() < 1 {
@@ -432,14 +501,12 @@ impl CommandManager {
                     );
                 }
 
-                _result = edit_operation::insert(origin_value.clone(), (
+                _result = edit_operation::insert(origin_value, (
                     idx.to_string(),
                     data_val
                 ));
 
-            }
-
-            if operation == "remove" {
+            }else if operation == "remove" {
 
                 if sub_arg.len() != 1 {
                     return (
@@ -450,15 +517,9 @@ impl CommandManager {
 
                 let key = sub_arg.get(0).unwrap();
 
-                _result = edit_operation::remove(origin_value.clone(), key.to_string());
+                _result = edit_operation::remove(origin_value, key.to_string());
 
-            }
-
-            // push 数据到复合类型
-            // 【 本操作仅对 list 生效 】
-            if operation == "push" {
-
-                println!("{:?}", sub_arg);
+            }else if operation == "push" {
 
                 if sub_arg.len() != 1 {
                     return (
@@ -480,13 +541,10 @@ impl CommandManager {
                 }
 
                 _result = edit_operation::push(
-                    origin_value.clone(),
+                    origin_value,
                     data_val
                 );
-            }
-
-            // 【 本操作仅对 list 生效 】
-            if operation == "pop" {
+            }else if operation == "pop" {
                 if sub_arg.len() > 0 {
                     return (
                         NetPacketState::ERR,
@@ -494,10 +552,8 @@ impl CommandManager {
                     );
                 }
 
-                _result = edit_operation::pop(origin_value.clone());
-            }
-
-            if operation == "sort" {
+                _result = edit_operation::pop(origin_value);
+            }else if operation == "sort" {
 
                 if sub_arg.len() > 1 {
                     return (
@@ -520,7 +576,21 @@ impl CommandManager {
                     asc = true;
                 }
 
-                _result = edit_operation::sort(origin_value.clone(), asc);
+                _result = edit_operation::sort(origin_value, asc);
+            }else if operation == "reverse" {
+                if sub_arg.len() > 0 {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Parameter non-specification").as_bytes().to_vec(),
+                    );
+                }
+
+                _result = edit_operation::reverse(origin_value);
+            } else {
+                return (
+                    NetPacketState::ERR,
+                    format!("Operation {} not found.", operation).as_bytes().to_vec(),
+                );
             }
 
             // 将新的数据值重新并入数据库中
@@ -689,6 +759,23 @@ mod edit_operation {
             x.sort();
             if !asc { x.reverse(); }
             return DataValue::List(x);
+        }
+
+        return origin;
+    }
+
+    pub fn reverse(origin: DataValue) -> DataValue {
+
+        if let DataValue::List(mut x) = origin.clone() {
+            x.reverse();
+            return DataValue::List(x);
+        }
+
+        if let DataValue::Tuple(mut x) = origin.clone() {
+            let temp = x.0;
+            x.0 = x.1;
+            x.1 = temp;
+            return DataValue::Tuple(x);
         }
 
         return origin;
