@@ -69,7 +69,7 @@ impl DataBaseManager {
               name.to_string(),
               DataBase::init(
                   name.to_string(),
-                  self.location.clone(),
+                  self.location.clone().join("storage"),
                   self.config.database.clone()
                 )
             );
@@ -90,7 +90,7 @@ impl DataBaseManager {
                 db.to_string(),
                 DataBase::init(
                     db.to_string(),
-                    location.clone(),
+                    location.clone().join("storage"),
                     config.database.clone(),
                 ),
             );

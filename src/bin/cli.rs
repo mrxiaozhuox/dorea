@@ -65,6 +65,7 @@ pub async fn main() {
             Ok(cmd) => {
 
                 if cmd == "exit" { exit(0) }
+                if cmd == "" { continue }
 
                 let res = execute(&cmd, &mut c).await;
                 println!("[{:?}]: {}",res.0, res.1);

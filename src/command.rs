@@ -424,189 +424,204 @@ impl CommandManager {
             let key: &str = slice.get(0).unwrap();
             let operation: &str = slice.get(1).unwrap();
 
-            let value = database_manager.lock().await
-                .db_list.get_mut(current).unwrap()
-                .get(key).await;
+            if &key[0..1] == "@" {
 
-            if value.is_none() {
-                return (
-                    NetPacketState::ERR,
-                    format!("Key '{}' not found.", key).as_bytes().to_vec(),
-                );
-            }
+                let key: &str = &key[1..];
 
-            let origin_value = value.unwrap();
+                let value = database_manager.lock().await
+                    .db_list.get_mut(current).unwrap()
+                    .get(key).await;
 
-            // data_value was none_value
-            if origin_value == DataValue::None {
-                return (
-                    NetPacketState::ERR,
-                    format!("Key '{}' not found.", key).as_bytes().to_vec(),
-                );
-            }
-
-            let mut sub_arg = slice.clone();
-            for _ in 0..2 { sub_arg.remove(0); }
-
-            let mut _result: DataValue = origin_value.clone();
-
-            if operation == "incr" {
-
-                // 检查参数数量
-                if sub_arg.len() > 1 {
+                if value.is_none() {
                     return (
                         NetPacketState::ERR,
-                        "Exceeding parameter limits.".as_bytes().to_vec(),
+                        format!("Key '{}' not found.", key).as_bytes().to_vec(),
                     );
                 }
 
-                let mut incr_num = 1;
+                let origin_value = value.unwrap();
 
-                if sub_arg.len() == 1 {
-                    let number: &str = sub_arg.get(0).unwrap();
-                    incr_num = number.parse::<i32>().unwrap_or(1);
-                }
-
-                _result = edit_operation::incr(origin_value, incr_num);
-            }else if operation == "insert" {
-
-                // 检查参数数量
-                if sub_arg.len() < 1 {
+                // data_value was none_value
+                if origin_value == DataValue::None {
                     return (
                         NetPacketState::ERR,
-                        format!("Missing command parameters.").as_bytes().to_vec(),
-                    );
-                }
-                if sub_arg.len() > 2 {
-                    return (
-                        NetPacketState::ERR,
-                        "Exceeding parameter limits.".as_bytes().to_vec(),
+                        format!("Key '{}' not found.", key).as_bytes().to_vec(),
                     );
                 }
 
-                let data: &str = sub_arg.get(0).unwrap();
-                let mut idx: &str = "";
+                let mut sub_arg = slice.clone();
+                for _ in 0..2 { sub_arg.remove(0); }
 
-                if sub_arg.len() == 2 {
-                    idx = sub_arg.get(1).unwrap();
-                }
+                let mut _result: DataValue = origin_value.clone();
 
-                let data_val = DataValue::from(data);
+                if operation == "incr" {
 
-                if data_val == DataValue::None {
-                    // 数据解析错误，抛出结束
-                    return (
-                        NetPacketState::ERR,
-                        format!("Data parse error.").as_bytes().to_vec(),
+                    // 检查参数数量
+                    if sub_arg.len() > 1 {
+                        return (
+                            NetPacketState::ERR,
+                            "Exceeding parameter limits.".as_bytes().to_vec(),
+                        );
+                    }
+
+                    let mut incr_num = 1;
+
+                    if sub_arg.len() == 1 {
+                        let number: &str = sub_arg.get(0).unwrap();
+                        incr_num = number.parse::<i32>().unwrap_or(1);
+                    }
+
+                    _result = edit_operation::incr(origin_value, incr_num);
+                }else if operation == "insert" {
+
+                    // 检查参数数量
+                    if sub_arg.len() < 1 {
+                        return (
+                            NetPacketState::ERR,
+                            format!("Missing command parameters.").as_bytes().to_vec(),
+                        );
+                    }
+                    if sub_arg.len() > 2 {
+                        return (
+                            NetPacketState::ERR,
+                            "Exceeding parameter limits.".as_bytes().to_vec(),
+                        );
+                    }
+
+                    let data: &str = sub_arg.get(0).unwrap();
+                    let mut idx: &str = "";
+
+                    if sub_arg.len() == 2 {
+                        idx = sub_arg.get(1).unwrap();
+                    }
+
+                    let data_val = DataValue::from(data);
+
+                    if data_val == DataValue::None {
+                        // 数据解析错误，抛出结束
+                        return (
+                            NetPacketState::ERR,
+                            format!("Data parse error.").as_bytes().to_vec(),
+                        );
+                    }
+
+                    _result = edit_operation::insert(origin_value, (
+                        idx.to_string(),
+                        data_val
+                    ));
+
+                }else if operation == "remove" {
+
+                    if sub_arg.len() != 1 {
+                        return (
+                            NetPacketState::ERR,
+                            format!("Parameter non-specification").as_bytes().to_vec(),
+                        );
+                    }
+
+                    let key = sub_arg.get(0).unwrap();
+
+                    _result = edit_operation::remove(origin_value, key.to_string());
+
+                }else if operation == "push" {
+
+                    if sub_arg.len() != 1 {
+                        return (
+                            NetPacketState::ERR,
+                            format!("Parameter non-specification").as_bytes().to_vec(),
+                        );
+                    }
+
+                    let data = sub_arg.get(0).unwrap();
+
+                    let data_val = DataValue::from(data);
+
+                    if data_val == DataValue::None {
+                        // 数据解析错误，抛出结束
+                        return (
+                            NetPacketState::ERR,
+                            format!("Data parse error.").as_bytes().to_vec(),
+                        );
+                    }
+
+                    _result = edit_operation::push(
+                        origin_value,
+                        data_val
                     );
-                }
+                }else if operation == "pop" {
+                    if sub_arg.len() > 0 {
+                        return (
+                            NetPacketState::ERR,
+                            format!("Parameter non-specification").as_bytes().to_vec(),
+                        );
+                    }
 
-                _result = edit_operation::insert(origin_value, (
-                    idx.to_string(),
-                    data_val
-                ));
+                    _result = edit_operation::pop(origin_value);
+                }else if operation == "sort" {
 
-            }else if operation == "remove" {
+                    if sub_arg.len() > 1 {
+                        return (
+                            NetPacketState::ERR,
+                            format!("Parameter non-specification").as_bytes().to_vec(),
+                        );
+                    }
 
-                if sub_arg.len() != 1 {
-                    return (
-                        NetPacketState::ERR,
-                        format!("Parameter non-specification").as_bytes().to_vec(),
-                    );
-                }
+                    let asc: bool;
 
-                let key = sub_arg.get(0).unwrap();
-
-                _result = edit_operation::remove(origin_value, key.to_string());
-
-            }else if operation == "push" {
-
-                if sub_arg.len() != 1 {
-                    return (
-                        NetPacketState::ERR,
-                        format!("Parameter non-specification").as_bytes().to_vec(),
-                    );
-                }
-
-                let data = sub_arg.get(0).unwrap();
-
-                let data_val = DataValue::from(data);
-
-                if data_val == DataValue::None {
-                    // 数据解析错误，抛出结束
-                    return (
-                        NetPacketState::ERR,
-                        format!("Data parse error.").as_bytes().to_vec(),
-                    );
-                }
-
-                _result = edit_operation::push(
-                    origin_value,
-                    data_val
-                );
-            }else if operation == "pop" {
-                if sub_arg.len() > 0 {
-                    return (
-                        NetPacketState::ERR,
-                        format!("Parameter non-specification").as_bytes().to_vec(),
-                    );
-                }
-
-                _result = edit_operation::pop(origin_value);
-            }else if operation == "sort" {
-
-                if sub_arg.len() > 1 {
-                    return (
-                        NetPacketState::ERR,
-                        format!("Parameter non-specification").as_bytes().to_vec(),
-                    );
-                }
-
-                let asc: bool;
-
-                // 检查排序方式
-                if sub_arg.len() > 0 {
-                    let temp: &str = sub_arg.get(0).unwrap_or(&"asc");
-                    if temp.to_uppercase() == "DESC" {
-                        asc = false;
+                    // 检查排序方式
+                    if sub_arg.len() > 0 {
+                        let temp: &str = sub_arg.get(0).unwrap_or(&"asc");
+                        if temp.to_uppercase() == "DESC" {
+                            asc = false;
+                        } else {
+                            asc = true;
+                        }
                     } else {
                         asc = true;
                     }
-                } else {
-                    asc = true;
-                }
 
-                _result = edit_operation::sort(origin_value, asc);
-            }else if operation == "reverse" {
-                if sub_arg.len() > 0 {
+                    _result = edit_operation::sort(origin_value, asc);
+
+                }else if operation == "reverse" {
+
+                    if sub_arg.len() > 0 {
+                        return (
+                            NetPacketState::ERR,
+                            format!("Parameter non-specification").as_bytes().to_vec(),
+                        );
+                    }
+
+                    _result = edit_operation::reverse(origin_value);
+
+                } else {
                     return (
                         NetPacketState::ERR,
-                        format!("Parameter non-specification").as_bytes().to_vec(),
+                        format!("Operation {} not found.", operation).as_bytes().to_vec(),
                     );
                 }
 
-                _result = edit_operation::reverse(origin_value);
-            } else {
-                return (
-                    NetPacketState::ERR,
-                    format!("Operation {} not found.", operation).as_bytes().to_vec(),
-                );
+                // dbg!("{:?}",_result);
+
+                // 将新的数据值重新并入数据库中
+                // todo: 过期时间还未声明完成（_expire_）
+                return match database_manager.lock().await.db_list
+                    .get_mut(current).unwrap()
+                    .set(key, _result, 0)
+                    .await
+                {
+                    Ok(_) => {
+                        (NetPacketState::OK, vec![])
+                    }
+                    Err(err) => {
+                        (NetPacketState::ERR, err.to_string().as_bytes().to_vec())
+                    }
+                }
             }
 
-            // 将新的数据值重新并入数据库中
-            // todo: 过期时间还未声明完成（_expire_）
-            return match database_manager.lock().await.db_list
-                .get_mut(current).unwrap()
-                .set(key, _result, 0)
-                .await
-            {
-                Ok(_) => {
-                    (NetPacketState::OK, vec![])
-                }
-                Err(err) => {
-                    (NetPacketState::ERR, err.to_string().as_bytes().to_vec())
-                }
-            }
+            return (
+                NetPacketState::ERR,
+                "Unknown operation.".as_bytes().to_vec(),
+            );
         }
 
         // unknown operation.

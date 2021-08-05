@@ -33,4 +33,4 @@ async fn main() {
 
 ## 其他协议兼容
 
-目前我们打算实现对于 `Redis` 协议的兼容。
+目前我们正在实现 `HTTP` 的 `Restful` API 接口。

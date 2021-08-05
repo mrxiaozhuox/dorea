@@ -14,12 +14,12 @@ exclude = [
 ]
 
 [[bin]]
-name = "dorea-server"
-path = "src/bin/server.rs"
-
-[[bin]]
 name = "dorea-cli"
 path = "src/bin/cli.rs"
+
+[[bin]]
+name = "dorea-server"
+path = "src/bin/server.rs"
 
 [features]
 
