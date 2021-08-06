@@ -1,6 +1,6 @@
 use crate::Result;
 
-use std::{fs, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf};
 use serde::{Serialize, Deserialize};
 
 /// Dorea File Config Struct
@@ -32,24 +32,54 @@ pub struct CacheConfig {
 }
 
 
+// HTTP Restful Service 配置
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RestConfig {
+    pub(crate) foundation: RestFoundation,
+    pub(crate) account: HashMap<String, String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RestFoundation {
+    pub(crate) switch: bool,
+    pub(crate) port: u16,
+    pub(crate) token: String,
+}
+
+#[allow(dead_code)]
 pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
 
-    let path = path.join("config.toml");
+    let config = path.join("config.toml");
 
-    if ! path.is_file() {
-        init_config(path.clone())?;
+    if ! config.is_file() {
+        init_config(config.clone())?;
     }
 
-    let value = fs::read_to_string(path)?;
+    let value = fs::read_to_string(config)?;
 
     let result = toml::from_str::<DoreaFileConfig>(&value)?;
 
     Ok(result)
+}
 
+pub(crate) fn load_rest_config(path: &PathBuf) -> Result<RestConfig> {
+    let config = path.join("service.toml");
+
+    if ! config.is_file() {
+        init_config(config.clone())?;
+    }
+
+    let value = fs::read_to_string(config)?;
+
+    let result = toml::from_str::<RestConfig>(&value)?;
+
+    Ok(result)
 }
 
 // 初始化日志系统
 // default - console
+#[allow(dead_code)]
 fn init_config (path: PathBuf) -> Result<()> {
 
     let config = DoreaFileConfig {
@@ -75,7 +105,29 @@ fn init_config (path: PathBuf) -> Result<()> {
 
     let str = toml::to_string(&config)?;
 
-    fs::write(path, str)?;
+    fs::write(&path, str)?;
+
+
+    // Rest Service Config
+    
+    let mut account = HashMap::new();
+
+    account.insert(String::from("master"), String::from("YouNeedChangeThisString"));
+
+    let rest = RestConfig {
+        foundation: RestFoundation {
+            switch: false,
+            port: 3451,
+            token: String::from("YouNeedChangeThisString"),
+        },
+        account,
+    };
+
+    let rest = toml::to_string(&rest)?;
+
+    let service_path = &path.parent().unwrap().to_path_buf();
+
+    fs::write(&service_path.join("service.toml"), rest)?;
 
     Ok(())
 }

@@ -11,6 +11,10 @@ use crate::database::DataBaseManager;
 use crate::handle;
 use once_cell::sync::Lazy;
 
+use axum::prelude::*;
+use hyper::Server;
+use std::net::SocketAddr;
+use tower::make::Shared;
 
 // 判断服务器是否已被初始化过
 static INIT_STATE: Lazy<Mutex<InitState>> = Lazy::new(|| Mutex::new(InitState { state: false }));
@@ -92,6 +96,8 @@ impl DoreaServer {
     pub async fn listen(&mut self) {
         info!("dorea is running, ready to accept connections.");
 
+        self.service().await;
+
         loop {
             // wait for client connect.
             let (mut socket, socket_addr) = match self.server_listener.accept().await {
@@ -143,6 +149,28 @@ impl DoreaServer {
             });
         }
     }
+
+    async fn service(&self) -> crate::Result<()> {
+
+        let document_path = self._server_options.document_path.clone().unwrap();
+
+        // 读取 rest-service path
+        let config = crate::configure::load_rest_config(&document_path)?;
+
+        task::spawn(async move {
+            // build our application with a single route
+            let app = route("/", get(|| async { "Hello, World!" }));
+
+            // run it with hyper on localhost:3000
+            hyper::Server::bind(&"0.0.0.0:3000".parse().unwrap())
+                .serve(app.into_make_service())
+                .await
+                .unwrap();
+        });
+
+        Ok(())
+    }
+
 }
 
 struct ConnectNumber {

@@ -16,18 +16,21 @@ exclude = [
 [[bin]]
 name = "dorea-cli"
 path = "src/bin/cli.rs"
+required-features = ["client"]
+
 
 [[bin]]
 name = "dorea-server"
 path = "src/bin/server.rs"
+required-features = ["server"]
 
 [features]
 
 # default features: all feature.
-default = ["server", "client"]
+default = ["client"]
 
 # server features: just run for server.
-server = ["processor"]
+server = ["processor", "axum", "http", "hyper", "tower"]
 
 # client features: client manager tools.
 client = ["processor"]
@@ -39,7 +42,7 @@ processor = []
 tokio = { version = "1.6.1", features = ['full'] }
 anyhow = "1.0.42"
 
-# I/O Tool
+# Command
 rustyline = "8.2.0"
 
 # LRU Queue
@@ -49,7 +52,8 @@ lru = "0.6.5"
 bytes = "1.0.1"
 
 # Parsing Tool
-nom = "6.2.1"
+#nom = "6.2.1"
+nom = "7.0.0-alpha1"
 clap = "2.33.3"
 
 # Lazy Static
@@ -59,7 +63,7 @@ once_cell = "1.8.0"
 dirs = "3.0.2"
 walkdir = "2.3.2"
 
-# Time Manager
+# Time & Date Manager
 chrono = "0.4.19"
 
 # Serialize & Deserialize
@@ -74,4 +78,10 @@ crc = "2.0.0"
 
 # Logger Library
 log = "0.4.14"
-log4rs = "1.0.0"
+log4rs = { version = "1.0.0" }
+
+# Web Service 
+axum = { version = "0.1.2", optional = true }
+http = { version = "0.2.4", optional = true }
+hyper = { version = "0.14.11", optional = true, features = ["full"] }
+tower = { version = "0.4.8", optional = true }
