@@ -34,5 +34,6 @@ mod configure;
 mod database;
 mod handle;
 mod logger;
+mod service;
 
 type Result<T> = std::result::Result<T, anyhow::Error>;

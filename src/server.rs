@@ -9,12 +9,8 @@ use tokio::task;
 use crate::configure::DoreaFileConfig;
 use crate::database::DataBaseManager;
 use crate::handle;
-use once_cell::sync::Lazy;
 
-use axum::prelude::*;
-use hyper::Server;
-use std::net::SocketAddr;
-use tower::make::Shared;
+use once_cell::sync::Lazy;
 
 // 判断服务器是否已被初始化过
 static INIT_STATE: Lazy<Mutex<InitState>> = Lazy::new(|| Mutex::new(InitState { state: false }));
@@ -96,7 +92,12 @@ impl DoreaServer {
     pub async fn listen(&mut self) {
         info!("dorea is running, ready to accept connections.");
 
-        self.service().await;
+        let doc_path = self._server_options.document_path.clone().unwrap();
+
+        let _ = crate::service::make_service(
+            self._server_options.hostname.clone(),
+            &doc_path
+        ).await;
 
         loop {
             // wait for client connect.
@@ -148,27 +149,6 @@ impl DoreaServer {
                 connect_num.lock().await.low();
             });
         }
-    }
-
-    async fn service(&self) -> crate::Result<()> {
-
-        let document_path = self._server_options.document_path.clone().unwrap();
-
-        // 读取 rest-service path
-        let config = crate::configure::load_rest_config(&document_path)?;
-
-        task::spawn(async move {
-            // build our application with a single route
-            let app = route("/", get(|| async { "Hello, World!" }));
-
-            // run it with hyper on localhost:3000
-            hyper::Server::bind(&"0.0.0.0:3000".parse().unwrap())
-                .serve(app.into_make_service())
-                .await
-                .unwrap();
-        });
-
-        Ok(())
     }
 
 }
