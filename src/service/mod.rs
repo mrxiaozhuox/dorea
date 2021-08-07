@@ -2,15 +2,24 @@ use std::sync::Arc;
 use std::path::PathBuf;
 use axum::{route, AddExtensionLayer};
 use axum::prelude::*;
+use axum::http::StatusCode;
+use std::convert::Infallible;
+use std::borrow::Cow;
+
+use tower::timeout::error::Elapsed;
+use tower::BoxError;
+use tower::timeout::TimeoutLayer;
+use std::time::Duration;
 
 pub mod routes;
 pub mod secret;
+pub mod tools;
 
 pub struct ShareState {
     pub(crate) config: (crate::configure::DoreaFileConfig, crate::configure::RestConfig)
 }
 
-pub async fn make_service(
+pub async fn startup(
     hostname: &'static str,
     document_path: &PathBuf
 ) -> crate::Result<()> {
@@ -39,9 +48,31 @@ pub async fn make_service(
             "/", get(routes::index)
         )
             .route(
-                "/auth", get(routes::auth)
+            "/auth", get(routes::auth)
             )
-            .layer(AddExtensionLayer::new(share_state));
+            .layer(AddExtensionLayer::new(share_state))
+            .layer(TimeoutLayer::new(Duration::from_secs(30)))
+        ;
+
+        let error_handle_app = app.handle_error(|error: BoxError| {
+            // Check if the actual error type is `Elapsed` which
+            // `Timeout` returns
+            if error.is::<Elapsed>() {
+                return Ok::<_, Infallible>((
+                    StatusCode::REQUEST_TIMEOUT,
+                    "Request took too long".into(),
+                ));
+            }
+
+            // If we encounter some error we don't handle return a generic
+            // error
+            // Err(error)
+            return Ok::<_, Infallible>((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                // `Cow` lets us return either `&str` or `String`
+                Cow::from(format!("Unhandled internal error: {}", error)),
+            ));
+        });
 
         let addr = format!(
             "{}:{}",
@@ -52,10 +83,13 @@ pub async fn make_service(
         log::info!("⍹ >>> Rest-Service Running at: http://{}/", addr);
 
         hyper::Server::bind(&addr.parse().unwrap())
-            .serve(app.into_make_service())
+            .serve(error_handle_app.into_make_service())
             .await
-            .unwrap();
+            .unwrap()
+        ;
+
     });
 
     Ok(())
 }
+

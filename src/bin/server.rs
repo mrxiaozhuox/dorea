@@ -70,7 +70,7 @@ async fn main() {
         | |__| | | |__| | | | \\ \\  | |____   / ____ \\
         |_____/   \\____/  |_|  \\_\\ |______| /_/    \\_\\
 
-        「 Dorea:{} 」service address: {}
+        「 Dorea:{} 」server address: {}
         ",
         crate::DOREA_VERSION,
         format!("dorea://{}:{}",hostname,port)
