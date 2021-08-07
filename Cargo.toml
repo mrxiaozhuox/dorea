@@ -27,7 +27,7 @@ required-features = ["server"]
 [features]
 
 # default features: all feature.
-default = ["client"]
+default = ["client", "server"]
 
 # include all features
 full = ["server", "client"]
