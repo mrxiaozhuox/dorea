@@ -1,8 +1,8 @@
 use serde::{Serialize, Deserialize};
-use jsonwebtoken::{encode, decode, Header, Algorithm, Validation, EncodingKey, DecodingKey};
+use jsonwebtoken::{encode, decode, Header, Algorithm, Validation, EncodingKey, DecodingKey, TokenData};
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Claims {
+pub struct Claims {
     iat: usize,
     exp: usize,
     sub: String,
@@ -33,6 +33,17 @@ impl Secret {
 
         Ok(token)
     }
+
+    pub fn validation(&self, token: String) -> crate::Result<TokenData<Claims>> {
+        let token = decode::<Claims>(
+            &token,
+            &DecodingKey::from_secret(self.token.as_ref()),
+            &Validation::default()
+        )?;
+
+        Ok(token)
+    }
+
 }
 
 // 验证参数结构体

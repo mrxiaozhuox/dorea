@@ -48,7 +48,10 @@ pub async fn startup(
             "/", get(routes::index)
         )
             .route(
-            "/auth", get(routes::auth)
+            "/auth", post(routes::auth)
+            )
+            .route(
+                "/ping", post(routes::ping)
             )
             .layer(AddExtensionLayer::new(share_state))
             .layer(TimeoutLayer::new(Duration::from_secs(30)))
