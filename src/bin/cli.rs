@@ -89,8 +89,8 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
         }
 
         return match client.get(slice.get(0).unwrap()).await {
-            Ok(v) => { (NetPacketState::OK, v.to_string()) }
-            Err(e) => { (NetPacketState::ERR, e.to_string()) }
+            Some(v) => { (NetPacketState::OK, v.to_string()) }
+            None => { (NetPacketState::ERR, "Value not found.".to_string()) }
         }
 
     }else if operation.to_uppercase() == "SET" {

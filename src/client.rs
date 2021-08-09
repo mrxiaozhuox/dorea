@@ -97,19 +97,21 @@ impl DoreaClient {
         Err(anyhow::anyhow!(result))
     }
 
-    pub async fn get(&mut self, key: &str) -> crate::Result<DataValue> {
+    pub async fn get(&mut self, key: &str) -> Option<DataValue> {
+
         let command = format!("get {}", key);
 
-        let v = self.execute(&command).await?;
+        let v = match self.execute(&command).await {
+            Ok(v) => v,
+            Err(_) => { return None; }
+        };
+
         if v.0 == NetPacketState::OK {
             let info = String::from_utf8_lossy(&v.1).to_string();
-            return Ok(DataValue::from(&info));
+            return Some(DataValue::from(&info));
         }
 
-        let result = String::from_utf8_lossy(&v.1).to_string();
-
-        Err(anyhow::anyhow!(result))
-
+        None
     }
 
     pub async fn clean(&mut self) -> crate::Result<()> {

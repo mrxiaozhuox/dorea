@@ -16,6 +16,7 @@
 use axum::prelude::*;
 use axum::response::{Html, Json};
 use serde_json::json;
+use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::service::ShareState;
@@ -30,29 +31,16 @@ pub async fn index() -> Html<&'static str> {
 
 // 授权系统（JWT 发放）控制函数
 pub async fn auth(
-    multipart: extract::Multipart,
+    form: extract::Form<crate::service::secret::SecretForm>,
     state: extract::Extension<Arc<ShareState>>,
 ) -> Api {
 
-    let v = crate::service::tools::multipart(multipart).await;
-
-    if ! v.contains_key("password") {
-        return Api::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "password field not found."
-        );
-    }
-
-    let password = v.get("password").unwrap();
-
-    if password.is_file() {
-        return Api::error(StatusCode::INTERNAL_SERVER_ERROR, "password type error.");
-    }
+    let password = form.password.clone();
 
     let v = &state.config.1.account;
     let mut account: String = String::new();
     for i in v {
-        if i.1.to_string() == password.text().unwrap_or(String::new()) {
+        if i.1.to_string() == password {
             account = i.0.to_string();
             break;
         }
@@ -134,13 +122,21 @@ pub async fn ping(
     }
 }
 
+#[derive(Deserialize)]
+pub struct ControllerForm {
+    key: Option<String>,
+    value: Option<String>,
+    expire: Option<usize>,
+}
+
 // 接口主控入口
 pub async fn controller (
     extract::Path((group, operation)) :extract::Path<(String, String)>,
+    form: extract::Form<ControllerForm>,
+    state: extract::Extension<Arc<ShareState>>,
     extract::TypedHeader(auth): extract::TypedHeader<
         headers::Authorization<headers::authorization::Bearer>
-    >,
-    state: extract::Extension<Arc<ShareState>>,
+    >
 ) -> Api {
 
     let token = String::from(auth.0.token());
@@ -186,6 +182,8 @@ pub async fn controller (
 
     client.select(&group).await;
 
+    let operation = operation.to_lowercase();
+
     if &operation == "info" {
 
         let keys = client.info(InfoType::KeyList).await.unwrap();
@@ -196,7 +194,31 @@ pub async fn controller (
             "key_list": keys,
             "key_number": keys.len(),
         }))
+
+    } else if &operation == "get" {
+
+        if let None = form.key {
+            return Api::lose_param("key");
+        }
+
+        let key = form.key.clone().unwrap();
+
+        let value = client.get(&key).await;
+
+        return match value {
+            Some(v) => {
+                Api::json(StatusCode::OK, json!({
+                    "key": key,
+                    "value": v.to_string(),
+                    "type": v.datatype()
+                }))
+            },
+            None => {
+                Api::not_found(&key)
+            }
+        }
     }
+
 
     Api::error(StatusCode::BAD_REQUEST, "operation not found.")
 }
@@ -244,4 +266,16 @@ impl Api {
             })),
         }
     }
+
+    pub fn lose_param(name: &str) -> Api {
+        Api::error(
+            StatusCode::BAD_REQUEST,
+            &format!("required parameter `{}` does not exist.", name)
+        )
+    }
+
+    pub fn not_found (name: &str) -> Api {
+        Api::error(StatusCode::NOT_FOUND, &format!("data `{}` not found.", name))
+    }
+
 }

@@ -284,6 +284,19 @@ impl DataValue {
             DataValue::Tuple(tuple) => tuple.0.size() + tuple.1.size(),
         }
     }
+
+    pub fn datatype(&self) -> String {
+        return match self {
+            DataValue::None => "None",
+            DataValue::String(_) => "String",
+            DataValue::Number(_) => "Number",
+            DataValue::Boolean(_) => "Boolean",
+            DataValue::List(_) => "List",
+            DataValue::Dict(_) => "Dict",
+            DataValue::Tuple(_) => "Tuple",
+        }.to_string();
+    }
+
 }
 
 struct ValueParser {}
