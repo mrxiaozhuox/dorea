@@ -184,6 +184,8 @@ pub enum InfoType {
     PreloadDatabaseList,
     ServerStartupTime,
     ServerVersion,
+    TotalIndexNumber,
+    KeyList,
     // DataType(String),
 }
 
@@ -196,6 +198,8 @@ impl std::string::ToString for InfoType {
             InfoType::PreloadDatabaseList => "preload-db-list",
             InfoType::ServerStartupTime => "server-startup-time",
             InfoType::ServerVersion => "version",
+            InfoType::TotalIndexNumber => "total-index-number",
+            InfoType::KeyList => "keys",
             // InfoType::DataType(v) => {
             //     format!("${} type", v).as_str()
             // },

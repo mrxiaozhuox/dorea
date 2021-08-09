@@ -322,7 +322,7 @@ impl CommandManager {
             if argument == "version" {
                 return (
                     NetPacketState::OK,
-                    format!("V{:?}", crate::DOREA_VERSION).as_bytes().to_vec()
+                    format!("V{}", crate::DOREA_VERSION).as_bytes().to_vec()
                 );
             }
 

@@ -21,7 +21,8 @@ use std::sync::Arc;
 use crate::service::ShareState;
 use crate::service::secret;
 use axum::http::{StatusCode, Response};
-use crate::client::DoreaClient;
+use crate::client::{DoreaClient, InfoType};
+use crate::value::DataValue;
 
 pub async fn index() -> Html<&'static str> {
     Html("<h1>Hello World</h1>")
@@ -70,7 +71,7 @@ pub async fn auth(
         60 * 60 * 12
     ) {
         Ok(v) => v,
-        Err(e) => {
+        Err(_) => {
             // 抛出生成器异常
             return Api::error(StatusCode::INTERNAL_SERVER_ERROR, "jwt apply error.");
         }
@@ -78,7 +79,7 @@ pub async fn auth(
 
     Api::json(
         StatusCode::OK,
-        Json(json!({
+        json!({
             "alpha": "OK",
             "data": {
                 "type": "JsonWebToken",
@@ -86,7 +87,7 @@ pub async fn auth(
                 "level": account
             },
             "message": ""
-        }))
+        })
     )
 }
 
@@ -107,7 +108,10 @@ pub async fn ping(
     let _v = match jwt.validation(token) {
         Ok(v) => v,
         Err(e) => {
-            return Api::error(StatusCode::UNAUTHORIZED, &e.to_string());
+            return Api::error(
+                StatusCode::UNAUTHORIZED,
+                &format!("jwt check failed [{}].", e.to_string())
+            );
         }
     };
 
@@ -119,7 +123,7 @@ pub async fn ping(
 
     return match client {
         Ok(_) => {
-            Api::reply(StatusCode::OK, "PONG")
+            Api::ok()
         },
         Err(e) => {
             Api::error(
@@ -128,6 +132,73 @@ pub async fn ping(
             )
         }
     }
+}
+
+// 接口主控入口
+pub async fn controller (
+    extract::Path((group, operation)) :extract::Path<(String, String)>,
+    extract::TypedHeader(auth): extract::TypedHeader<
+        headers::Authorization<headers::authorization::Bearer>
+    >,
+    state: extract::Extension<Arc<ShareState>>,
+) -> Api {
+
+    let token = String::from(auth.0.token());
+
+    let jwt = secret::Secret {
+        token: state.config.1.foundation.token.clone()
+    };
+
+    let _v = match jwt.validation(token) {
+        Ok(v) => v,
+        Err(e) => {
+            return Api::error(
+                StatusCode::UNAUTHORIZED,
+                &format!("jwt check failed [{}].", e.to_string())
+            );
+        }
+    };
+
+    if &group[0..1] != "@" {
+        return Api::error(
+            StatusCode::BAD_REQUEST,
+            "group name must start with @."
+        );
+    }
+
+    let group = group[1..].to_string();
+
+    // 尝试连接 Dorea 服务器
+    let client = DoreaClient::connect(
+        state.client_addr,
+        &state.config.0.connection.connection_password
+    ).await;
+
+    let mut client =  match client {
+        Ok(c) => c,
+        Err(e) => {
+            return Api::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &e.to_string()
+            );
+        }
+    };
+
+    client.select(&group).await;
+
+    if &operation == "info" {
+
+        let keys = client.info(InfoType::KeyList).await.unwrap();
+        let keys = serde_json::from_str::<Vec<String>>(&keys).unwrap_or(vec![]);
+
+        return Api::json(StatusCode::OK, json!({
+            "group_name": &group,
+            "key_list": keys,
+            "key_number": keys.len(),
+        }))
+    }
+
+    Api::error(StatusCode::BAD_REQUEST, "operation not found.")
 }
 
 // pub type Api = (StatusCode ,Json<serde_json::Value>);
@@ -152,26 +223,25 @@ impl Api {
             data: Json(json!({
                 "alpha": "ERR",
                 "data": {},
-                "message": message.to_string()
+                "message": message.to_string(),
+                "resptime": chrono::Local::now().timestamp()
             }))
         }
     }
 
-    pub fn reply(code: StatusCode, reply: &str) -> Api {
+    pub fn ok() -> Api {
+        Api::json(StatusCode::OK, json!({}))
+    }
+
+    pub fn json(code: StatusCode, value: serde_json::Value) -> Api {
         Api {
             status: code,
             data: Json(json!({
-                "alpha": "ERR",
-                "data": reply.to_string(),
-                "message": ""
-            }))
-        }
-    }
-
-    pub fn json(code: StatusCode, json: Json<serde_json::Value>) -> Api {
-        Api {
-            status: code,
-            data: json,
+                "alpha": "OK",
+                "data": value,
+                "message": "",
+                "resptime": chrono::Local::now().timestamp()
+            })),
         }
     }
 }

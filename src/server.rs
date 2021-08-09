@@ -119,7 +119,7 @@ impl DoreaServer {
                 continue;
             }
 
-            info!("new client connected: '{:?}'.", socket_addr);
+            // info!("new client connected: '{:?}'.", socket_addr);
 
             // add connection number (+1).
             self.connection_number.lock().await.add();

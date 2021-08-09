@@ -60,6 +60,9 @@ pub async fn startup(
             .route(
                 "/ping", post(routes::ping)
             )
+            .route(
+                "/:group/:operation", post(routes::controller)
+            )
             .layer(AddExtensionLayer::new(share_state))
             .layer(TimeoutLayer::new(Duration::from_secs(30)))
         ;
@@ -90,7 +93,7 @@ pub async fn startup(
             rest_port
         );
 
-        log::info!("⍹ >>> Rest-Service Running at: http://{}/", addr);
+        log::info!("⍹ >>> Web-Service Running at: http://{}/", addr);
 
         hyper::Server::bind(&addr.parse().unwrap())
             .serve(error_handle_app.into_make_service())
