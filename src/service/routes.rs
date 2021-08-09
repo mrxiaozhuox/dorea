@@ -1,5 +1,5 @@
 //!
-//! 关于 Rest-Service API 接口结构声明
+//! 关于 Web-Service API 接口结构声明
 //!
 //! ```json
 //! {
@@ -20,7 +20,8 @@ use std::sync::Arc;
 
 use crate::service::ShareState;
 use crate::service::secret;
-use axum::http::StatusCode;
+use axum::http::{StatusCode, Response};
+use crate::client::DoreaClient;
 
 pub async fn index() -> Html<&'static str> {
     Html("<h1>Hello World</h1>")
@@ -35,25 +36,16 @@ pub async fn auth(
     let v = crate::service::tools::multipart(multipart).await;
 
     if ! v.contains_key("password") {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(
-            json!({
-                "alpha": "ERR",
-                "data": {},
-                "message" : "password field not found."
-            })
-        ));
+        return Api::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "password field not found."
+        );
     }
 
     let password = v.get("password").unwrap();
 
     if password.is_file() {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(
-            json!({
-                "alpha": "ERR",
-                "data": {},
-                "message" : "password type error."
-            })
-        ));
+        return Api::error(StatusCode::INTERNAL_SERVER_ERROR, "password type error.");
     }
 
     let v = &state.config.1.account;
@@ -66,13 +58,7 @@ pub async fn auth(
     }
 
     if account == String::new() {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(
-            json!({
-                "alpha": "ERR",
-                "data": {},
-                "message": "account info not found."
-            })
-        ));
+        return Api::error(StatusCode::INTERNAL_SERVER_ERROR, "account info not found.");
     }
 
     let jwt = secret::Secret {
@@ -86,17 +72,11 @@ pub async fn auth(
         Ok(v) => v,
         Err(e) => {
             // 抛出生成器异常
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(
-                json!({
-                    "alpha": "ERR",
-                    "data": {},
-                    "message" :e.to_string()
-                })
-            ));
+            return Api::error(StatusCode::INTERNAL_SERVER_ERROR, "jwt apply error.");
         }
     };
 
-    (
+    Api::json(
         StatusCode::OK,
         Json(json!({
             "alpha": "OK",
@@ -127,22 +107,71 @@ pub async fn ping(
     let _v = match jwt.validation(token) {
         Ok(v) => v,
         Err(e) => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({
-                    "alpha": "ERR",
-                    "data": {},
-                    "message": e.to_string()
-                }))
-            );
+            return Api::error(StatusCode::UNAUTHORIZED, &e.to_string());
         }
     };
 
-    (StatusCode::OK, Json(json!({
-        "alpha": "OK",
-        "data": {},
-        "message": ""
-    })))
+    // 尝试连接 Dorea 服务器
+    let client = DoreaClient::connect(
+        state.client_addr,
+        &state.config.0.connection.connection_password
+    ).await;
+
+    return match client {
+        Ok(_) => {
+            Api::reply(StatusCode::OK, "PONG")
+        },
+        Err(e) => {
+            Api::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &e.to_string()
+            )
+        }
+    }
 }
 
-pub type Api = (StatusCode ,Json<serde_json::Value>);
+// pub type Api = (StatusCode ,Json<serde_json::Value>);
+
+pub struct Api {
+    status: StatusCode,
+    data: Json<serde_json::Value>,
+}
+
+impl axum::response::IntoResponse for Api {
+    fn into_response(self) -> Response<Body> {
+        let mut res = self.data.into_response();
+        *res.status_mut() = self.status;
+        res
+    }
+}
+
+impl Api {
+    pub fn error(code: StatusCode, message: &str) -> Api {
+        Api {
+            status: code,
+            data: Json(json!({
+                "alpha": "ERR",
+                "data": {},
+                "message": message.to_string()
+            }))
+        }
+    }
+
+    pub fn reply(code: StatusCode, reply: &str) -> Api {
+        Api {
+            status: code,
+            data: Json(json!({
+                "alpha": "ERR",
+                "data": reply.to_string(),
+                "message": ""
+            }))
+        }
+    }
+
+    pub fn json(code: StatusCode, json: Json<serde_json::Value>) -> Api {
+        Api {
+            status: code,
+            data: json,
+        }
+    }
+}

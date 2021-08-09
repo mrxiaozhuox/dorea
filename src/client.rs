@@ -27,6 +27,7 @@ impl DoreaClient {
     /// }
     /// ```
     pub async fn connect(addr: (&'static str, u16), password: &str) -> crate::Result<Self> {
+
         let addr = format!("{}:{}", addr.0, addr.1);
 
         let mut conn = TcpStream::connect(addr).await?;

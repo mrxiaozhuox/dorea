@@ -84,7 +84,7 @@ impl Frame {
         response.put(&buf[0..size]);
 
         let mut message = String::from_utf8(response.as_ref().to_vec()).unwrap();
-        
+
         if message.trim().len() == 0 {
             return Ok(vec![]);
         }

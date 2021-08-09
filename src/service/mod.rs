@@ -16,13 +16,17 @@ pub mod secret;
 pub mod tools;
 
 pub struct ShareState {
-    pub(crate) config: (crate::configure::DoreaFileConfig, crate::configure::RestConfig)
+    pub(crate) config: (crate::configure::DoreaFileConfig, crate::configure::RestConfig),
+    pub(crate) client_addr: (&'static str, u16)
 }
 
 pub async fn startup(
-    hostname: &'static str,
+    addr: (&'static str, u16),
     document_path: &PathBuf
 ) -> crate::Result<()> {
+
+    let hostname = addr.0;
+    let dorea_port = addr.1;
 
     // 读取 rest-service path
     let rest_config = crate::configure::load_rest_config(&document_path)?;
@@ -32,12 +36,15 @@ pub async fn startup(
     }
 
     // 全局共享状态数据
+
+
     let share_state = Arc::new(
         ShareState {
             config: (
                 crate::configure::load_config(&document_path).unwrap(),
                 rest_config.clone(),
-            )
+            ),
+            client_addr: (hostname, dorea_port)
         }
     );
 

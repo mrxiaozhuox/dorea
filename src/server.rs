@@ -95,7 +95,7 @@ impl DoreaServer {
         let doc_path = self._server_options.document_path.clone().unwrap();
 
         let _ = crate::service::startup(
-            self._server_options.hostname.clone(),
+            (self._server_options.hostname.clone(), self._server_options.port),
             &doc_path
         ).await;
 

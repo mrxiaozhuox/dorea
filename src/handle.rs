@@ -46,7 +46,7 @@ pub(crate) async fn process(
             },
         };
 
-        if message.len() == 0 { continue; }
+        if message.len() == 0 { return Ok(()); }
 
         let res = CommandManager
             ::command_handle(
