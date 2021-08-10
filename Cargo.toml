@@ -1,6 +1,6 @@
 [package]
 name = "dorea"
-version = "0.3.0"
+version = "0.3.0-alpha"
 description = "A key-value stroage system"
 repository = "https://github.com/mrxiaozhuox/Dorea/"
 authors = ["ZhuoEr Liu <mrxzx@qq.com>"]

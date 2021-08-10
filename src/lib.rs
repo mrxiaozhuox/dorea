@@ -5,7 +5,7 @@ use axum::http::Response;
 use axum::body::Body;
 
 // Dorea db version (current)
-pub const DOREA_VERSION: &'static str = "0.3.0";
+pub const DOREA_VERSION: &'static str = "0.3.0-alpha";
 
 // current version support load-storage version list.
 #[allow(dead_code)]
