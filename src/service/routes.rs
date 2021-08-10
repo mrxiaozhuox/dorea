@@ -145,7 +145,7 @@ pub async fn controller (
         token: state.config.1.foundation.token.clone()
     };
 
-    let _v = match jwt.validation(token) {
+    let v = match jwt.validation(token) {
         Ok(v) => v,
         Err(e) => {
             return Api::error(
@@ -163,6 +163,15 @@ pub async fn controller (
     }
 
     let group = group[1..].to_string();
+
+    let login_level = v.claims.level.clone();
+
+    if login_level != group && login_level != "master".to_string() {
+        return Api::error(
+            StatusCode::UNAUTHORIZED,
+            "token do not have access to this database."
+        );
+    }
 
     // 尝试连接 Dorea 服务器
     let client = DoreaClient::connect(
@@ -217,8 +226,56 @@ pub async fn controller (
                 Api::not_found(&key)
             }
         }
-    }
 
+    } else if &operation == "set" {
+
+        if let None = form.key {
+            return Api::lose_param("key");
+        }
+
+        let key = form.key.clone().unwrap();
+
+        if let None = form.value {
+            return Api::lose_param("value");
+        }
+
+        let value = form.value.clone().unwrap();
+
+        let value = DataValue::from(&value);
+        if value == DataValue::None {
+            return Api::error(StatusCode::BAD_REQUEST, "value parse error.");
+        }
+
+        let mut expire = 0;
+        if let Some(v) = form.expire {
+            expire = v;
+        }
+
+        let result = client.setex(&key, value, expire).await;
+
+        return match result {
+            Ok(_) => { Api::ok() },
+            Err(e) => {
+                Api::error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
+            }
+        }
+
+    } else if &operation == "delete" {
+
+        if let None = form.key {
+            return Api::lose_param("key");
+        }
+
+        let key = form.key.clone().unwrap();
+
+        return match client.delete(&key).await {
+            Ok(_) => { Api::ok() },
+            Err(e) => {
+                Api::error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
+            }
+        }
+
+    }
 
     Api::error(StatusCode::BAD_REQUEST, "operation not found.")
 }

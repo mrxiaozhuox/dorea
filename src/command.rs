@@ -428,18 +428,32 @@ impl CommandManager {
 
                 let key: &str = &key[1..];
 
-                let value = database_manager.lock().await
+                let node = database_manager.lock().await
                     .db_list.get_mut(current).unwrap()
-                    .get(key).await;
+                    .meta_data(key).await;
 
-                if value.is_none() {
+                if node.is_none() {
                     return (
                         NetPacketState::ERR,
                         format!("Key '{}' not found.", key).as_bytes().to_vec(),
                     );
                 }
 
-                let origin_value = value.unwrap();
+                let node = node.unwrap();
+
+                let origin_value = node.value.clone();
+                let node_timestamp = node.timestamp();
+
+                // 计算剩余过期时间
+                let current_time = chrono::Local::now().timestamp() as u64;
+                if current_time >= (node_timestamp.0 as u64 + node_timestamp.1) as u64 {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Key '{}' not found.", key).as_bytes().to_vec(),
+                    );
+                }
+
+                let mut expire = (node_timestamp.0 as u64 + node_timestamp.1) - current_time;
 
                 // data_value was none_value
                 if origin_value == DataValue::None {
@@ -472,7 +486,45 @@ impl CommandManager {
                     }
 
                     _result = edit_operation::incr(origin_value, incr_num);
-                }else if operation == "insert" {
+
+                } else if operation == "expire" {
+
+                    if sub_arg.len() != 1 {
+                        return (
+                            NetPacketState::ERR,
+                            "Exceeding parameter limits.".as_bytes().to_vec(),
+                        );
+                    }
+
+                    let data: &str = sub_arg.get(0).unwrap();
+
+                    match &data[0..1] {
+                        "+" => {
+                            let v = data[1..].parse::<u64>().unwrap_or(0);
+                            expire += v;
+                        }
+                        "-" => {
+                            let v = data[1..].parse::<u64>().unwrap_or(0);
+                            expire -= v;
+                        }
+                        "=" => {
+                            let v = data[1..].parse::<u64>().unwrap_or(0);
+                            expire = v;
+                        }
+                        _ => {
+                            let v = match data[1..].parse::<u64>() {
+                                Ok(v) => v,
+                                Err(_) => {
+                                    return (
+                                        NetPacketState::ERR,
+                                        format!("Value parse error.").as_bytes().to_vec(),
+                                    );
+                                }
+                            };
+                        }
+                    }
+
+                } else if operation == "insert" {
 
                     // 检查参数数量
                     if sub_arg.len() < 1 {
@@ -603,10 +655,9 @@ impl CommandManager {
                 // dbg!("{:?}",_result);
 
                 // 将新的数据值重新并入数据库中
-                // todo: 过期时间还未声明完成（_expire_）
                 return match database_manager.lock().await.db_list
                     .get_mut(current).unwrap()
-                    .set(key, _result, 0)
+                    .set(key, _result, expire)
                     .await
                 {
                     Ok(_) => {

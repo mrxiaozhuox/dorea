@@ -33,11 +33,11 @@ pub struct DataBase {
     file: DataFile,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DataNode {
     crc: u32,
     key: String,
-    value: DataValue,
+    pub(crate) value: DataValue,
     time_stamp: (i64, u64),
 }
 

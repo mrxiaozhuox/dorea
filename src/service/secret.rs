@@ -6,7 +6,7 @@ pub struct Claims {
     iat: usize,
     exp: usize,
     sub: String,
-    level: String,
+    pub level: String,
 }
 
 pub struct Secret {
