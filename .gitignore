@@ -8,3 +8,6 @@ vendor/
 
 # system ignore
 .DS_Store
+
+# docker dev
+.devcontainer/
