@@ -1,3 +1,5 @@
+//! web server 启动器程序
+
 use std::sync::Arc;
 use std::path::PathBuf;
 use axum::{route, AddExtensionLayer};
@@ -37,7 +39,6 @@ pub async fn startup(
 
     // 全局共享状态数据
 
-
     let share_state = Arc::new(
         ShareState {
             config: (
@@ -52,7 +53,7 @@ pub async fn startup(
     tokio::task::spawn(async move {
 
         let app = route(
-            "/", get(routes::index)
+            "/", get(routes::index).post(routes::index)
         )
             .route(
             "/auth", post(routes::auth)

@@ -14,7 +14,7 @@
 //! message 错误信息（仅在错误时有内容）
 
 use axum::prelude::*;
-use axum::response::{Html, Json};
+use axum::response::Json;
 use serde_json::json;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -25,8 +25,9 @@ use axum::http::{StatusCode, Response};
 use crate::client::{DoreaClient, InfoType};
 use crate::value::DataValue;
 
-pub async fn index() -> Html<&'static str> {
-    Html("<h1>Hello World</h1>")
+// Dorea Web 主页
+pub async fn index() -> Api {
+    Api::json(StatusCode::OK, json!(format!("dorea: V{}",crate::DOREA_VERSION)))
 }
 
 // 授权系统（JWT 发放）控制函数
@@ -68,13 +69,9 @@ pub async fn auth(
     Api::json(
         StatusCode::OK,
         json!({
-            "alpha": "OK",
-            "data": {
-                "type": "JsonWebToken",
-                "token": v,
-                "level": account
-            },
-            "message": ""
+            "type": "JsonWebToken",
+            "token": v,
+            "level": account
         })
     )
 }
@@ -189,7 +186,12 @@ pub async fn controller (
         }
     };
 
-    client.select(&group).await;
+    let _ = match client.select(&group).await {
+        Ok(_) => {},
+        Err(e) => {
+            return Api::error(StatusCode::INTERNAL_SERVER_ERROR, "Client execute failed.");
+        }
+    };
 
     let operation = operation.to_lowercase();
 
@@ -269,6 +271,16 @@ pub async fn controller (
         let key = form.key.clone().unwrap();
 
         return match client.delete(&key).await {
+            Ok(_) => { Api::ok() },
+            Err(e) => {
+                Api::error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
+            }
+        }
+
+    } else if &operation == "clean" {
+
+        // 清空所有数据
+        return match client.clean().await {
             Ok(_) => { Api::ok() },
             Err(e) => {
                 Api::error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
