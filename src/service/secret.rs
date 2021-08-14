@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use jsonwebtoken::{encode, decode, Header, Algorithm, Validation, EncodingKey, DecodingKey, TokenData};
+use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, TokenData};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {

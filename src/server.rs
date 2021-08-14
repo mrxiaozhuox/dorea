@@ -101,7 +101,7 @@ impl DoreaServer {
 
         loop {
             // wait for client connect.
-            let (mut socket, socket_addr) = match self.server_listener.accept().await {
+            let (mut socket, _) = match self.server_listener.accept().await {
                 Ok(value) => value,
                 Err(_) => {
                     continue;
