@@ -7,6 +7,7 @@ pub struct FormData {
     pub file_name: Option<String>,
 }
 
+#[allow(dead_code)]
 impl FormData {
     pub fn is_file (&self) -> bool {
         self.file_name != None
@@ -18,6 +19,7 @@ impl FormData {
     }
 }
 
+#[allow(dead_code)]
 pub async fn multipart(
     mut value: axum::extract::Multipart
 ) -> HashMap<String, FormData> {

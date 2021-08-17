@@ -188,7 +188,7 @@ pub async fn controller (
 
     let _ = match client.select(&group).await {
         Ok(_) => {},
-        Err(e) => {
+        Err(_) => {
             return Api::error(StatusCode::INTERNAL_SERVER_ERROR, "Client execute failed.");
         }
     };
