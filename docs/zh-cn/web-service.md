@@ -40,3 +40,39 @@ setting = "setting-group@password"
 ```
 
 你可以为每一个数据组定义一个密码，使它只能在一个组下被使用。
+
+## 接口访问
+
+接下来将简单的介绍一下接口的访问格式。
+
+`Web Service` 的所有请求都需要使用 `POST` 完成。
+
+访问某个数据库：
+
+```
+http://127.0.0.1:3451/@default/[option]
+```
+
+例如我们尝试获取 `default` 的基本信息：
+
+```
+# 请求路径
+http://127.0.0.1:3451/@default/list
+
+# 请求结果
+{
+    "alpha": "OK",
+    "data": {
+        "group_name": "default",
+        "key_list": [],
+        "key_number": 0
+    },
+    "message": "",
+    "resptime": 1629204449
+}
+```
+
+- `alpha` 字段用于第一时间判断本次请求是否成功（它与 Dorea 协议中的状态相似，有三种值：「 OK, ERR, NOAUTH 」）
+- `data` 数据段，会根据请求类型的不同，返回不同数据（操作类型的请求一般只会有 alpha 字段作检查，data 则为空 ）
+- `messsage` 字段用于返回错误信息（它只会在 `ERR` 的情况下才拥有内容 ）
+- `resptime` 为服务器响应时间，它是一个**时间戳**数据。
