@@ -12,13 +12,14 @@
 //! alpha   主要用于快速检查请求状况：类似于 `dorea-protocol` 中的 `status`.
 //! data    主要数据项：所有数据结果包含在里面
 //! message 错误信息（仅在错误时有内容）
-use axum::extract::Form;
+
 use axum::prelude::*;
 use axum::response::Json;
 use serde_json::json;
 use serde::Deserialize;
 use std::sync::Arc;
 
+use crate::network::NetPacketState;
 use crate::service::ShareState;
 use crate::service::secret;
 use axum::http::{StatusCode, Response};
@@ -119,11 +120,17 @@ pub async fn ping(
     }
 }
 
+
+/// key: 数据键信息
+/// value: 数据内容
+/// expire: 过期时间
+/// query: 直接运行内容
 #[derive(Deserialize)]
 pub struct ControllerForm {
     key: Option<String>,
     value: Option<String>,
     expire: Option<usize>,
+    query: Option<String>,
 }
 
 // 接口主控入口
@@ -209,7 +216,7 @@ pub async fn controller (
     } else if &operation == "get" {
 
         let form = match form { Some(v) => v, None => {
-            return Api::error(StatusCode::BAD_REQUEST, "form data not found");
+            return Api::error(StatusCode::BAD_REQUEST, "form data not found.");
         }};
 
         if let None = form.key {
@@ -236,7 +243,7 @@ pub async fn controller (
     } else if &operation == "set" {
 
         let form = match form { Some(v) => v, None => {
-            return Api::error(StatusCode::BAD_REQUEST, "form data not found");
+            return Api::error(StatusCode::BAD_REQUEST, "form data not found.");
         }};
 
         if let None = form.key {
@@ -273,7 +280,7 @@ pub async fn controller (
     } else if &operation == "delete" {
 
         let form = match form { Some(v) => v, None => {
-            return Api::error(StatusCode::BAD_REQUEST, "form data not found");
+            return Api::error(StatusCode::BAD_REQUEST, "form data not found.");
         }};
 
         if let None = form.key {
@@ -297,6 +304,35 @@ pub async fn controller (
             Err(e) => {
                 Api::error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
             }
+        }
+
+    } else if &operation == "execute" {
+
+        // 尝试直接运行 execute raw 数据。
+
+        let form = match form { Some(v) => v, None => {
+            return Api::error(StatusCode::BAD_REQUEST, "form data not found.");
+        }};
+
+        if let None = form.query {
+            return Api::lose_param("query");
+        }
+
+        let query = form.query.clone().unwrap();
+
+        let v = match client.execute(&query).await {
+            Ok(v) => v,
+            Err(e) => {
+                return Api::error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string());
+            }
+        };
+
+        if v.0 == NetPacketState::OK {
+            return Api::json(StatusCode::OK, json!({
+                "reply": String::from_utf8_lossy(&v.1[..]).to_string()
+            }));
+        } else {
+            return Api::error(StatusCode::BAD_REQUEST, &String::from_utf8_lossy(&v.1[..]).to_string())
         }
 
     }
