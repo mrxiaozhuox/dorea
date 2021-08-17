@@ -522,6 +522,7 @@ impl CommandManager {
                                     );
                                 }
                             };
+                            expire = v;
                         }
                     }
 

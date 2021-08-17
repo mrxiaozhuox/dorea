@@ -12,7 +12,7 @@
 //! alpha   主要用于快速检查请求状况：类似于 `dorea-protocol` 中的 `status`.
 //! data    主要数据项：所有数据结果包含在里面
 //! message 错误信息（仅在错误时有内容）
-
+use axum::extract::Form;
 use axum::prelude::*;
 use axum::response::Json;
 use serde_json::json;
@@ -129,7 +129,7 @@ pub struct ControllerForm {
 // 接口主控入口
 pub async fn controller (
     extract::Path((group, operation)) :extract::Path<(String, String)>,
-    form: extract::Form<ControllerForm>,
+    form: Option<extract::Form<ControllerForm>>,
     state: extract::Extension<Arc<ShareState>>,
     extract::TypedHeader(auth): extract::TypedHeader<
         headers::Authorization<headers::authorization::Bearer>
@@ -208,6 +208,10 @@ pub async fn controller (
 
     } else if &operation == "get" {
 
+        let form = match form { Some(v) => v, None => {
+            return Api::error(StatusCode::BAD_REQUEST, "form data not found");
+        }};
+
         if let None = form.key {
             return Api::lose_param("key");
         }
@@ -230,6 +234,10 @@ pub async fn controller (
         }
 
     } else if &operation == "set" {
+
+        let form = match form { Some(v) => v, None => {
+            return Api::error(StatusCode::BAD_REQUEST, "form data not found");
+        }};
 
         if let None = form.key {
             return Api::lose_param("key");
@@ -263,6 +271,10 @@ pub async fn controller (
         }
 
     } else if &operation == "delete" {
+
+        let form = match form { Some(v) => v, None => {
+            return Api::error(StatusCode::BAD_REQUEST, "form data not found");
+        }};
 
         if let None = form.key {
             return Api::lose_param("key");
