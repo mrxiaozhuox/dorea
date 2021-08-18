@@ -92,7 +92,7 @@ fn init_config (path: PathBuf) -> Result<()> {
         database: DataBaseConfig {
             max_group_number: 20,
             default_group: String::from("default"),
-            pre_load_group: vec![String::from("default")],
+            pre_load_group: vec![String::from("default"), String::from("system")],
             max_key_number: 51200,
         },
 
