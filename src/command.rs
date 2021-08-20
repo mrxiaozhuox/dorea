@@ -75,6 +75,7 @@ impl CommandManager {
         config: &DoreaFileConfig,
         database_manager: &Mutex<DataBaseManager>,
     ) -> (NetPacketState, Vec<u8>) {
+
         let message = message.trim().to_string();
 
         // 初始化命令列表（配置参数数量范围）
@@ -156,6 +157,16 @@ impl CommandManager {
                 .insert(current.to_string(), db);
         }
 
+        let _system_group_db = match database_manager.lock().await.db_list.get_mut("system") {
+            Some(v) => v,
+            None => {
+                return (
+                    NetPacketState::ERR,
+                    "System group not found.".as_bytes().to_vec(),
+                );
+            },
+        };
+
         // start to command operation
 
         // log in to dorea db [AUTH]
@@ -171,7 +182,7 @@ impl CommandManager {
             } else {
                 (
                     NetPacketState::ERR,
-                    "Password input failed".as_bytes().to_vec(),
+                    "Password input failed.".as_bytes().to_vec(),
                 )
             }
         }
