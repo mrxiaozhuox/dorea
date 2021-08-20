@@ -157,15 +157,15 @@ impl CommandManager {
                 .insert(current.to_string(), db);
         }
 
-        let _system_group_db = match database_manager.lock().await.db_list.get_mut("system") {
-            Some(v) => v,
-            None => {
-                return (
-                    NetPacketState::ERR,
-                    "System group not found.".as_bytes().to_vec(),
-                );
-            },
-        };
+        // let _system_group_db = match database_manager.lock().await.db_list.get_mut("system") {
+        //     Some(v) => v,
+        //     None => {
+        //         return (
+        //             NetPacketState::ERR,
+        //             "System group not found.".as_bytes().to_vec(),
+        //         );
+        //     },
+        // };
 
         // start to command operation
 
