@@ -75,7 +75,6 @@ impl CommandManager {
         config: &DoreaFileConfig,
         database_manager: &Mutex<DataBaseManager>,
     ) -> (NetPacketState, Vec<u8>) {
-
         let message = message.trim().to_string();
 
         // 初始化命令列表（配置参数数量范围）
@@ -157,16 +156,6 @@ impl CommandManager {
                 .insert(current.to_string(), db);
         }
 
-        // let _system_group_db = match database_manager.lock().await.db_list.get_mut("system") {
-        //     Some(v) => v,
-        //     None => {
-        //         return (
-        //             NetPacketState::ERR,
-        //             "System group not found.".as_bytes().to_vec(),
-        //         );
-        //     },
-        // };
-
         // start to command operation
 
         // log in to dorea db [AUTH]
@@ -184,7 +173,7 @@ impl CommandManager {
                     NetPacketState::ERR,
                     "Password input failed.".as_bytes().to_vec(),
                 )
-            }
+            };
         }
 
         // Ping Pong !!!
@@ -225,13 +214,9 @@ impl CommandManager {
                 .await;
 
             return match result {
-                Ok(_) => {
-                    (NetPacketState::OK, vec![])
-                }
-                Err(e) => {
-                    (NetPacketState::ERR, e.to_string().as_bytes().to_vec())
-                }
-            }
+                Ok(_) => (NetPacketState::OK, vec![]),
+                Err(e) => (NetPacketState::ERR, e.to_string().as_bytes().to_vec()),
+            };
         }
 
         if command == CommandList::GET {
@@ -254,10 +239,8 @@ impl CommandManager {
 
                     (NetPacketState::OK, v.to_string().as_bytes().to_vec())
                 }
-                None => {
-                    (NetPacketState::ERR, "Data Not Found".as_bytes().to_vec())
-                }
-            }
+                None => (NetPacketState::ERR, "Data Not Found".as_bytes().to_vec()),
+            };
         }
 
         if command == CommandList::DELETE {
@@ -273,13 +256,9 @@ impl CommandManager {
                 .await;
 
             return match result {
-                Ok(_) => {
-                    (NetPacketState::OK, vec![])
-                }
-                Err(e) => {
-                    (NetPacketState::ERR, e.to_string().as_bytes().to_vec())
-                }
-            }
+                Ok(_) => (NetPacketState::OK, vec![]),
+                Err(e) => (NetPacketState::ERR, e.to_string().as_bytes().to_vec()),
+            };
         }
 
         if command == CommandList::CLEAN {
@@ -293,13 +272,9 @@ impl CommandManager {
                 .await;
 
             return match result {
-                Ok(_) => {
-                    (NetPacketState::OK, vec![])
-                }
-                Err(e) => {
-                    (NetPacketState::ERR, e.to_string().as_bytes().to_vec())
-                }
-            }
+                Ok(_) => (NetPacketState::OK, vec![]),
+                Err(e) => (NetPacketState::ERR, e.to_string().as_bytes().to_vec()),
+            };
         }
 
         if command == CommandList::SELECT {
@@ -310,10 +285,8 @@ impl CommandManager {
                     *current = db_name.to_string();
                     (NetPacketState::OK, vec![])
                 }
-                Err(e) => {
-                    (NetPacketState::ERR, e.to_string().as_bytes().to_vec())
-                }
-            }
+                Err(e) => (NetPacketState::ERR, e.to_string().as_bytes().to_vec()),
+            };
         }
 
         // 操作列表
@@ -328,57 +301,71 @@ impl CommandManager {
             let argument: &str = slice.get(0).unwrap();
 
             if argument == "current" {
-                return (NetPacketState::OK, current.as_bytes().to_vec())
+                return (NetPacketState::OK, current.as_bytes().to_vec());
             }
 
             if argument == "version" {
                 return (
                     NetPacketState::OK,
-                    format!("V{}", crate::DOREA_VERSION).as_bytes().to_vec()
+                    format!("V{}", crate::DOREA_VERSION).as_bytes().to_vec(),
                 );
             }
 
             if argument == "max-connect-number" || argument == "mcn" {
                 return (
                     NetPacketState::OK,
-                    config.connection.max_connect_number.to_string().as_bytes().to_vec()
-                )
+                    config
+                        .connection
+                        .max_connect_number
+                        .to_string()
+                        .as_bytes()
+                        .to_vec(),
+                );
             }
 
             if argument == "total-index-number" || argument == "tin" {
                 return (
                     NetPacketState::OK,
-                    format!(
-                        "{}",
-                        crate::database::total_index_number().await
-                    ).as_bytes().to_vec()
-                )
+                    format!("{}", crate::database::total_index_number().await)
+                        .as_bytes()
+                        .to_vec(),
+                );
             }
 
             if argument == "server-startup-time" || argument == "stt" {
                 return (
                     NetPacketState::OK,
-                    "@[SERVER_STARTUP_TIME]".as_bytes().to_vec()
-                )
+                    "@[SERVER_STARTUP_TIME]".as_bytes().to_vec(),
+                );
             }
 
             if argument == "keys" {
+                let list = database_manager
+                    .lock()
+                    .await
+                    .db_list
+                    .get(current)
+                    .unwrap()
+                    .clone()
+                    .keys()
+                    .await;
 
-                let list = database_manager.lock().await
-                    .db_list.get(current).unwrap()
-                    .clone().keys().await;
-
-                return (NetPacketState::OK, format!("{:?}", list).as_bytes().to_vec());
+                return (
+                    NetPacketState::OK,
+                    format!("{:?}", list).as_bytes().to_vec(),
+                );
             }
 
             if &argument[0..1] == "@" {
-
                 let var = &argument[1..];
-                let data = database_manager.lock().await
+                let data = database_manager
+                    .lock()
+                    .await
                     .db_list
                     .get_mut(current)
                     .unwrap()
-                    .meta_data(var).await;
+                    .meta_data(var)
+                    .await;
 
                 if data.is_none() {
                     return (
@@ -409,10 +396,7 @@ impl CommandManager {
                     _result = data.weight().to_string();
                 }
 
-                return (
-                    NetPacketState::OK,
-                    _result.as_bytes().to_vec()
-                );
+                return (NetPacketState::OK, _result.as_bytes().to_vec());
             }
 
             // unknown operation.
@@ -421,7 +405,6 @@ impl CommandManager {
                 "Unknown operation.".as_bytes().to_vec(),
             );
         }
-
 
         // 操作列表：
         // incr 数值自增（对复合数据使用则会对里面每一个数字进行自增）
@@ -432,17 +415,20 @@ impl CommandManager {
         // sort 对数组进行排序（仅支持 list ）
         // reverse 对数组进行反转（仅支持 list ）
         if command == CommandList::EDIT {
-
             let key: &str = slice.get(0).unwrap();
             let operation: &str = slice.get(1).unwrap();
 
             if &key[0..1] == "@" {
-
                 let key: &str = &key[1..];
 
-                let node = database_manager.lock().await
-                    .db_list.get_mut(current).unwrap()
-                    .meta_data(key).await;
+                let node = database_manager
+                    .lock()
+                    .await
+                    .db_list
+                    .get_mut(current)
+                    .unwrap()
+                    .meta_data(key)
+                    .await;
 
                 if node.is_none() {
                     return (
@@ -476,12 +462,13 @@ impl CommandManager {
                 }
 
                 let mut sub_arg = slice.clone();
-                for _ in 0..2 { sub_arg.remove(0); }
+                for _ in 0..2 {
+                    sub_arg.remove(0);
+                }
 
                 let mut _result: DataValue = origin_value.clone();
 
                 if operation == "incr" {
-
                     // 检查参数数量
                     if sub_arg.len() > 1 {
                         return (
@@ -498,9 +485,7 @@ impl CommandManager {
                     }
 
                     _result = edit_operation::incr(origin_value, incr_num);
-
                 } else if operation == "expire" {
-
                     if sub_arg.len() != 1 {
                         return (
                             NetPacketState::ERR,
@@ -536,9 +521,7 @@ impl CommandManager {
                             expire = v;
                         }
                     }
-
                 } else if operation == "insert" {
-
                     // 检查参数数量
                     if sub_arg.len() < 1 {
                         return (
@@ -570,13 +553,8 @@ impl CommandManager {
                         );
                     }
 
-                    _result = edit_operation::insert(origin_value, (
-                        idx.to_string(),
-                        data_val
-                    ));
-
-                }else if operation == "remove" {
-
+                    _result = edit_operation::insert(origin_value, (idx.to_string(), data_val));
+                } else if operation == "remove" {
                     if sub_arg.len() != 1 {
                         return (
                             NetPacketState::ERR,
@@ -587,9 +565,7 @@ impl CommandManager {
                     let key = sub_arg.get(0).unwrap();
 
                     _result = edit_operation::remove(origin_value, key.to_string());
-
-                }else if operation == "push" {
-
+                } else if operation == "push" {
                     if sub_arg.len() != 1 {
                         return (
                             NetPacketState::ERR,
@@ -609,11 +585,8 @@ impl CommandManager {
                         );
                     }
 
-                    _result = edit_operation::push(
-                        origin_value,
-                        data_val
-                    );
-                }else if operation == "pop" {
+                    _result = edit_operation::push(origin_value, data_val);
+                } else if operation == "pop" {
                     if sub_arg.len() > 0 {
                         return (
                             NetPacketState::ERR,
@@ -622,8 +595,7 @@ impl CommandManager {
                     }
 
                     _result = edit_operation::pop(origin_value);
-                }else if operation == "sort" {
-
+                } else if operation == "sort" {
                     if sub_arg.len() > 1 {
                         return (
                             NetPacketState::ERR,
@@ -646,9 +618,7 @@ impl CommandManager {
                     }
 
                     _result = edit_operation::sort(origin_value, asc);
-
-                }else if operation == "reverse" {
-
+                } else if operation == "reverse" {
                     if sub_arg.len() > 0 {
                         return (
                             NetPacketState::ERR,
@@ -657,29 +627,30 @@ impl CommandManager {
                     }
 
                     _result = edit_operation::reverse(origin_value);
-
                 } else {
                     return (
                         NetPacketState::ERR,
-                        format!("Operation {} not found.", operation).as_bytes().to_vec(),
+                        format!("Operation {} not found.", operation)
+                            .as_bytes()
+                            .to_vec(),
                     );
                 }
 
                 // dbg!("{:?}",_result);
 
                 // 将新的数据值重新并入数据库中
-                return match database_manager.lock().await.db_list
-                    .get_mut(current).unwrap()
+                return match database_manager
+                    .lock()
+                    .await
+                    .db_list
+                    .get_mut(current)
+                    .unwrap()
                     .set(key, _result, expire)
                     .await
                 {
-                    Ok(_) => {
-                        (NetPacketState::OK, vec![])
-                    }
-                    Err(err) => {
-                        (NetPacketState::ERR, err.to_string().as_bytes().to_vec())
-                    }
-                }
+                    Ok(_) => (NetPacketState::OK, vec![]),
+                    Err(err) => (NetPacketState::ERR, err.to_string().as_bytes().to_vec()),
+                };
             }
 
             return (
@@ -702,7 +673,6 @@ mod edit_operation {
     use std::collections::HashMap;
 
     pub fn incr(value: DataValue, num: i32) -> DataValue {
-
         if let DataValue::Number(x) = value.clone() {
             return DataValue::Number(((x as i32) + num) as f64);
         }
@@ -726,22 +696,17 @@ mod edit_operation {
         }
 
         if let DataValue::Tuple(x) = value.clone() {
-            return DataValue::Tuple((
-                Box::from(incr(*x.0, num)),
-                Box::from(incr(*x.1, num)),
-            ));
+            return DataValue::Tuple((Box::from(incr(*x.0, num)), Box::from(incr(*x.1, num))));
         }
 
         return value;
     }
 
-    pub fn insert(origin: DataValue, info: (
-        String,
-        DataValue
-    )) -> DataValue {
-
+    pub fn insert(origin: DataValue, info: (String, DataValue)) -> DataValue {
         if let DataValue::Dict(mut x) = origin.clone() {
-            if info.0 != String::from("") { x.insert(info.0, info.1); }
+            if info.0 != String::from("") {
+                x.insert(info.0, info.1);
+            }
             return DataValue::Dict(x);
         }
 
@@ -775,20 +740,20 @@ mod edit_operation {
     }
 
     pub fn remove(origin: DataValue, key: String) -> DataValue {
-
         if let DataValue::Dict(mut x) = origin.clone() {
-            if x.contains_key(&key) { x.remove(&key); }
+            if x.contains_key(&key) {
+                x.remove(&key);
+            }
             return DataValue::Dict(x);
         }
 
         if let DataValue::List(mut x) = origin.clone() {
-
             let index: isize = key.parse::<isize>().unwrap_or(-1);
 
-            if index == -1 || index  > (x.len() - 1) as isize {
+            if index == -1 || index > (x.len() - 1) as isize {
                 // 索引不存在则不进行删除
             } else {
-               x.remove(index as usize);
+                x.remove(index as usize);
             }
 
             return DataValue::List(x);
@@ -810,10 +775,8 @@ mod edit_operation {
         return origin;
     }
 
-
     // 列表（数组）专用方法，其他复合类型无法使用
     pub fn push(origin: DataValue, value: DataValue) -> DataValue {
-
         if let DataValue::List(mut x) = origin.clone() {
             x.push(value); /* 插入新的数据 */
             return DataValue::List(x);
@@ -836,7 +799,9 @@ mod edit_operation {
     pub fn sort(origin: DataValue, asc: bool) -> DataValue {
         if let DataValue::List(mut x) = origin.clone() {
             x.sort();
-            if !asc { x.reverse(); }
+            if !asc {
+                x.reverse();
+            }
             return DataValue::List(x);
         }
 
@@ -844,7 +809,6 @@ mod edit_operation {
     }
 
     pub fn reverse(origin: DataValue) -> DataValue {
-
         if let DataValue::List(mut x) = origin.clone() {
             x.reverse();
             return DataValue::List(x);
@@ -862,63 +826,68 @@ mod edit_operation {
 
     #[test]
     fn test_incr() {
-        let v = incr(DataValue::List(
-            vec![
+        let v = incr(
+            DataValue::List(vec![
                 DataValue::Number(1_f64),
                 DataValue::Number(2_f64),
                 DataValue::Number(3_f64),
                 DataValue::Number(4_f64),
                 DataValue::Number(5_f64),
-            ]
-        ),1);
+            ]),
+            1,
+        );
 
-        assert_eq!(v, DataValue::List(
-            vec![
+        assert_eq!(
+            v,
+            DataValue::List(vec![
                 DataValue::Number(2_f64),
                 DataValue::Number(3_f64),
                 DataValue::Number(4_f64),
                 DataValue::Number(5_f64),
                 DataValue::Number(6_f64),
-            ]
-        ));
+            ])
+        );
     }
 
     #[test]
     fn test_insert() {
-        let v = insert(DataValue::List(
-            vec![
+        let v = insert(
+            DataValue::List(vec![
                 DataValue::String("foo".to_string()),
                 DataValue::String("bar".to_string()),
                 DataValue::String("sam".to_string()),
-            ]
-        ), ("1".to_string(), DataValue::String("dor".to_string())));
+            ]),
+            ("1".to_string(), DataValue::String("dor".to_string())),
+        );
 
-        assert_eq!(v, DataValue::List(
-            vec![
+        assert_eq!(
+            v,
+            DataValue::List(vec![
                 DataValue::String("foo".to_string()),
                 DataValue::String("dor".to_string()),
                 DataValue::String("bar".to_string()),
                 DataValue::String("sam".to_string()),
-            ]
-        ));
+            ])
+        );
     }
 
     #[test]
     fn test_remove() {
-        let v = remove(DataValue::List(
-            vec![
+        let v = remove(
+            DataValue::List(vec![
                 DataValue::String("foo".to_string()),
                 DataValue::String("bar".to_string()),
                 DataValue::String("sam".to_string()),
-            ]
-        ), String::from("2"));
+            ]),
+            String::from("2"),
+        );
 
-        assert_eq!(v, DataValue::List(
-            vec![
+        assert_eq!(
+            v,
+            DataValue::List(vec![
                 DataValue::String("foo".to_string()),
                 DataValue::String("bar".to_string()),
-            ]
-        ));
+            ])
+        );
     }
-
 }

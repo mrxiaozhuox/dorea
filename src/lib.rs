@@ -33,6 +33,7 @@ pub mod macros;
 mod command;
 mod configure;
 mod database;
+mod event;
 mod handle;
 mod logger;
 mod service;
