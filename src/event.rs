@@ -1,18 +1,41 @@
 //! Dorea DB 定时事件【控制器】
 
-pub struct Event {}
+use futures::{executor::block_on, future::BoxFuture, Future};
 
-pub struct EventManager {
-    actuator: Vec<Event>,
+pub struct Event<'a> {
+    function: BoxFuture<'a, ()>,
+    timestamp: (i64, usize),
 }
 
-impl EventManager {
+pub struct EventManager<'a> {
+    task: Vec<Event<'a>>,
+}
+
+impl<'a> EventManager<'a> {
     pub fn new() -> Self {
         Self {
-            actuator: Default::default(),
+            task: Default::default(),
         }
+    }
+
+    /// 插入新的任务信息
+    pub fn add_task(&mut self, func: BoxFuture<'a, ()>, interval: usize) {
+        self.task.push(Event {
+            function: func,
+            timestamp: (chrono::Local::now().timestamp(), interval),
+        })
     }
 
     /// 检查当前时期是否有需要执行的定时任务
     pub fn check(&mut self) {}
+}
+
+mod test {
+    use super::EventManager;
+
+    #[test]
+    fn try_task() {
+        let event = EventManager::new();
+        event.add_task(Box::pin(async { println!("hello world") }))
+    }
 }
