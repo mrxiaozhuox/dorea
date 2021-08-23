@@ -1,6 +1,6 @@
 //! Dorea DB 定时事件【控制器】
 
-use futures::{executor::block_on, future::BoxFuture, Future};
+use futures::future::BoxFuture;
 
 pub struct Event<'a> {
     function: BoxFuture<'a, ()>,
@@ -36,6 +36,7 @@ mod test {
     #[test]
     fn try_task() {
         let event = EventManager::new();
-        event.add_task(Box::pin(async { println!("hello world") }))
+        // 这个测试任务会在每六十秒后被调用一次！
+        event.add_task(Box::pin(async { println!("hello world") }), 60)
     }
 }
