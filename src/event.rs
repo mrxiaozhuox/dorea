@@ -35,7 +35,7 @@ mod test {
 
     #[test]
     fn try_task() {
-        let event = EventManager::new();
+        let mut event = EventManager::new();
         // 这个测试任务会在每六十秒后被调用一次！
         event.add_task(Box::pin(async { println!("hello world") }), 60)
     }
