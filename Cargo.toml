@@ -57,7 +57,7 @@ bytes = "1.0.1"
 
 # Parsing Tool
 #nom = "6.2.1"
-nom = "7.0.0-alpha1"
+nom = "7.0.0"
 clap = "2.33.3"
 
 # Lazy Static
@@ -69,7 +69,6 @@ walkdir = "2.3.2"
 
 # Time & Date Manager
 chrono = "0.4.19"
-delay_timer = "0.7.2"
 
 # Serialize & Deserialize
 serde = { version = "1.0.126", features = ['derive'] }
