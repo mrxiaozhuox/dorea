@@ -226,6 +226,8 @@ struct DataFile {
 }
 
 impl DataFile {
+   
+    // 初始化 数据文件系统 -> DoreaFile
     pub fn new(root: &PathBuf, name: String, max_index_size: u32) -> Self {
         let mut db = Self {
             root: root.clone(),
@@ -547,6 +549,29 @@ impl DataFile {
         Ok(())
     }
 
+    // 合并已归档的数据
+    #[allow(dead_code)]
+    pub fn merge_struct(&mut self) -> crate::Result<()> {
+
+        let root_path = self.root.clone();
+
+        for entry in walkdir::WalkDir::new(root_path).into_iter().filter_map(|e| e.ok()) {
+            
+            let entry: PathBuf = entry.into_path();
+
+            // 检查 File 是否为 "Archive-{X}" 归档文件
+            if ! entry.is_file() { continue; }
+
+            let file_name = entry.file_name().unwrap().to_str().unwrap();
+
+            // if file_name[0..]
+        }
+
+        Ok(()) 
+    }
+
+
+
     fn active(&self) -> crate::Result<()> {
         let file = self.root.join("active.db");
 
@@ -598,6 +623,7 @@ impl DataFile {
             Err(_) => 1,
         }
     }
+
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

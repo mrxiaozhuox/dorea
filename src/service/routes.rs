@@ -202,7 +202,7 @@ pub async fn controller (
 
     let operation = operation.to_lowercase();
 
-    if &operation == "info" {
+    if &operation == "info" || &operation == "information" {
 
         let keys = client.info(InfoType::KeyList).await.unwrap();
         let keys = serde_json::from_str::<Vec<String>>(&keys).unwrap_or(vec![]);
