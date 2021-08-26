@@ -301,6 +301,7 @@ impl DataValue {
 
 struct ValueParser {}
 impl ValueParser {
+
     fn normal(message: &str) -> IResult<&str, &str> {
         take_till1(|c: char| c == '\\' || c == '"' || c.is_ascii_control())(message)
     }
