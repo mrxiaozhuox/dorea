@@ -473,6 +473,7 @@ impl DataFile {
         f.write_all(&v[..]).expect("write error");
 
         let end_position: u64 = start_position + v.len() as u64;
+        let end_position: u64 = end_position - 2;
 
         let index_info = IndexInfo {
             file_id: self.get_file_id(),
@@ -486,7 +487,7 @@ impl DataFile {
             TOTAL_INFO.lock().await.index_add();
         }
 
-        println!("{:?}", index_info);
+        log::debug!("@{} Data Write: {:?}", self.name, index_info);
 
         index.insert(data.key.clone(), index_info);
 
@@ -525,7 +526,7 @@ impl DataFile {
             Vec::with_capacity((index_info.end_position - index_info.start_position) as usize);
 
         buf.resize(
-            (index_info.end_position - index_info.start_position - 2) as usize,
+            (index_info.end_position - index_info.start_position) as usize,
             0,
         );
 

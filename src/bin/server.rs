@@ -33,23 +33,26 @@ async fn main() {
                 .short("h")
                 .long("hostname")
                 .default_value("127.0.0.1")
+                .display_order(0)
         )
         .arg(
             Arg::with_name("PORT")
                 .short("p")
                 .long("port")
                 .default_value("3450")
+                .display_order(1)
         )
         .arg(
             Arg::with_name("WORKSPACE")
-                .short("w")
                 .long("workspace")
                 .default_value("$DOREA_DOC")
+                .display_order(2)
         )
         .arg(
             Arg::with_name("LOGLEVEL")
-                .long("logger")
+                .long("loglevel")
                 .default_value("INFO")
+                .display_order(3)
         )
         .template(TEMPLATE)
         .get_matches();
@@ -57,7 +60,7 @@ async fn main() {
     let hostname = matches.value_of("HOSTNAME").unwrap().to_string();
     let port = matches.value_of("PORT").unwrap().parse::<u16>().unwrap_or(3450);
     let workspace = matches.value_of("WORKSPACE").unwrap();
-    let log_level = matches.value_of("LOGLEVE").unwrap();
+    let log_level = matches.value_of("LOGLEVEL").unwrap();
 
     let workspace: Option<PathBuf> = match workspace {
         "$DOREA_DOC" => None,
