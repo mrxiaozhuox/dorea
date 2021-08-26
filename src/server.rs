@@ -31,7 +31,7 @@ pub struct ServerOption {
     pub hostname: &'static str,
     pub port: u16,
     pub document_path: Option<PathBuf>,
-    pub quiet_runtime: bool,
+    pub logger_level: String,
 }
 
 impl DoreaServer {
@@ -60,13 +60,13 @@ impl DoreaServer {
             hostname: options.hostname,
             port: options.port,
             document_path: Some(document_path.clone()),
-            quiet_runtime: options.quiet_runtime,
+            logger_level: options.logger_level,
         };
 
         let addr = format!("{}:{}", options.hostname, options.port);
 
         // try to load logger system
-        crate::logger::init_logger().expect("logger init failed");
+        crate::logger::init_logger(&options.logger_level.to_uppercase()).expect("logger init failed");
 
         let config = crate::configure::load_config(&document_path).unwrap();
 

@@ -10,12 +10,15 @@ const TEMPLATE: &'static str = "
 USAGE:
   {usage}
 
+FLAGS:
+{flags}
+
 OPTIONS:
 {options}
 
 Dorea-Core: https://github.com/doreadb/dorea.git
 Dorea-Repo: https://github.com/doreadb/
-
+Author: ZhuoEr Liu <mrxzx.info@gmail.com>
 ";
 
 #[tokio::main]
@@ -44,10 +47,9 @@ async fn main() {
                 .default_value("$DOREA_DOC")
         )
         .arg(
-            Arg::with_name("ENV")
-                .short("e")
-                .long("env")
-                .default_value("MAIN")
+            Arg::with_name("LOGLEVEL")
+                .long("logger")
+                .default_value("INFO")
         )
         .template(TEMPLATE)
         .get_matches();
@@ -55,12 +57,14 @@ async fn main() {
     let hostname = matches.value_of("HOSTNAME").unwrap().to_string();
     let port = matches.value_of("PORT").unwrap().parse::<u16>().unwrap_or(3450);
     let workspace = matches.value_of("WORKSPACE").unwrap();
+    let log_level = matches.value_of("LOGLEVE").unwrap();
 
     let workspace: Option<PathBuf> = match workspace {
         "$DOREA_DOC" => None,
         other => { Some(PathBuf::from(other)) }
     };
 
+    // 输出标志！经典QWQ
     println!(
         "
         _____     ____    _____    ______
@@ -76,11 +80,12 @@ async fn main() {
         format!("dorea://{}:{}",hostname,port)
     );
 
+    // 生成服务器实例
     let mut server = DoreaServer::bind(ServerOption {
         hostname: Box::leak(hostname.into_boxed_str()),
         port: 3450,
         document_path: workspace.clone(),
-        quiet_runtime: false
+        logger_level: log_level.into()
     }).await;
 
     server.listen().await;

@@ -6,7 +6,19 @@ use log4rs::{
     Config, Handle,
 };
 
-pub(crate) fn init_logger() -> Result<Handle, SetLoggerError> {
+pub(crate) fn init_logger(logger_level: &str) -> Result<Handle, SetLoggerError> {
+
+    // logger level manager
+    let logger_level = match logger_level {
+        "TRACE" => { log::LevelFilter::Trace }
+        "DEBUG" => { log::LevelFilter::Debug }
+        "INFO" => { log::LevelFilter::Info }
+        "WARN" => { log::LevelFilter::Warn }
+        "ERROR" => { log::LevelFilter::Error }
+        "QUIET" => { log::LevelFilter::Off }
+        _ => { log::LevelFilter::Info }
+    };
+
     let console = ConsoleAppender::builder()
         .encoder(Box::new(PatternEncoder::new("[{l}] {d} - {m}{n}")))
         .build();
@@ -16,9 +28,10 @@ pub(crate) fn init_logger() -> Result<Handle, SetLoggerError> {
         .build(
             Root::builder()
                 .appender("console")
-                .build(log::LevelFilter::Info),
+                .build(logger_level),
         )
         .unwrap();
 
     log4rs::init_config(config)
+
 }
