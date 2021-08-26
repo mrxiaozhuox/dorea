@@ -487,8 +487,6 @@ impl DataFile {
             TOTAL_INFO.lock().await.index_add();
         }
 
-        log::debug!("@{} Data Write: {:?}", self.name, index_info);
-
         index.insert(data.key.clone(), index_info);
 
         Ok(())

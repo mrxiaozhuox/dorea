@@ -75,7 +75,10 @@ impl CommandManager {
         config: &DoreaFileConfig,
         database_manager: &Mutex<DataBaseManager>,
     ) -> (NetPacketState, Vec<u8>) {
+
         let message = message.trim().to_string();
+
+        log::debug!("@{}: {:?}", current, message);
 
         // 初始化命令列表（配置参数数量范围）
         // 为 -1 则代表允许无限参数

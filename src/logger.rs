@@ -32,6 +32,11 @@ pub(crate) fn init_logger(logger_level: &str) -> Result<Handle, SetLoggerError> 
         )
         .unwrap();
 
-    log4rs::init_config(config)
+    let logger = log4rs::init_config(config);
 
+    if logger_level == log::LevelFilter::Trace || logger_level == log::LevelFilter::Debug {
+        log::debug!("You have activated the `debug` log mode, is not suitable for use in a production env!");
+    }
+
+    logger
 }

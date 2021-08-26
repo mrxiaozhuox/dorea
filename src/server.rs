@@ -90,6 +90,7 @@ impl DoreaServer {
     }
 
     pub async fn listen(&mut self) {
+
         info!("dorea is running, ready to accept connections.");
 
         let doc_path = self._server_options.document_path.clone().unwrap();
