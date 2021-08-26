@@ -327,7 +327,13 @@ impl DataFile {
                                     continue;
                                 }
 
-                                let v = match bincode::deserialize::<DataNode>(&legacy[..]) {
+                                // let v = match bincode::deserialize::<DataNode>(&legacy[..]) {
+                                //     Ok(v) => v,
+                                //     Err(_) => break,
+
+                                // };
+                              
+                                let v = match serde_cbor::from_slice::<DataNode>(&legacy[..]) {
                                     Ok(v) => v,
                                     Err(_) => break,
                                 };
@@ -454,7 +460,7 @@ impl DataFile {
 
         let file = self.root.join("active.db");
 
-        let mut v = bincode::serialize(&data).expect("serialize failed");
+        let mut v = serde_cbor::to_vec(&data).expect("serialize failed");
 
         // add \r\n symbol
         v.push(13);
@@ -479,6 +485,8 @@ impl DataFile {
         if !index.contains_key(&data.key) {
             TOTAL_INFO.lock().await.index_add();
         }
+
+        println!("{:?}", index_info);
 
         index.insert(data.key.clone(), index_info);
 
@@ -517,13 +525,13 @@ impl DataFile {
             Vec::with_capacity((index_info.end_position - index_info.start_position) as usize);
 
         buf.resize(
-            (index_info.end_position - index_info.start_position) as usize,
+            (index_info.end_position - index_info.start_position - 2) as usize,
             0,
         );
 
         let len = file.read(&mut buf).unwrap();
 
-        let v = match bincode::deserialize::<DataNode>(&buf[0..len].as_bytes()) {
+        let v = match serde_cbor::from_slice::<DataNode>(&buf[0..len].as_bytes()) {
             Ok(v) => v,
             Err(_) => {
                 return None;
