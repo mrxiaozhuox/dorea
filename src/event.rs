@@ -15,6 +15,6 @@ pub async fn loop_events () {
 }
 
 // 用于合并已归档的数据库
-pub async fn merge_db() {
+pub async fn () {
  // 待编写...
 }
