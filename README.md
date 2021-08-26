@@ -1,5 +1,5 @@
 <p align="center">
-    <h2 align="center"><img src="https://avatars.githubusercontent.com/u/86607448?s=140&v=4"/></h2>
+    <h2 align="center"><img src="https://upc.cloud.wwsg18.com/uploads%2F2021%2F08%2F26%2F1_L49gNQNH_pixil-frame-0%20%285%29.png"/></h2>
 	<h2 align="center">Dorea DB 🛰</h2>
 	<p align="center">
     <a href="https://github.com/mrxiaozhuox/Dorea/actions">
