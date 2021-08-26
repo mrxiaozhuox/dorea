@@ -4,7 +4,8 @@
 # 批量写入 & 加载 [Web Service]
 #
 
-import sys
+import sys, math
+import threading
 import configure
 import requests
 
@@ -23,12 +24,12 @@ if result.status_code != 200:
     sys.exit(0)
 
 # 批量插入脚本
-insert_number = 100
-
-for i in range(insert_number):
+TOTAL_NUMBER = 1000 * 10
+for i in range(TOTAL_NUMBER):
     temp = requests.post(
         configure.GROUP_URL + "/SET",
         headers={ "Authorization": "Bearer " + jwt_token },
-        data={ "key": "auto-in-" + str(i), "value": str(i) }
+        data={ "key": "D@" + str(i), "value": "\"HELLLO WORLD: " + str(i) + "\"" }
     )
-    print(temp.status_code)
+    print("Key: " + "D@" + str(i) + " | " + temp.text)
+print("运行结束！")
