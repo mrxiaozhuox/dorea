@@ -29,7 +29,7 @@ for i in range(TOTAL_NUMBER):
     temp = requests.post(
         configure.GROUP_URL + "/SET",
         headers={ "Authorization": "Bearer " + jwt_token },
-        data={ "key": "D@" + str(i), "value": "\"HELLLO WORLD: " + str(i) + "\"" }
+        data={ "key": "D@" + str(i), "value": "hello world" }
     )
     print("Key: " + "D@" + str(i) + " | " + temp.text)
 print("运行结束！")
