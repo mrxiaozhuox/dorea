@@ -1,20 +1,30 @@
-/// 事件系统控制器（Dorea DB）
-
 use tokio::time;
 
 
+#[derive(Debug)]
+struct EventManager {}
+
 #[allow(dead_code)]
-pub async fn loop_events () {
-    
-    let mut interval = time::interval(time::Duration::from_secs(1));
+impl EventManager {
 
-    // 循环监听需要进行的任务
-    loop {
-        interval.tick().await;
+    pub async fn init() -> Self {
+        Self {}
     }
-}
 
-// 用于合并已归档的数据库
-pub async fn merge_db() {
- // 待编写...
+    pub async fn loop_events (&self) {
+        
+        let mut interval = time::interval(time::Duration::from_millis(1));
+        
+        loop {
+            interval.tick().await;
+        }
+    }
+
+
+    // 使用 _c_ 开头的函数为定时调用声明函数
+
+    pub async fn _c_merge_db() {
+
+    }
+
 }

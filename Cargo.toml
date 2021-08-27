@@ -45,6 +45,7 @@ processor = []
 [dependencies]
 tokio = { version = "1.6.1", features = ['full'] }
 anyhow = "1.0.42"
+futures = "0.3.16"
 
 # Command
 rustyline = "8.2.0"

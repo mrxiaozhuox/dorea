@@ -573,8 +573,9 @@ impl DataFile {
 
             let file_name = entry.file_name().unwrap().to_str().unwrap();
 
-            if &file_name[0..7] == "Archive" {
-
+            println!("{:?}", file_name);
+            if &file_name[0..7] == "archive-" {
+                 
             }
         }
 
@@ -606,7 +607,7 @@ impl DataFile {
 
         let count = self.get_file_id();
 
-        rename(&file, self.root.join(format!("archive-{}.db", count + 1)))?;
+        rename(&file, self.root.join(format!("archive-{}.db", count)))?;
 
         let mut f = OpenOptions::new()
             .write(true)
