@@ -24,12 +24,12 @@ if result.status_code != 200:
     sys.exit(0)
 
 # 批量插入脚本
-TOTAL_NUMBER = 1000 * 10
+TOTAL_NUMBER = 1000 * 200
 for i in range(TOTAL_NUMBER):
     temp = requests.post(
         configure.GROUP_URL + "/SET",
         headers={ "Authorization": "Bearer " + jwt_token },
-        data={ "key": "D@" + str(i), "value": "hello world" }
+        data={ "key": "D@" + str(i), "value": "\"hello world\"" }
     )
     print("Key: " + "D@" + str(i) + " | " + temp.text)
 print("运行结束！")

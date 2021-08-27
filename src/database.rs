@@ -452,6 +452,8 @@ impl DataFile {
         data: DataNode,
         index: &mut HashMap<String, IndexInfo>,
     ) -> Result<()> {
+
+        // check total_index_number
         if TOTAL_INFO.lock().await.index_get() > self.max_index_number {
             return Err(anyhow!("exceeded max index number"));
         }
@@ -571,7 +573,9 @@ impl DataFile {
 
             let file_name = entry.file_name().unwrap().to_str().unwrap();
 
-            // if file_name[0..]
+            if &file_name[0..7] == "Archive" {
+
+            }
         }
 
         Ok(()) 

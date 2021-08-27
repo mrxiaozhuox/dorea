@@ -93,7 +93,7 @@ fn init_config (path: PathBuf) -> Result<()> {
             max_group_number: 20,
             default_group: String::from("default"),
             pre_load_group: vec![String::from("default"), String::from("system")],
-            max_key_number: 51200,
+            max_key_number: 102400,
         },
 
         cache: CacheConfig {
