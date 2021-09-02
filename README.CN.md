@@ -29,9 +29,7 @@
 
 ## 功能
 
-> **Dorea** 相关功能介绍。
-
-
+- Dorea 插件管理器: [Github Repo](https://github.com/doreadb/dorea-plugin-loader)
 
 ### 数据类型
 

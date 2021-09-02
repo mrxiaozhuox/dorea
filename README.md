@@ -27,8 +27,6 @@
 
 ## Features
 
-> Some Information for `dorea`
-
 - Dorea Plugin Manager: [Github Repo](https://github.com/doreadb/dorea-plugin-loader)
 
 ### Data Sturct
