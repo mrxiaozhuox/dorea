@@ -207,6 +207,11 @@ impl DataBase {
 
         temp
     }
+
+    pub async fn merge(&mut self) -> crate::Result<()> {
+        self.file.merge_struct()
+    }
+
 }
 
 impl DataNode {
@@ -573,9 +578,10 @@ impl DataFile {
 
             let file_name = entry.file_name().unwrap().to_str().unwrap();
 
-            println!("{:?}", file_name);
-            if &file_name[0..7] == "archive-" {
-                 
+            if file_name.len() > 9 {
+                if &file_name[0..8] == "archive-" && &file_name[file_name.len() - 3..] == ".db" {
+                    println!("SB");
+               }   
             }
         }
 

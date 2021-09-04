@@ -29,7 +29,12 @@ impl EventManager {
     // 使用 _c_ 开头的函数为定时调用声明函数
 
     pub async fn _c_merge_db(&self) {
-        println!("{:?}",self.db_manager.lock().await.config);
+        for (name, db) in  self.db_manager.lock().await.db_list.iter_mut() {
+            match db.merge().await {
+                Ok(_) => {},
+                Err(e) => log::error!("merge operation error: {}", e.to_string()),
+            }
+        }
     }
 
 }
