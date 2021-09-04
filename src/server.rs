@@ -8,6 +8,7 @@ use tokio::task;
 
 use crate::configure::DoreaFileConfig;
 use crate::database::DataBaseManager;
+use crate::event::EventManager;
 use crate::handle;
 
 use once_cell::sync::Lazy;
@@ -79,14 +80,27 @@ impl DoreaServer {
             }
         };
 
-        Self {
+        let object = Self {
             _server_options: options,
             server_listener: listener,
             server_config: config.clone(),
             connection_number: Arc::new(Mutex::new(ConnectNumber { num: 0 })),
             db_manager: Arc::new(Mutex::new(DataBaseManager::new(document_path.clone()))),
             startup_time: chrono::Local::now().timestamp() + 100,
-        }
+        };
+
+        // -- 其他线程服务初始代码 --
+
+        // 事件驱动器加载
+        let event_manager = EventManager::init(object.db_manager.clone()).await;
+
+        tokio::task::spawn(async move {
+            event_manager.loop_events().await;
+        });
+
+        // 返回本体对象
+
+        object
     }
 
     pub async fn listen(&mut self) {

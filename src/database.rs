@@ -18,10 +18,10 @@ use anyhow::anyhow;
 use tokio::sync::Mutex;
 
 #[derive(Debug)]
-pub(crate) struct DataBaseManager {
+pub struct DataBaseManager {
     pub(crate) db_list: HashMap<String, DataBase>,
     pub(crate) location: PathBuf,
-    config: DoreaFileConfig,
+    pub(crate) config: DoreaFileConfig,
 }
 
 #[derive(Debug, Clone)]
