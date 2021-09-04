@@ -1,0 +1,1 @@
+cargo build --bin dorea-$1 && clear && ./target/debug/dorea-$1
