@@ -1,4 +1,4 @@
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::fs::{self, rename};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::{collections::HashMap, path::PathBuf};
@@ -569,21 +569,27 @@ impl DataFile {
 
         let root_path = self.root.clone();
 
-        for entry in walkdir::WalkDir::new(root_path).into_iter().filter_map(|e| e.ok()) {
-            
-            let entry: PathBuf = entry.into_path();
+        let mut record_in = File::open(root_path.join("record.in"))?;
+        let mut index = String::new();
+        record_in.read_to_string(&mut index)?;
 
-            // 检查 File 是否为 "Archive-{X}" 归档文件
-            if ! entry.is_file() { continue; }
+        let index = index.parse::<usize>()?;
 
-            let file_name = entry.file_name().unwrap().to_str().unwrap();
-
-            if file_name.len() > 9 {
-                if &file_name[0..8] == "archive-" && &file_name[file_name.len() - 3..] == ".db" {
-                    println!("SB");
-               }   
-            }
+        // 小于等于 3 条数据就不用考虑合并了（2个以下的归档文件有啥好合并的qwq）
+        if index <= 3 {
+            return Ok(())
         }
+
+        // 创建一个 暂时使用的 DoreaFile (用于在合并时不影响系统的正常运行)
+        let temp_dfile = root_path.parent().unwrap().join(format!("~{}", self.name));
+        let temp_dfile = DataFile::new(
+            &temp_dfile, 
+            format!("~{}", self.name), 
+            u32::MAX
+        );
+
+        // 接下来是具体的合并代码操作
+        self.read(key, index)
 
         Ok(()) 
     }
