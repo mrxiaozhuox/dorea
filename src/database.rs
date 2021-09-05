@@ -209,7 +209,7 @@ impl DataBase {
     }
 
     pub async fn merge(&mut self) -> crate::Result<()> {
-        self.file.merge_struct()
+        self.file.merge_struct(self.index.clone()).await
     }
 
 }
@@ -504,13 +504,16 @@ impl DataFile {
         key: String,
         index: &mut HashMap<String, IndexInfo>,
     ) -> Option<DataNode> {
-        let index_info: IndexInfo = match index.get(&key) {
-            Some(v) => v.clone(),
+
+        match index.get(&key) {
+            Some(v) => self.read_with_index_info(v).await,
             None => {
                 return None;
             }
-        };
+        }
+    }
 
+    pub async fn read_with_index_info(&self, index_info: &IndexInfo) -> Option<DataNode> {
         let data_file: PathBuf;
         if index_info.file_id == self.get_file_id() {
             data_file = self.root.join("active.db");
@@ -565,18 +568,20 @@ impl DataFile {
 
     // 合并已归档的数据
     #[allow(dead_code)]
-    pub fn merge_struct(&mut self) -> crate::Result<()> {
+    pub async fn merge_struct(&mut self,index: HashMap<String, IndexInfo>) -> crate::Result<()> {
 
         let root_path = self.root.clone();
 
         let mut record_in = File::open(root_path.join("record.in"))?;
-        let mut index = String::new();
-        record_in.read_to_string(&mut index)?;
+        let mut record = String::new();
+        record_in.read_to_string(&mut record)?;
 
-        let index = index.parse::<usize>()?;
+        drop(record_in);
+
+        let record = record.parse::<usize>()?;
 
         // 小于等于 3 条数据就不用考虑合并了（2个以下的归档文件有啥好合并的qwq）
-        if index <= 3 {
+        if record <= 3 {
             return Ok(())
         }
 
@@ -587,9 +592,13 @@ impl DataFile {
             format!("~{}", self.name), 
             u32::MAX
         );
+        let mut temp_index = HashMap::new();
 
         // 接下来是具体的合并代码操作
-        // self.read(key, index)
+        for (_, index_info) in index.iter() {
+            let val = self.read_with_index_info(index_info).await;
+            temp_dfile.write(val.unwrap(), &mut temp_index).await.unwrap();
+        }
 
         Ok(()) 
     }
