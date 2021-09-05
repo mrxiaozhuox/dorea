@@ -589,7 +589,7 @@ impl DataFile {
         );
 
         // 接下来是具体的合并代码操作
-        self.read(key, index)
+        // self.read(key, index)
 
         Ok(()) 
     }
