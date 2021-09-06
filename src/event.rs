@@ -38,8 +38,7 @@ impl EventManager {
             *tick += 1;
             return ();
         }
-
-        println!("OK_MERGE");
+        
         for (name, db) in  self.db_manager.lock().await.db_list.iter_mut() {
             match db.merge().await {
                 Ok(_) => {},

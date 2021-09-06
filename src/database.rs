@@ -422,6 +422,24 @@ impl DataFile {
         Ok(())
     }
 
+    // DoreaFile 系统改名：主要用于 merge 相关功能
+    fn rename_dfile(&mut self, new_name: &str) -> crate::Result<()> {
+
+        let new_root = self.root.parent().unwrap().join(new_name).clone();;
+
+        if new_root.is_dir() {
+            fs::remove_dir_all(&new_root)?;
+        }
+
+        fs::rename(&self.root, &new_root)?;
+
+        
+        self.name = new_name.into();
+        self.root = new_root;
+
+        Ok(())
+    }
+
     fn check_db(&self) -> crate::Result<()> {
         let mut result: crate::Result<()> = Ok(());
 
@@ -564,7 +582,8 @@ impl DataFile {
 
         let size = file.metadata()?.len();
 
-        if size >= (1024 * 1024) {
+        // 暂定 64 MB 归档一次
+        if size >= (1024 * 1024 * 64) {
             self.archive()?;
         }
 
@@ -592,7 +611,7 @@ impl DataFile {
 
         // 创建一个 暂时使用的 DoreaFile (用于在合并时不影响系统的正常运行)
         let temp_dfile = root_path.parent().unwrap().join(format!("~{}", self.name));
-        let temp_dfile = DataFile::new(
+        let mut temp_dfile = DataFile::new(
             &temp_dfile, 
             format!("~{}", self.name), 
             u32::MAX
@@ -606,6 +625,8 @@ impl DataFile {
         }
 
         *index = temp_index.clone();
+
+        temp_dfile.rename_dfile(&self.name)?;
 
         Ok(()) 
     }
