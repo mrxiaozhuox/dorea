@@ -628,6 +628,8 @@ impl DataFile {
 
         temp_dfile.rename_dfile(&self.name)?;
 
+        log::info!("merge success: {}", self.name);
+
         Ok(()) 
     }
 

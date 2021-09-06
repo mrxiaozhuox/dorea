@@ -38,8 +38,8 @@ impl EventManager {
             *tick += 1;
             return ();
         }
-        
-        for (name, db) in  self.db_manager.lock().await.db_list.iter_mut() {
+
+        for (_, db) in  self.db_manager.lock().await.db_list.iter_mut() {
             match db.merge().await {
                 Ok(_) => {},
                 Err(e) => log::error!("merge operation error: {}", e.to_string()),
