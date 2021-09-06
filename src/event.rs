@@ -32,7 +32,6 @@ impl EventManager {
     }
 
     // 使用 _c_ 开头的函数为定时调用声明函数
-
     pub async fn _c_merge_db(&self, tick: &mut u32) {
 
         if *tick != 30 {

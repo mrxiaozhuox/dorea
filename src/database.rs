@@ -209,7 +209,7 @@ impl DataBase {
     }
 
     pub async fn merge(&mut self) -> crate::Result<()> {
-        self.file.merge_struct(self.index.clone()).await
+        self.file.merge_struct(&mut self.index).await
     }
 
 }
@@ -338,7 +338,12 @@ impl DataFile {
 
                                 // };
                               
-                                let v = match serde_cbor::from_slice::<DataNode>(&legacy[..]) {
+                                // let v = match serde_cbor::from_slice::<DataNode>(&legacy[..]) {
+                                //     Ok(v) => v,
+                                //     Err(_) => break,
+                                // };
+
+                                let v = match serde_json::from_slice::<DataNode>(&legacy[..]) {
                                     Ok(v) => v,
                                     Err(_) => break,
                                 };
@@ -467,7 +472,7 @@ impl DataFile {
 
         let file = self.root.join("active.db");
 
-        let mut v = serde_cbor::to_vec(&data).expect("serialize failed");
+        let mut v = serde_json::to_vec(&data).expect("serialize failed");
 
         // add \r\n symbol
         v.push(13);
@@ -540,7 +545,7 @@ impl DataFile {
 
         let len = file.read(&mut buf).unwrap();
 
-        let v = match serde_cbor::from_slice::<DataNode>(&buf[0..len].as_bytes()) {
+        let v = match serde_json::from_slice::<DataNode>(&buf[0..len].as_bytes()) {
             Ok(v) => v,
             Err(_) => {
                 return None;
@@ -568,7 +573,7 @@ impl DataFile {
 
     // 合并已归档的数据
     #[allow(dead_code)]
-    pub async fn merge_struct(&mut self,index: HashMap<String, IndexInfo>) -> crate::Result<()> {
+    pub async fn merge_struct(&mut self,index: &mut HashMap<String, IndexInfo>) -> crate::Result<()> {
 
         let root_path = self.root.clone();
 
@@ -599,6 +604,8 @@ impl DataFile {
             let val = self.read_with_index_info(index_info).await;
             temp_dfile.write(val.unwrap(), &mut temp_index).await.unwrap();
         }
+
+        *index = temp_index.clone();
 
         Ok(()) 
     }
