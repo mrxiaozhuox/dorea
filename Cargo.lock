@@ -125,6 +125,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bstr"
+version = "0.2.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90682c8d613ad3373e66de8c6411e0ae2ab2571e879d2efbf73558cc66f21279"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -293,6 +302,7 @@ dependencies = [
  "log4rs",
  "lru",
  "md5",
+ "mlua",
  "nom",
  "once_cell",
  "rustyline",
@@ -730,6 +740,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "lua-src"
+version = "543.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b72914332bf1ef0e1185b229135d639f11a4a8ccfd32852db8e52419c04c0247"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "luajit-src"
+version = "210.2.0+resty5f13855"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49f85722ea9e022305a077b916c9271011a195ee8dc9b2b764fc78b0378e3b72"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "matches"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -779,6 +807,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9f1c5b025cda876f66ef43a113f91ebc9f4ccef34843000e0adf6ebbab84e21"
 dependencies = [
  "winapi",
+]
+
+[[package]]
+name = "mlua"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9da8658821057ea9d9ac349a02960be68e967f8a1e4b2a9d9efaefc4b9f2f47"
+dependencies = [
+ "bstr",
+ "cc",
+ "lua-src",
+ "luajit-src",
+ "num-traits",
+ "once_cell",
+ "pkg-config",
 ]
 
 [[package]]
@@ -974,6 +1017,12 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "pkg-config"
+version = "0.3.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3831453b3449ceb48b6d9c7ad7c96d5ea673e9b470a1dc578c2ce6521230884c"
 
 [[package]]
 name = "proc-macro-hack"
