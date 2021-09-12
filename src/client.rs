@@ -5,6 +5,7 @@ use crate::{
     value::DataValue,
 };
 
+
 pub struct DoreaClient {
     connection: TcpStream,
 }

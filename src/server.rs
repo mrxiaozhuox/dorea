@@ -82,13 +82,15 @@ impl DoreaServer {
             }
         };
 
-        let plugins = PluginManager::init(&document_path).unwrap();
+        let plugins = PluginManager::init(
+            &document_path
+        ).unwrap();
 
         let object = Self {
             _server_options: options,
             server_listener: listener,
             server_config: config.clone(),
-            plugin_manager: todo!(),
+            plugin_manager: plugins,
             connection_number: Arc::new(Mutex::new(ConnectNumber { num: 0 })),
             db_manager: Arc::new(Mutex::new(DataBaseManager::new(document_path.clone()))),
             startup_time: chrono::Local::now().timestamp() + 100,
@@ -118,6 +120,11 @@ impl DoreaServer {
             (self._server_options.hostname.clone(), self._server_options.port),
             &doc_path
         ).await;
+
+        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+
+        self.plugin_manager.onload().await.unwrap();
+
 
         loop {
             // wait for client connect.
@@ -170,7 +177,7 @@ impl DoreaServer {
             });
         }
     }
-
+    
 }
 
 struct ConnectNumber {
