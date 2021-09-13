@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 
 use log::{error, info};
 use tokio::net::TcpListener;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, mpsc};
 use tokio::task;
 
 use crate::configure::DoreaFileConfig;
@@ -84,7 +84,7 @@ impl DoreaServer {
 
         let plugins = PluginManager::init(
             &document_path
-        ).unwrap();
+        ).await.unwrap();
 
         let object = Self {
             _server_options: options,
@@ -121,12 +121,12 @@ impl DoreaServer {
             &doc_path
         ).await;
 
-        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
-
-        self.plugin_manager.onload().await.unwrap();
-
+        task::spawn(async move {
+            sb(&mut self).await;
+        });
 
         loop {
+
             // wait for client connect.
             let (mut socket, _) = match self.server_listener.accept().await {
                 Ok(value) => value,
@@ -175,9 +175,9 @@ impl DoreaServer {
                 // connection number -1;
                 connect_num.lock().await.low();
             });
+
         }
     }
-    
 }
 
 struct ConnectNumber {
@@ -194,4 +194,8 @@ impl ConnectNumber {
     pub fn get(&self) -> u16 {
         self.num
     }
+}
+
+async fn sb(db: &mut DoreaServer) {
+ db.plugin_manager.loading().await;
 }

@@ -29,6 +29,8 @@ impl DoreaClient {
     /// ```
     pub async fn connect(addr: (&'static str, u16), password: &str) -> crate::Result<Self> {
 
+        println!("dorea-client dbconnect");
+
         let addr = format!("{}:{}", addr.0, addr.1);
 
         let mut conn = TcpStream::connect(addr).await?;
@@ -53,6 +55,8 @@ impl DoreaClient {
             let err = String::from_utf8_lossy(&v[..]).to_string();
             return Err(anyhow::anyhow!(err));
         }
+
+        println!("dorea-client ok");
 
         let obj = Self { connection: conn };
 

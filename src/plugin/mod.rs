@@ -2,16 +2,20 @@ use std::{fs::File, io::Read, path::PathBuf};
 
 use mlua::Lua;
 
+use crate::client::DoreaClient;
+
 mod db;
 
+#[derive(Clone)]
 pub struct PluginManager {
     available: bool,
-    lua: Lua
+    pub lua: Lua,
+    plugin_path: PathBuf
 }
 
 impl PluginManager {
 
-    pub fn init(config: &PathBuf) -> crate::Result<Self> {
+    pub async fn init(config: &PathBuf) -> crate::Result<Self> {
 
         let config = config.clone().join("plugin");
 
@@ -27,31 +31,33 @@ impl PluginManager {
         // 获取加载初始化代码
         if available {
             if config.join("init.lua").is_file() {
-                
-                let mut f = File::open(config.join("init.lua"))?;
-
-                let mut code = String::new();
-            
-                let _ = f.read_to_string(&mut code)?;
-
-                lua.globals().set("ROOT_PATH", "/Users/liuzhuoer/Library/Application Support/Dorea/plugin")?;
-                lua.globals().set("SERVICE_ADDR", "127.0.0.1:3451")?;
-
-                // lua.globals().set("DB_MANAGER", lua.create_userdata())
-
-                lua.load(&code).exec()?;
-
+                lua.globals().set("ROOT_PATH", "/Users/liuzhuoer/Library/Application Support/Dorea/plugin")?
             }
         }
 
         Ok(
-            Self { lua, available }
+            Self { lua, available,plugin_path: config.clone() }
         )
     }
 
-    pub async fn onload(&self) -> crate::Result<()> {
+    pub async fn loading(&self) -> crate::Result<()> {
 
-        self.lua.load("CallEvent(\"onload\")").exec()?;
+        if self.available {
+
+            let mut f = File::open(self.plugin_path.join("init.lua"))?;
+
+            let mut code = String::new();
+        
+            let _ = f.read_to_string(&mut code)?;
+
+            db::PluginDbManager::init()
+
+            self.lua.globals().set("DB_MANAGER", )?;            
+
+            self.lua.load(&code).exec()?;
+
+            self.lua.load("CallEvent(\"onload\")").exec()?;
+        }
 
         Ok(())
     }
