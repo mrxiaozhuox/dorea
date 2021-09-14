@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use mlua::{ExternalResult, Lua, UserData};
+use mlua::{ExternalResult, UserData};
 use tokio::sync::Mutex;
 use crate::database::DataBaseManager;
 use crate::value::DataValue;
@@ -49,6 +49,11 @@ impl UserData for PluginDbManager {
         methods.add_async_method("delete", |_, this, key: String| async move {
             this.db.lock().await.db_list.get_mut(&this.current).unwrap()
             .delete(&key).await.to_lua_err()
+        });
+
+        methods.add_async_method("exist", |_, this, key: String| async move {
+            Ok(this.db.lock().await.db_list.get_mut(&this.current).unwrap()
+            .contains_key(&key).await)
         });
 
     }

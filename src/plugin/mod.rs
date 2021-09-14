@@ -6,6 +6,7 @@ use tokio::sync::Mutex;
 use crate::database::DataBaseManager;
 
 mod db;
+mod log;
 
 pub struct PluginManager {
     available: bool,
@@ -51,6 +52,8 @@ impl PluginManager {
             let _ = f.read_to_string(&mut code)?;
 
             self.lua.globals().set("DB_MANAGER", db::PluginDbManager::init(dorea, current).await)?;
+            self.lua.globals().set("LOGGER_IN", log::LoggerIn {})?;
+
 
             self.lua.load(&code).exec()?;
 
