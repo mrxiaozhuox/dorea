@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
-use futures::executor::block_on;
-use mlua::{ExternalResult, UserData};
+use mlua::{ExternalResult, Lua, UserData};
 use tokio::sync::Mutex;
 use crate::database::DataBaseManager;
 use crate::value::DataValue;
 
-use crate::client::DoreaClient;
-
+#[derive(Clone)]
 pub struct PluginDbManager {
     db: Arc<Mutex<DataBaseManager>>,
     current: String,
@@ -24,22 +22,29 @@ impl PluginDbManager {
 impl UserData for PluginDbManager {
     fn add_methods<'lua, M: mlua::UserDataMethods<'lua, Self>>(methods: &mut M) {
  
-        methods.add_method_mut("select", |_, this, db_name: String| {
-            futures::executor::block_on(async move { 
-                this.current = db_name.clone();
-                this.db.lock().await.select_to(&db_name).to_lua_err()
-            }).to_lua_err()
+        methods.add_async_method("select", |_, mut this, db_name: String| async move {
+            this.current = db_name.clone();
+            this.db.lock().await.select_to(&db_name).to_lua_err()
         });
  
-        methods.add_method_mut(
+        methods.add_async_method(
             "setex", |_, this, (key, (value, expire)): (String, (String, u64)
-        )| {
-            futures::executor::block_on(async move {
-                this.db.lock().await.db_list.get_mut(&this.current).unwrap()
-                .set(&key, DataValue::from(&value), expire).await.to_lua_err()
-            }).to_lua_err()
+        )| async move {
+            this.db.lock().await.db_list.get_mut(&this.current).unwrap()
+            .set(&key, DataValue::from(&value), expire).await.to_lua_err()
         });
 
+        methods.add_async_method("get", |_, this, key: String| async move {
+            let val = this.db.lock().await.db_list.get_mut(&this.current).unwrap()
+            .get(&key).await;
+
+            let val = match val {
+                Some(v) => v.to_string(),
+                None => String::new(),
+            };
+
+            Ok(val)
+        });
 
     }
 

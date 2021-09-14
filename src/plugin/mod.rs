@@ -35,8 +35,6 @@ impl PluginManager {
             }
         }
 
-        println!("{:?} {:?}", available, config);
-
         Ok(
             Self { lua, available,plugin_path: config.clone() }
         )
