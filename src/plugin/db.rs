@@ -46,6 +46,11 @@ impl UserData for PluginDbManager {
             Ok(val)
         });
 
+        methods.add_async_method("delete", |_, this, key: String| async move {
+            this.db.lock().await.db_list.get_mut(&this.current).unwrap()
+            .delete(&key).await.to_lua_err()
+        });
+
     }
 
     fn add_fields<'lua, F: mlua::UserDataFields<'lua, Self>>(_fields: &mut F) {}
