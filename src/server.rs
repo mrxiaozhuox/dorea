@@ -119,6 +119,11 @@ impl DoreaServer {
             &doc_path
         ).await;
 
+        self.plugin_manager.loading(
+            self.db_manager.clone(),
+            self.server_config.database.default_group.clone()
+        ).await.unwrap();
+
         loop {
 
             // wait for client connect.

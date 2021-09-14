@@ -1,6 +1,9 @@
-use std::{fs::File, io::Read, path::PathBuf};
+use std::{fs::File, io::Read, path::PathBuf, sync::Arc};
 
 use mlua::Lua;
+use tokio::sync::Mutex;
+
+use crate::database::DataBaseManager;
 
 mod db;
 
@@ -39,7 +42,7 @@ impl PluginManager {
         )
     }
 
-    pub async fn loading(&self) -> crate::Result<()> {
+    pub async fn loading(&self, dorea: Arc<Mutex<DataBaseManager>>, current: String) -> crate::Result<()> {
 
         if self.available {
 
@@ -49,7 +52,7 @@ impl PluginManager {
         
             let _ = f.read_to_string(&mut code)?;
 
-            // db::PluginDbManager::init();
+            self.lua.globals().set("DB_MANAGER", db::PluginDbManager::init(dorea, current).await)?;
 
             self.lua.load(&code).exec()?;
 
