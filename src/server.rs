@@ -23,9 +23,8 @@ pub struct DoreaServer {
     _server_options: ServerOption,
     server_listener: TcpListener,
     server_config: DoreaFileConfig,
-    plugin_manager: PluginManager,
     startup_time: i64,
-
+    plugin_manager: PluginManager,
     connection_number: Arc<Mutex<ConnectNumber>>,
     db_manager: Arc<Mutex<DataBaseManager>>,
 }
@@ -82,15 +81,14 @@ impl DoreaServer {
             }
         };
 
-        let plugins = PluginManager::init(
-            &document_path
-        ).await.unwrap();
+
+        let plugin_manager = PluginManager::init(&document_path).await.unwrap();
 
         let object = Self {
             _server_options: options,
             server_listener: listener,
             server_config: config.clone(),
-            plugin_manager: plugins,
+            plugin_manager: plugin_manager,
             connection_number: Arc::new(Mutex::new(ConnectNumber { num: 0 })),
             db_manager: Arc::new(Mutex::new(DataBaseManager::new(document_path.clone()))),
             startup_time: chrono::Local::now().timestamp() + 100,
@@ -120,10 +118,6 @@ impl DoreaServer {
             (self._server_options.hostname.clone(), self._server_options.port),
             &doc_path
         ).await;
-
-        task::spawn(async move {
-            sb(&mut self).await;
-        });
 
         loop {
 
@@ -194,8 +188,4 @@ impl ConnectNumber {
     pub fn get(&self) -> u16 {
         self.num
     }
-}
-
-async fn sb(db: &mut DoreaServer) {
- db.plugin_manager.loading().await;
 }

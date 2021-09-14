@@ -2,14 +2,11 @@ use std::{fs::File, io::Read, path::PathBuf};
 
 use mlua::Lua;
 
-use crate::client::DoreaClient;
-
 mod db;
 
-#[derive(Clone)]
 pub struct PluginManager {
     available: bool,
-    pub lua: Lua,
+    lua: Lua,
     plugin_path: PathBuf
 }
 
@@ -35,6 +32,8 @@ impl PluginManager {
             }
         }
 
+        println!("{:?} {:?}", available, config);
+
         Ok(
             Self { lua, available,plugin_path: config.clone() }
         )
@@ -50,9 +49,7 @@ impl PluginManager {
         
             let _ = f.read_to_string(&mut code)?;
 
-            db::PluginDbManager::init()
-
-            self.lua.globals().set("DB_MANAGER", )?;            
+            // db::PluginDbManager::init();
 
             self.lua.load(&code).exec()?;
 
