@@ -30,7 +30,6 @@
 ## 功能
 
 - Dorea 插件管理器: [Github Repo](https://github.com/doreadb/dorea-plugin-loader)
-- Dorea 插件接口包: [Github Repo](https://github.com/doreadb/dorea-plugin-interface)
 
 ### 数据类型
 

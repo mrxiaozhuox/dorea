@@ -2,3 +2,4 @@
 * [安装](zh-cn/installation)
 * [通讯协议](zh-cn/protocol)
 * [Web服务](zh-cn/web-service)
+* [插件系统](zh-cn/plugin/home)
