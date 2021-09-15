@@ -2,19 +2,23 @@ use std::{collections::HashMap, sync::Arc};
 
 use tokio::{sync::Mutex, time};
 
-use crate::database::DataBaseManager;
+use crate::{database::DataBaseManager, plugin::PluginManager};
 
 
 #[derive(Debug)]
 pub struct EventManager {
-    db_manager: Arc<Mutex<DataBaseManager>>
+    db_manager: Arc<Mutex<DataBaseManager>>,
+    plugin_manager: Arc<Mutex<PluginManager>>
 }
 
 #[allow(dead_code)]
 impl EventManager {
 
-    pub(crate) async fn init(db_manager: Arc<Mutex<DataBaseManager>>) -> Self {
-        EventManager { db_manager }
+    pub(crate) async fn init(
+        db_manager: Arc<Mutex<DataBaseManager>>,
+        plugin_manager: Arc<Mutex<PluginManager>>
+    ) -> Self {
+        EventManager { db_manager, plugin_manager }
     }
 
     pub async fn loop_events (&self) {

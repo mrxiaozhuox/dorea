@@ -24,7 +24,7 @@ pub struct DoreaServer {
     server_listener: TcpListener,
     server_config: DoreaFileConfig,
     startup_time: i64,
-    plugin_manager: PluginManager,
+    plugin_manager: Arc<Mutex<PluginManager>>,
     connection_number: Arc<Mutex<ConnectNumber>>,
     db_manager: Arc<Mutex<DataBaseManager>>,
 }
@@ -88,7 +88,7 @@ impl DoreaServer {
             _server_options: options,
             server_listener: listener,
             server_config: config.clone(),
-            plugin_manager: plugin_manager,
+            plugin_manager: Arc::new(Mutex::new(plugin_manager)),
             connection_number: Arc::new(Mutex::new(ConnectNumber { num: 0 })),
             db_manager: Arc::new(Mutex::new(DataBaseManager::new(document_path.clone()))),
             startup_time: chrono::Local::now().timestamp() + 100,
@@ -97,7 +97,10 @@ impl DoreaServer {
         // -- 其他线程服务初始代码 --
 
         // 事件驱动器加载
-        let event_manager = EventManager::init(object.db_manager.clone()).await;
+        let event_manager = EventManager::init(
+            object.db_manager.clone(),
+            object.plugin_manager.clone()
+        ).await;
 
         tokio::task::spawn(async move {
             event_manager.loop_events().await;
@@ -119,7 +122,7 @@ impl DoreaServer {
             &doc_path
         ).await;
 
-        self.plugin_manager.loading(
+        self.plugin_manager.lock().await.loading(
             self.db_manager.clone(),
             self.server_config.database.default_group.clone()
         ).await.unwrap();

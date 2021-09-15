@@ -8,6 +8,7 @@ use crate::database::DataBaseManager;
 mod db;
 mod log;
 
+#[derive(Debug)]
 pub struct PluginManager {
     available: bool,
     lua: Lua,
@@ -25,7 +26,6 @@ impl PluginManager {
         let mut available = true;
 
         if ! config.is_dir() {
-            std::fs::create_dir(&config)?;
             available = false;
         }
 
