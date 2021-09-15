@@ -16,3 +16,7 @@
 本套插件系统只是先做个~~大概的模板~~（画饼），所以说他并没有默认开启。
 
 你需要 `clone` 兼容的 `dorea-plugin-loader` 并安装 `lua 5.4` 才能正式使用它。
+
+```
+git clone https://github.com/doreadb/dorea-plugin-loader.git plugin
+```
