@@ -20,3 +20,12 @@
 ```
 git clone https://github.com/doreadb/dorea-plugin-loader.git plugin
 ```
+
+### 插件事件
+
+目前插件支持以下的事件管理：
+
+- plugin_onload 加载时
+- plugin_unload 卸载时
+- plugin_interval 定期任务
+- custom_command.xxx 自定义命令处理程序
