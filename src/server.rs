@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 
 use log::{error, info};
 use tokio::net::TcpListener;
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::Mutex;
 use tokio::task;
 
 use crate::configure::DoreaFileConfig;

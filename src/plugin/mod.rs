@@ -63,4 +63,10 @@ impl PluginManager {
         Ok(())
     }
 
+    pub fn call(&self, source: &str) -> crate::Result<()> {
+
+        self.lua.load(source).exec()?;
+
+        Ok(())
+    }
 }
