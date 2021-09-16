@@ -57,7 +57,7 @@ impl EventManager {
     }
 
     pub async fn _c_plugin_event(&self) {
-        let _ = self.plugin_manager.lock().await.call("CallEvent(\"interval\")");
+        let _ = self.plugin_manager.lock().await.call("MANAGER.call_interval()");
     }
 
 }

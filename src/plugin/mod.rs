@@ -3,7 +3,7 @@ use std::{fs::File, io::Read, path::PathBuf, sync::Arc};
 use mlua::Lua;
 use tokio::sync::Mutex;
 
-use crate::database::DataBaseManager;
+use crate::{configure::PluginConfig, database::DataBaseManager};
 
 mod db;
 mod log;
@@ -12,7 +12,8 @@ mod log;
 pub struct PluginManager {
     available: bool,
     lua: Lua,
-    plugin_path: PathBuf
+    plugin_path: PathBuf,
+    pub(crate) config: PluginConfig
 }
 
 impl PluginManager {
@@ -29,15 +30,21 @@ impl PluginManager {
             available = false;
         }
 
+        let file_config= crate::configure::load_plugin_config(
+            &config.parent().unwrap().to_path_buf()
+        ).unwrap();
+
         // 获取加载初始化代码
         if available {
             if config.join("init.lua").is_file() {
-                lua.globals().set("ROOT_PATH", "/Users/liuzhuoer/Library/Application Support/Dorea/plugin")?
+                lua.globals().set("ROOT_PATH", file_config.path.to_string())?
             }
         }
 
+        println!("{:?}", file_config);
+
         Ok(
-            Self { lua, available,plugin_path: config.clone() }
+            Self { lua, available,plugin_path: config.clone(), config: file_config }
         )
     }
 
@@ -57,7 +64,7 @@ impl PluginManager {
 
             self.lua.load(&code).exec()?;
 
-            self.lua.load("CallEvent(\"onload\")").exec()?;
+            self.lua.load("MANAGER.call_onload()").exec()?;
         }
 
         Ok(())

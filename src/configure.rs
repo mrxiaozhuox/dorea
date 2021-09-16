@@ -47,6 +47,12 @@ pub struct RestFoundation {
     pub(crate) token: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PluginConfig {
+    pub(crate) path: String,
+    pub(crate) switch: bool,
+}
+
 #[allow(dead_code)]
 pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
 
@@ -73,6 +79,21 @@ pub(crate) fn load_rest_config(path: &PathBuf) -> Result<RestConfig> {
     let value = fs::read_to_string(config)?;
 
     let result = toml::from_str::<RestConfig>(&value)?;
+
+    Ok(result)
+}
+
+pub(crate) fn load_plugin_config(path: &PathBuf) -> Result<PluginConfig> {
+
+    let config = path.join("plugin.toml");
+
+    if ! config.is_file() {
+        init_config(config.clone())?;
+    }
+
+    let value = fs::read_to_string(config)?;
+
+    let result = toml::from_str::<PluginConfig>(&value)?;
 
     Ok(result)
 }
@@ -128,6 +149,16 @@ fn init_config (path: PathBuf) -> Result<()> {
     let service_path = &path.parent().unwrap().to_path_buf();
 
     fs::write(&service_path.join("service.toml"), rest)?;
+
+    // Plugin Config
+    let plugin_config = PluginConfig {
+        path: String::from(service_path.clone().join("plugin").to_str().unwrap()),
+        switch: true
+    };
+
+    let plugin_config = toml::to_string(&plugin_config)?;
+
+    fs::write(&service_path.join("plugin.toml"), plugin_config)?;
 
     Ok(())
 }

@@ -29,3 +29,12 @@ git clone https://github.com/doreadb/dorea-plugin-loader.git plugin
 - plugin_unload 卸载时
 - plugin_interval 定期任务
 - custom_command.xxx 自定义命令处理程序
+
+!> unload 卸载还未实现（因为我不知道什么时候会卸载，可能在以后自定义事务做出来再说吧）
+
+### 前置程序
+
+在您正式开始使用插件系统前，您需要（或建议）安装以下工具：
+
+- lua 5.4 ( Lua 较新的版本，系统只支持这个版本 ) 官网：[link](https://www.lua.org)
+- luarocks ( Lua 的包管理工具，部分插件可能需要安装一些前置library，请留意插件文档 ) 官网：[link](https://luarocks.org)
