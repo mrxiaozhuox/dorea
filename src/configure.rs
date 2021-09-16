@@ -2,6 +2,7 @@ use crate::Result;
 
 use std::{collections::HashMap, fs, path::PathBuf};
 use serde::{Serialize, Deserialize};
+use toml::value::Table;
 
 /// Dorea File Config Struct
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -49,6 +50,12 @@ pub struct RestFoundation {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PluginConfig {
+    pub(crate) foundation: PluginFoundation,
+    pub(crate) plugins: HashMap<String, Table>
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PluginFoundation {
     pub(crate) path: String,
     pub(crate) switch: bool,
 }
@@ -152,8 +159,11 @@ fn init_config (path: PathBuf) -> Result<()> {
 
     // Plugin Config
     let plugin_config = PluginConfig {
-        path: String::from(service_path.clone().join("plugin").to_str().unwrap()),
-        switch: true
+        foundation: PluginFoundation {
+            path: String::from(service_path.clone().join("plugin").to_str().unwrap()),
+            switch: true
+        },
+        plugins: Default::default()
     };
 
     let plugin_config = toml::to_string(&plugin_config)?;
