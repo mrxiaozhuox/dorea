@@ -37,7 +37,7 @@ impl PluginManager {
         // 获取加载初始化代码
         if available {
             if config.join("init.lua").is_file() {
-                lua.globals().set("ROOT_PATH", file_config.path.to_string())?
+                lua.globals().set("ROOT_PATH", file_config.foundation.path.to_string())?
             }
         }
 
