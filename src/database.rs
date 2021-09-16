@@ -425,7 +425,7 @@ impl DataFile {
     // DoreaFile 系统改名：主要用于 merge 相关功能
     fn rename_dfile(&mut self, new_name: &str) -> crate::Result<()> {
 
-        let new_root = self.root.parent().unwrap().join(new_name).clone();;
+        let new_root = self.root.parent().unwrap().join(new_name).clone();
 
         if new_root.is_dir() {
             fs::remove_dir_all(&new_root)?;

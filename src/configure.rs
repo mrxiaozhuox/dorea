@@ -51,7 +51,7 @@ pub struct RestFoundation {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PluginConfig {
     pub(crate) foundation: PluginFoundation,
-    pub(crate) plugins: HashMap<String, Table>
+    pub(crate) loader: HashMap<String, Table>
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -163,7 +163,7 @@ fn init_config (path: PathBuf) -> Result<()> {
             path: String::from(service_path.clone().join("plugin").to_str().unwrap()),
             switch: true
         },
-        plugins: Default::default()
+        loader: Default::default()
     };
 
     let plugin_config = toml::to_string(&plugin_config)?;

@@ -1,6 +1,6 @@
 use std::{fs::File, io::Read, path::PathBuf, sync::Arc};
 
-use mlua::Lua;
+use mlua::{Lua, LuaSerdeExt};
 use tokio::sync::Mutex;
 
 use crate::{configure::PluginConfig, database::DataBaseManager};
@@ -20,31 +20,29 @@ impl PluginManager {
 
     pub async fn init(config: &PathBuf) -> crate::Result<Self> {
 
-        let config = config.clone().join("plugin");
+        let file_config= crate::configure::load_plugin_config(
+            &config
+        ).unwrap();
 
+        let plugin_path = PathBuf::from(file_config.foundation.path.clone());
+        
         let lua = Lua::new();
 
         let mut available = true;
 
-        if ! config.is_dir() {
+        if ! plugin_path.is_dir() {
             available = false;
         }
 
-        let file_config= crate::configure::load_plugin_config(
-            &config.parent().unwrap().to_path_buf()
-        ).unwrap();
-
         // 获取加载初始化代码
         if available {
-            if config.join("init.lua").is_file() {
+            if plugin_path.join("init.lua").is_file() {
                 lua.globals().set("ROOT_PATH", file_config.foundation.path.to_string())?
             }
         }
 
-        println!("{:?}", file_config);
-
         Ok(
-            Self { lua, available,plugin_path: config.clone(), config: file_config }
+            Self { lua, available,plugin_path: plugin_path.clone(), config: file_config }
         )
     }
 
@@ -61,6 +59,13 @@ impl PluginManager {
             self.lua.globals().set("DB_MANAGER", db::PluginDbManager::init(dorea, current).await)?;
             self.lua.globals().set("LOGGER_IN", log::LoggerIn {})?;
 
+            let plugin_table = self.lua.create_table()?;
+
+            for (k, v) in self.config.loader.iter() {
+                plugin_table.set(k.to_string(), self.lua.to_value(v).unwrap())?;
+            }
+
+            self.lua.globals().set("PLUGIN_LOADER",plugin_table)?;
 
             self.lua.load(&code).exec()?;
 

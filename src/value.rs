@@ -297,6 +297,50 @@ impl DataValue {
         }.to_string();
     }
 
+    pub fn as_string(&self) -> Option<String> {
+        return match self {
+            DataValue::String(val) => Some(val.to_string()),
+            _ => None
+        }
+    }
+
+
+    pub fn as_number(&self) -> Option<f64> {
+        return match self {
+            DataValue::Number(val) => Some(*val),
+            _ => None
+        }
+    }
+
+
+    pub fn as_bool(&self) -> Option<bool> {
+        return match self {
+            DataValue::Boolean(val) => Some(*val),
+            _ => None
+        }
+    }
+
+    pub fn as_tuple(&self) -> Option<(Box<DataValue>, Box<DataValue>)> {
+        return match self {
+            DataValue::Tuple(val) => Some(val.clone()),
+            _ => None
+        }
+    }
+
+    pub fn as_list(&self) -> Option<Vec<DataValue>> {
+        return match self {
+            DataValue::List(val) => Some(val.clone()),
+            _ => None
+        }
+    }
+
+    pub fn as_dict(&self) -> Option<HashMap<String, DataValue>> {
+        return match self {
+            DataValue::Dict(val) => Some(val.clone()),
+            _ => None
+        }
+    }
+
 }
 
 struct ValueParser {}

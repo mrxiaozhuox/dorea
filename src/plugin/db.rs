@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use mlua::{ExternalResult, UserData};
+use mlua::{ExternalResult, LuaSerdeExt, UserData};
 use tokio::sync::Mutex;
 use crate::database::DataBaseManager;
 use crate::value::DataValue;
@@ -34,13 +34,25 @@ impl UserData for PluginDbManager {
             .set(&key, DataValue::from(&value), expire).await.to_lua_err()
         });
 
-        methods.add_async_method("get", |_, this, key: String| async move {
+        methods.add_async_method("get", |lua, this, key: String| async move {
             let val = this.db.lock().await.db_list.get_mut(&this.current).unwrap()
             .get(&key).await;
 
             let val = match val {
-                Some(v) => v.to_string(),
-                None => String::new(),
+                Some(v) => {
+                    let datatype = v.datatype();
+                    match datatype.as_str() {
+                        "None" => Ok(mlua::Value::Nil),
+                        "String" => lua.to_value(&v.as_string()),
+                        "Number" => lua.to_value(&v.as_number()),
+                        "Boolean" => lua.to_value(&v.as_bool()),
+                        "List" => lua.to_value(&v.as_list()),
+                        "Dict" => lua.to_value(&v.as_dict()),
+                        "Tuple" => lua.to_value(&v.as_tuple()),
+                        _ => lua.to_value(&v)
+                    }
+                },
+                None => Ok(mlua::Value::Nil),
             };
 
             Ok(val)
