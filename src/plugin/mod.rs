@@ -81,4 +81,33 @@ impl PluginManager {
 
         Ok(())
     }
+
+    pub fn custom_command(&self, command: &str, mut argument: Vec<String>) -> crate::Result<String> {
+        
+        argument.remove(0);
+
+        let mut v2t = String::from("{");
+        for i in argument {
+
+            let i = i.replace("\"", "\\\"");
+
+            v2t += "\"";
+            v2t += &(i + "\", ");
+        }
+        if v2t.len() > 1 { v2t = v2t[0..v2t.len() - 2].to_string(); }
+        v2t += "}";
+
+        println!("{}", v2t);
+
+        let command_str = format!(
+            "MANAGER.call_command(\"{}\", {})", 
+            command,
+            v2t
+        );
+
+        let v = self.lua.load(&command_str).eval::<String>()?;
+
+        Ok(v)
+    }
+
 }

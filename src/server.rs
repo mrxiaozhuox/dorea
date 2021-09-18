@@ -160,6 +160,7 @@ impl DoreaServer {
             let current = current_db.clone();
 
             let db_manager = Arc::clone(&self.db_manager);
+            let plugin_manager = Arc::clone(&self.plugin_manager);
 
             let connect_num = Arc::clone(&self.connection_number);
 
@@ -171,6 +172,7 @@ impl DoreaServer {
                     config,
                     current,
                     &db_manager,
+                    &plugin_manager,
                     startup_time,
                 ).await;
 

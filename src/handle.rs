@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 
@@ -6,6 +8,7 @@ use crate::configure::DoreaFileConfig;
 use crate::database::DataBaseManager;
 use crate::network::{Frame, NetPacket, NetPacketState};
 use crate::Result;
+use crate::plugin::PluginManager;
 
 // connection process
 pub(crate) async fn process(
@@ -13,6 +16,7 @@ pub(crate) async fn process(
     config: DoreaFileConfig,
     current: String,
     database_manager: &Mutex<DataBaseManager>,
+    plugin_manager: &Mutex<PluginManager>,
     startup_time: i64
 ) -> Result<()> {
 
@@ -55,6 +59,7 @@ pub(crate) async fn process(
                 &mut current,
                 &config,
                 database_manager,
+                plugin_manager
             )
             .await;
 

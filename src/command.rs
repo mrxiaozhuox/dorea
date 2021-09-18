@@ -10,12 +10,7 @@ use std::collections::HashMap;
 
 use tokio::sync::Mutex;
 
-use crate::{
-    configure::DoreaFileConfig,
-    database::{DataBase, DataBaseManager},
-    network::NetPacketState,
-    value::DataValue,
-};
+use crate::{configure::DoreaFileConfig, database::{DataBase, DataBaseManager}, network::NetPacketState, plugin::PluginManager, value::DataValue};
 
 #[allow(dead_code)]
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -74,6 +69,7 @@ impl CommandManager {
         current: &mut String,
         config: &DoreaFileConfig,
         database_manager: &Mutex<DataBaseManager>,
+        plugin_manager: &Mutex<PluginManager>
     ) -> (NetPacketState, Vec<u8>) {
 
         let message = message.trim().to_string();
@@ -108,9 +104,24 @@ impl CommandManager {
         let command = CommandList::new(command_str.to_string());
 
         if command == CommandList::UNKNOWN {
+
             if command_str == "" {
                 return (NetPacketState::EMPTY, vec![]);
             }
+
+
+            let mut lua_arg = Vec::new();
+            for i in slice { lua_arg.push(i.to_string()); }
+
+            let crs = plugin_manager.lock().await.custom_command(command_str, lua_arg);
+
+            if crs.is_ok() {
+                return (
+                    NetPacketState::OK,
+                    crs.unwrap().as_bytes().to_vec(),
+                );
+            }
+
             return (
                 NetPacketState::ERR,
                 format!("Command {} not found.", command_str)
