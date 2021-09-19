@@ -1,6 +1,7 @@
 use std::{fs::File, io::Read, path::PathBuf, sync::Arc};
 
 use mlua::{Lua, LuaSerdeExt};
+use serde_json::json;
 use tokio::sync::Mutex;
 
 use crate::{configure::PluginConfig, database::DataBaseManager};
@@ -97,13 +98,17 @@ impl PluginManager {
         if v2t.len() > 1 { v2t = v2t[0..v2t.len() - 2].to_string(); }
         v2t += "}";
 
-        println!("{}", v2t);
+        let info = json!({
+            "argument": v2t
+        });
 
         let command_str = format!(
             "MANAGER.call_command(\"{}\", {})", 
             command,
-            v2t
+            info.to_string()
         );
+
+        println!("{}", command_str);
 
         let v = self.lua.load(&command_str).eval::<String>()?;
 
