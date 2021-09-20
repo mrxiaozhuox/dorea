@@ -108,8 +108,6 @@ impl PluginManager {
             info.to_string()
         );
 
-        println!("{}", command_str);
-
         let v = self.lua.load(&command_str).eval::<String>()?;
 
         Ok(v)
