@@ -80,3 +80,6 @@ key: foo | value:  none | timestamp: 1626470590043 # 删除了数据（也不会
 - Client - 客户端 （对于基本的操作都封装成了函数）
 - Processor - 处理程序（包含数据解析器、协议解析器等）
 
+## Screenshot
+
+![](https://upc.cloud.wwsg18.com/uploads%2F2021%2F08%2F26%2F1_5PJTELnd_%E6%B7%B1%E5%BA%A6%E6%88%AA%E5%9B%BE_20210826191636.png)
