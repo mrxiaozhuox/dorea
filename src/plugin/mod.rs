@@ -90,23 +90,25 @@ impl PluginManager {
         let mut v2t = String::from("{");
         for i in argument {
 
+            let i = i.replace("\\", "\\\\");
             let i = i.replace("\"", "\\\"");
 
             v2t += "\"";
             v2t += &(i + "\", ");
         }
+
         if v2t.len() > 1 { v2t = v2t[0..v2t.len() - 2].to_string(); }
         v2t += "}";
 
-        let info = json!({
-            "argument": v2t
-        });
+        let info = format!("{{[\"argument\"] = {}}}", v2t);
 
         let command_str = format!(
             "MANAGER.call_command(\"{}\", {})", 
             command,
-            info.to_string()
+            info
         );
+
+        println!("{}", command_str);
 
         let v = self.lua.load(&command_str).eval::<String>()?;
 
