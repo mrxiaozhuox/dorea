@@ -9,23 +9,9 @@ async fn main() -> anyhow::Result<()> {
 
     // db.select("demo").await?;
 
-    db.setex("1", DataValue::Number(1 as f64), 0).await.unwrap();
-    db.setex("2", DataValue::Number(1 as f64), 0).await.unwrap();
-    db.setex("3", DataValue::Number(1 as f64), 0).await.unwrap();
-    db.setex("4", DataValue::Number(1 as f64), 0).await.unwrap();
-    db.setex("5", DataValue::Number(1 as f64), 0).await.unwrap();
-    db.setex("6", DataValue::Number(1 as f64), 0).await.unwrap();
-    db.setex("7", DataValue::Number(1 as f64), 0).await.unwrap();
-    db.setex("8", DataValue::Number(1 as f64), 0).await.unwrap();
-    db.setex("8", DataValue::Number(2 as f64), 0).await.unwrap();
-    db.setex("8", DataValue::Number(3 as f64), 0).await.unwrap();
-    db.setex("9", DataValue::Number(1 as f64), 0).await.unwrap();
-    db.setex("10", DataValue::Number(1 as f64), 0).await.unwrap();
-    db.setex("10", DataValue::Number(2 as f64), 0).await.unwrap();
-
-    for i in 0..  {
+    for i in 0..500  {
         println!("NOW: {:?}", i);
-        db.setex("4", DataValue::Number(i as f64), 0).await.unwrap();
+        db.setex(&i.to_string(), DataValue::Number(i as f64), 0).await.unwrap();
     }
 
 
