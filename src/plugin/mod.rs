@@ -103,7 +103,8 @@ impl PluginManager {
             "{\
                 {\
                     [\"argument\"] = {},\
-                    [\"timestamp\"] = {}
+                    [\"timestamp\"] = {},\
+                    [\"caller\"] = 'test'
                 }\
             }", 
             v2t,
