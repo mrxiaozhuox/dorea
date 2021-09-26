@@ -4,6 +4,8 @@ Dorea-Server 中内置了 `Web Api Service` 服务。
 
 它是一种基于 `HTTP 协议` 的服务，默认为**关闭**状态。
 
+!> 我们建议您开启它，因为后续官方所开发并支持的SDK将使用 Web Service
+
 配置文件位于：
 
 ```text

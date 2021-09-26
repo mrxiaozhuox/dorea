@@ -144,7 +144,7 @@ fn init_config (path: PathBuf) -> Result<()> {
 
     let rest = RestConfig {
         foundation: RestFoundation {
-            switch: false,
+            switch: true,
             port: 3451,
             token: String::from("YouNeedChangeThisString"),
         },
