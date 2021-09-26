@@ -9,7 +9,7 @@ async fn main() -> anyhow::Result<()> {
 
     // db.select("demo").await?;
 
-    for i in 0..500  {
+    for i in 0..  {
         println!("NOW: {:?}", i);
         db.setex(&i.to_string(), DataValue::Number(i as f64), 0).await.unwrap();
     }
