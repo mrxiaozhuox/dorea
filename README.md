@@ -59,3 +59,7 @@ When a storage file reaches a maximum capacity, it is archived and a new write f
 ## Screenshot
 
 ![](https://upc.cloud.wwsg18.com/uploads%2F2021%2F08%2F26%2F1_5PJTELnd_%E6%B7%B1%E5%BA%A6%E6%88%AA%E5%9B%BE_20210826191636.png)
+
+## Docker
+
+docker:mrxiaozhuox/dorea
