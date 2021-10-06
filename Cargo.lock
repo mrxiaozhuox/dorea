@@ -293,6 +293,7 @@ dependencies = [
  "clap",
  "crc",
  "dirs",
+ "doson",
  "futures",
  "headers",
  "http",
@@ -312,6 +313,17 @@ dependencies = [
  "toml",
  "tower",
  "walkdir",
+]
+
+[[package]]
+name = "doson"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96d6596e5eac6741aa81094c7d0b6c81f04cbd53d1fad4131eaed621d385804a"
+dependencies = [
+ "base64 0.13.0",
+ "nom",
+ "serde",
 ]
 
 [[package]]
