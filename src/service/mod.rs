@@ -94,7 +94,7 @@ pub async fn startup(
             rest_port
         );
 
-        log::info!("⍹ >>> Web-Service Running at: http://{}/", addr);
+        log::info!("⍹ >> Web-Service Running at: http://{}/", addr);
 
         hyper::Server::bind(&addr.parse().unwrap())
             .serve(error_handle_app.into_make_service())

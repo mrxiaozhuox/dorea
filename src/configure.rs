@@ -140,13 +140,13 @@ fn init_config (path: PathBuf) -> Result<()> {
     
     let mut account = HashMap::new();
 
-    account.insert(String::from("master"), String::from("YouNeedChangeThisString"));
+    account.insert(String::from("master"), String::from("DOREA@SERVICE"));
 
     let rest = RestConfig {
         foundation: RestFoundation {
             switch: true,
             port: 3451,
-            token: String::from("YouNeedChangeThisString"),
+            token: crate::tool::rand_str(),
         },
         account,
     };

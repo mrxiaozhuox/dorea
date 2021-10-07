@@ -38,5 +38,6 @@ mod event;
 mod logger;
 mod service;
 mod plugin;
+mod tool;
 
 type Result<T> = std::result::Result<T, anyhow::Error>;

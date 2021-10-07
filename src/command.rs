@@ -24,9 +24,9 @@ pub enum CommandList {
     INFO,
     EDIT,
     PING,
-    ECHO,
     EVAL,
     AUTH,
+    VALUE,
 
     UNKNOWN,
 }
@@ -49,9 +49,9 @@ impl CommandList {
             "INFO" => Self::INFO,
             "EDIT" => Self::EDIT,
             "PING" => Self::PING,
-            "ECHO" => Self::ECHO,
             "EVAL" => Self::EVAL,
             "AUTH" => Self::AUTH,
+            "VALUE" => Self::VALUE,
 
             _ => Self::UNKNOWN,
         }
@@ -90,9 +90,9 @@ impl CommandManager {
         command_argument_info.insert(CommandList::INFO, (1, 3));
         command_argument_info.insert(CommandList::EDIT, (2, -1));
         command_argument_info.insert(CommandList::PING, (0, 0));
-        command_argument_info.insert(CommandList::ECHO, (1, -1));
         command_argument_info.insert(CommandList::EVAL, (1, -1));
         command_argument_info.insert(CommandList::AUTH, (1, 1));
+        command_argument_info.insert(CommandList::VALUE, (1, 1));
 
         let mut slice: Vec<&str> = message.split(" ").collect();
 
