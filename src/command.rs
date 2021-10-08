@@ -252,7 +252,14 @@ impl CommandManager {
                         return (NetPacketState::ERR, "Data Not Found".as_bytes().to_vec());
                     }
 
-                    (NetPacketState::OK, v.to_string().as_bytes().to_vec())
+                    (
+                        NetPacketState::OK, 
+                        crate::value::value_ser_string(
+                            v,
+                            &value_ser_style.lock().await.get()
+                        )
+                        .as_bytes().to_vec()
+                    )
                 }
                 None => (NetPacketState::ERR, "Data Not Found".as_bytes().to_vec()),
             };
@@ -676,10 +683,19 @@ impl CommandManager {
 
         if command == CommandList::VALUE {
             let operation: &str = slice.get(0).unwrap();
-            let opervalue: &str = slice.get(1).unwrap();
 
             if operation == "style" {
-                if opervalue == "Json" {
+
+                if slice.len() < 2{
+                    return (
+                        NetPacketState::OK, 
+                        value_ser_style.lock().await.get().as_bytes().to_vec()
+                    )
+                }
+
+                let opervalue: &str = slice.get(1).unwrap();
+
+                if opervalue.to_lowercase() == "json" {
                     // Json
                     value_ser_style.lock().await.edit(String::from("json"));
                 } else {

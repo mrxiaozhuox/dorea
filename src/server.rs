@@ -205,6 +205,7 @@ impl ConnectNumber {
     }
 }
 
+#[derive(Debug)]
 pub struct SerValue {
     value: String,
 }
@@ -212,5 +213,8 @@ pub struct SerValue {
 impl SerValue {
     pub fn edit(&mut self, str: String) {
         self.value = str.clone();
+    }
+    pub fn get(&self) -> String {
+        return self.value.clone();
     }
 }
