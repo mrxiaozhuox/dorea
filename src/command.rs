@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use tokio::sync::Mutex;
 
-use crate::{configure::DoreaFileConfig, database::{DataBase, DataBaseManager}, network::NetPacketState, plugin::PluginManager, value::DataValue};
+use crate::{configure::DoreaFileConfig, database::{DataBase, DataBaseManager}, network::NetPacketState, plugin::PluginManager, server::SerValue, value::DataValue};
 
 #[allow(dead_code)]
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -69,7 +69,8 @@ impl CommandManager {
         current: &mut String,
         config: &DoreaFileConfig,
         database_manager: &Mutex<DataBaseManager>,
-        plugin_manager: &Mutex<PluginManager>
+        plugin_manager: &Mutex<PluginManager>,
+        value_ser_style: &Mutex<SerValue>,
     ) -> (NetPacketState, Vec<u8>) {
 
         let message = message.trim().to_string();
@@ -92,7 +93,7 @@ impl CommandManager {
         command_argument_info.insert(CommandList::PING, (0, 0));
         command_argument_info.insert(CommandList::EVAL, (1, -1));
         command_argument_info.insert(CommandList::AUTH, (1, 1));
-        command_argument_info.insert(CommandList::VALUE, (1, 1));
+        command_argument_info.insert(CommandList::VALUE, (1, 2));
 
         let mut slice: Vec<&str> = message.split(" ").collect();
 
@@ -666,6 +667,28 @@ impl CommandManager {
                     Err(err) => (NetPacketState::ERR, err.to_string().as_bytes().to_vec()),
                 };
             }
+
+            return (
+                NetPacketState::ERR,
+                "Unknown operation.".as_bytes().to_vec(),
+            );
+        }
+
+        if command == CommandList::VALUE {
+            let operation: &str = slice.get(0).unwrap();
+            let opervalue: &str = slice.get(1).unwrap();
+
+            if operation == "style" {
+                if opervalue == "Json" {
+                    // Json
+                    value_ser_style.lock().await.edit(String::from("json"));
+                } else {
+                    // Doson
+                    value_ser_style.lock().await.edit(String::from("doson"));
+                }
+                return (NetPacketState::OK, vec![]);
+            }
+
 
             return (
                 NetPacketState::ERR,

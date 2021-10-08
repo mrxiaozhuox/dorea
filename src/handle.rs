@@ -7,6 +7,7 @@ use crate::database::DataBaseManager;
 use crate::network::{Frame, NetPacket, NetPacketState};
 use crate::Result;
 use crate::plugin::PluginManager;
+use crate::server::SerValue;
 
 // connection process
 pub(crate) async fn process(
@@ -15,7 +16,8 @@ pub(crate) async fn process(
     current: String,
     database_manager: &Mutex<DataBaseManager>,
     plugin_manager: &Mutex<PluginManager>,
-    startup_time: i64
+    startup_time: i64,
+    value_ser_style: &Mutex<SerValue>,
 ) -> Result<()> {
 
     let mut current = current;
@@ -57,7 +59,8 @@ pub(crate) async fn process(
                 &mut current,
                 &config,
                 database_manager,
-                plugin_manager
+                plugin_manager,
+                value_ser_style,
             )
             .await;
 
