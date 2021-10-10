@@ -131,6 +131,7 @@ pub struct ControllerForm {
     value: Option<String>,
     expire: Option<usize>,
     query: Option<String>,
+    style: Option<String>,
 }
 
 // 接口主控入口
@@ -222,6 +223,20 @@ pub async fn controller (
         if let None = form.key {
             return Api::lose_param("key");
         }
+
+        let style: &str;
+        if let None = form.style {
+            style = "doson";
+        } else {
+            let temp_style = form.style.clone().unwrap();
+            if temp_style.to_lowercase() == "json" {
+                style = "json";
+            } else {
+                style = "doson";
+            }
+        }
+
+        let _ = client.execute(&format!("value style {}", style)).await;
 
         let key = form.key.clone().unwrap();
 
