@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use tokio::sync::Mutex;
 
-use crate::{configure::DoreaFileConfig, database::{DataBase, DataBaseManager}, network::NetPacketState, plugin::PluginManager, server::SerValue, value::DataValue};
+use crate::{configure::DoreaFileConfig, database::{DataBase, DataBaseManager}, network::NetPacketState, plugin::PluginManager, value::DataValue};
 
 #[allow(dead_code)]
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -67,10 +67,10 @@ impl CommandManager {
         message: String,
         auth: &mut bool,
         current: &mut String,
+        value_ser_style: &mut String,
         config: &DoreaFileConfig,
         database_manager: &Mutex<DataBaseManager>,
         plugin_manager: &Mutex<PluginManager>,
-        value_ser_style: &Mutex<SerValue>,
     ) -> (NetPacketState, Vec<u8>) {
 
         let message = message.trim().to_string();
@@ -256,7 +256,7 @@ impl CommandManager {
                         NetPacketState::OK, 
                         crate::value::value_ser_string(
                             v,
-                            &value_ser_style.lock().await.get()
+                            &value_ser_style
                         )
                         .as_bytes().to_vec()
                     )
@@ -689,7 +689,7 @@ impl CommandManager {
                 if slice.len() < 2{
                     return (
                         NetPacketState::OK, 
-                        value_ser_style.lock().await.get().as_bytes().to_vec()
+                        value_ser_style.as_bytes().to_vec()
                     )
                 }
 
@@ -697,10 +697,10 @@ impl CommandManager {
 
                 if opervalue.to_lowercase() == "json" {
                     // Json
-                    value_ser_style.lock().await.edit(String::from("json"));
+                    *value_ser_style = String::from("json");
                 } else {
                     // Doson
-                    value_ser_style.lock().await.edit(String::from("doson"));
+                    *value_ser_style = String::from("doson");
                 }
                 return (NetPacketState::OK, vec![]);
             }

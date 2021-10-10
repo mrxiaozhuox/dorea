@@ -329,6 +329,20 @@ pub async fn controller (
             return Api::error(StatusCode::BAD_REQUEST, "form data not found.");
         }};
 
+        let style: &str;
+        if let None = form.style {
+            style = "doson";
+        } else {
+            let temp_style = form.style.clone().unwrap();
+            if temp_style.to_lowercase() == "json" {
+                style = "json";
+            } else {
+                style = "doson";
+            }
+        }
+
+        let _ = client.execute(&format!("value style {}", style)).await;
+
         if let None = form.query {
             return Api::lose_param("query");
         }

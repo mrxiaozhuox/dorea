@@ -7,7 +7,6 @@ use crate::database::DataBaseManager;
 use crate::network::{Frame, NetPacket, NetPacketState};
 use crate::Result;
 use crate::plugin::PluginManager;
-use crate::server::SerValue;
 
 // connection process
 pub(crate) async fn process(
@@ -17,10 +16,11 @@ pub(crate) async fn process(
     database_manager: &Mutex<DataBaseManager>,
     plugin_manager: &Mutex<PluginManager>,
     startup_time: i64,
-    value_ser_style: &Mutex<SerValue>,
+    value_ser_style: String,
 ) -> Result<()> {
 
     let mut current = current;
+    let mut value_ser_style = value_ser_style;
 
     let mut auth = false;
 
@@ -57,10 +57,10 @@ pub(crate) async fn process(
                 String::from_utf8_lossy(&message[..]).to_string(),
                 &mut auth,
                 &mut current,
+                &mut value_ser_style,
                 &config,
                 database_manager,
                 plugin_manager,
-                value_ser_style,
             )
             .await;
 

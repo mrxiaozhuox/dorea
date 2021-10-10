@@ -27,7 +27,6 @@ pub struct DoreaServer {
     plugin_manager: Arc<Mutex<PluginManager>>,
     connection_number: Arc<Mutex<ConnectNumber>>,
     db_manager: Arc<Mutex<DataBaseManager>>,
-    value_ser_style: Arc<Mutex<SerValue>>,
 }
 
 pub struct ServerOption {
@@ -93,7 +92,6 @@ impl DoreaServer {
             connection_number: Arc::new(Mutex::new(ConnectNumber { num: 0 })),
             db_manager: Arc::new(Mutex::new(DataBaseManager::new(document_path.clone()))),
             startup_time: chrono::Local::now().timestamp() + 100,
-            value_ser_style: Arc::new(Mutex::new(SerValue { value: String::from("doson") }))
         };
 
         // -- 其他线程服务初始代码 --
@@ -166,7 +164,7 @@ impl DoreaServer {
 
             let connect_num = Arc::clone(&self.connection_number);
 
-            let value_ser_style = Arc::clone(&self.value_ser_style);
+            let value_ser_style = String::from("doson");
 
             let startup_time = self.startup_time;
 
@@ -178,7 +176,7 @@ impl DoreaServer {
                     &db_manager,
                     &plugin_manager,
                     startup_time,
-                    &value_ser_style,
+                    value_ser_style.clone(),
                 ).await;
 
                 // connection number -1;
@@ -202,19 +200,5 @@ impl ConnectNumber {
     }
     pub fn get(&self) -> u16 {
         self.num
-    }
-}
-
-#[derive(Debug)]
-pub struct SerValue {
-    value: String,
-}
-
-impl SerValue {
-    pub fn edit(&mut self, str: String) {
-        self.value = str.clone();
-    }
-    pub fn get(&self) -> String {
-        return self.value.clone();
     }
 }
