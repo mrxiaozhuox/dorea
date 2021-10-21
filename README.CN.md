@@ -38,6 +38,7 @@
 - String 基础字符串
 - Number 数字类型 - 使用 `float 64` 存储
 - Boolean 布尔值
+- Binary 二进制数据
 - List \<DataValue> 列表（复合），可将任何数据类型作为元素插入
 - Dict \<String, DataValue> 字典（复合），可将任何数据类型作为元素插入
 - Tuple \<DataValue, DataValue> 元组（复合），可将任何数据类型作为元素插入

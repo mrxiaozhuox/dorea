@@ -33,9 +33,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.42"
+version = "1.0.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "595d3cfa7a60d4555cb5067b99f07142a08ea778de5cf993f7b75c7d8fabc486"
+checksum = "61604a8f862e1d5c3229fdd78f8b02c68dcf73a4c4b05fd636d12240aaa242c1"
 
 [[package]]
 name = "arc-swap"
@@ -318,10 +318,11 @@ dependencies = [
 
 [[package]]
 name = "doson"
-version = "0.1.2"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecdb8e47084dca53b3cfbefd0a05665b666a19ac5980ca280968eb378cf2e578"
+checksum = "11431e5cdc5ecbded1f26c3bca7fd5ce50a405bbec8968eee3033dc5cfc151f6"
 dependencies = [
+ "anyhow",
  "base64 0.13.0",
  "nom",
  "serde",

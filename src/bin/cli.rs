@@ -1,8 +1,11 @@
 use clap::clap_app;
 use dorea::client::{DoreaClient};
+use doson::binary::Binary;
 use rustyline::Editor;
 use dorea::network::NetPacketState;
 use dorea::value::DataValue;
+use std::io::{Read, Write};
+use std::path::PathBuf;
 use std::process::exit;
 
 #[tokio::main]
@@ -151,6 +154,92 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
             }
         };
 
+    } else if operation.to_uppercase() == "BINARY" {
+        
+        if slice.len() < 2 {
+            return (NetPacketState::ERR, "Missing command parameters.".to_string());
+        }
+
+        // 子命令和目标 key
+        let sub = slice.get(0).unwrap();
+        let key = slice.get(1).unwrap();
+
+        if sub.to_uppercase() == "STRINGIFY" {
+            return match client.get(&key).await {
+                Some(v) => {
+                    if let DataValue::Binary(bin) = v {
+                        let bytes = bin.read();
+                        return (NetPacketState::OK, String::from_utf8(bytes).unwrap_or(String::new()));
+                    }
+                    return (NetPacketState::OK, v.to_string());
+                }
+                None => { (NetPacketState::ERR, "Value not found.".to_string()) }
+            }
+        } else if sub.to_uppercase() == "TOVEC" {
+            return match client.get(&key).await {
+                Some(v) => {
+                    if let DataValue::Binary(bin) = v {
+                        let bytes = bin.read();
+                        return (NetPacketState::OK, format!("{:?}", bytes));
+                    }
+                    return (NetPacketState::OK, v.to_string());
+                }
+                None => { (NetPacketState::ERR, "Value not found.".to_string()) }
+            }   
+        } else if sub.to_uppercase() == "DOWNLOAD" {
+
+            if slice.len() != 3 {
+                return (NetPacketState::ERR, "Missing command parameters.".to_string());
+            }
+
+            let filename = slice.get(2).unwrap();
+
+            return match client.get(&key).await {
+                Some(v) => {
+                    if let DataValue::Binary(bin) = v {
+                        
+                        let bytes = bin.read();
+
+                        let mut download_dir = dirs::download_dir().unwrap();
+                        download_dir.push(filename);
+
+                        let mut file = std::fs::File::create(&download_dir).unwrap();
+
+                        file.write_all(&bytes[..]).unwrap();
+
+                        return (NetPacketState::OK, format!("{:?}", download_dir));
+                    }
+                    return (NetPacketState::OK, v.to_string());
+                }
+                None => { (NetPacketState::ERR, "Value not found.".to_string()) }
+            }   
+        } else if sub.to_uppercase() == "UPLOAD" {
+         
+            if slice.len() != 3 {
+                return (NetPacketState::ERR, "Missing command parameters.".to_string());
+            }
+
+            let filename = slice.get(2).unwrap(); 
+
+            let path = PathBuf::from(filename);
+
+            if ! path.is_file() {
+                return (NetPacketState::ERR, "Path not a file.".to_string())
+            }
+
+            let mut file = std::fs::File::open(path).unwrap();
+            
+            let mut buf = vec![];
+
+            file.read_to_end(&mut buf).unwrap();
+
+            match client.setex(key, DataValue::Binary(Binary::build(buf.clone())), 0).await {
+                Ok(_) => {return (NetPacketState::OK, "Successful.".to_string()) }
+                Err(_) => { return (NetPacketState::ERR, "Upload failed.".to_string()) }   
+            };
+        }
+
+        return (NetPacketState::ERR, "Unknown sub-operation.".to_string());
     }
 
     let res = client.execute(&command).await;

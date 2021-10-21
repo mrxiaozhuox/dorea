@@ -36,6 +36,7 @@
 - String
 - Number
 - Boolean
+- Binary
 - List \<DataValue>
 - Dict \<String, DataValue>
 - Tuple \<DataValue, DataValue>
