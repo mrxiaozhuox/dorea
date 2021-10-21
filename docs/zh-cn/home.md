@@ -53,6 +53,7 @@ struct IndexInfo {
 - String 字符串
 - Number 数字
 - Boolean 逻辑值
+- Binary 二进制数据
 - List 数组
 - Dict 字典
 - Tuple 元组
