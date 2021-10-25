@@ -3,3 +3,4 @@
 * [通讯协议](zh-cn/protocol)
 * [Web服务](zh-cn/web-service)
 * [插件系统](zh-cn/plugin/home)
+* [客户端](zh-cn/client)
