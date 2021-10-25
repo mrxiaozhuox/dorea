@@ -1,3 +1,8 @@
+//! Dorea-CLI
+//! Author: YuKun Liu<mrxzx.info@gmail.com>
+//! Date: 2021/10/25
+//! @DoreaDB
+
 use clap::clap_app;
 use dorea::client::{DoreaClient};
 use doson::binary::Binary;
@@ -14,7 +19,7 @@ pub async fn main() {
     let matches = clap_app!(dorea =>
         (version: "0.2.1")
         (author: "ZhuoEr Liu <mrxzx@qq.com>")
-        (about: "Does awesome things")
+        (about: "DoreaDB Cli Tool")
         (@arg HOSTNAME: -h --hostname +takes_value "Set the server hostname")
         (@arg PORT: -p --port +takes_value "Set the server port")
         (@arg PASSWORD: -a --password +takes_value "Connect password")
