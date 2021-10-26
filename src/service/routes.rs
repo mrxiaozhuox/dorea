@@ -141,7 +141,7 @@ pub async fn controller (
     state: extract::Extension<Arc<ShareState>>,
     extract::TypedHeader(auth): extract::TypedHeader<
         headers::Authorization<headers::authorization::Bearer>
-    >
+    >,
 ) -> Api {
 
     let token = String::from(auth.0.token());

@@ -1,5 +1,4 @@
-# 更新日志 ZH-CN
-
+# Change Log
 
 ## V0.3.0
 
