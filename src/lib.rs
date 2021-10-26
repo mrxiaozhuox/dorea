@@ -9,10 +9,16 @@ pub const DOREA_VERSION: &'static str = "0.3.0";
 // current version support load-storage version list.
 #[allow(dead_code)]
 const COMPATIBLE_VERSION: Lazy<Vec<String>> = Lazy::new(|| {
-    vec![format!(
-        "{:x}",
-        md5::compute(format!("Dorea::{}", DOREA_VERSION).as_bytes())
-    )]
+    vec![
+        format!(
+            "{:x}",
+            md5::compute(format!("Dorea::{}", DOREA_VERSION).as_bytes())
+        ),
+        format!(
+            "{:x}",
+            md5::compute(format!("Dorea::{}", "0.3.0-alpha").as_bytes())
+        )
+    ]
 });
 
 #[cfg(feature = "server")]

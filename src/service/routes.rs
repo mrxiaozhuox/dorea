@@ -364,6 +364,42 @@ pub async fn controller (
             return Api::error(StatusCode::BAD_REQUEST, &String::from_utf8_lossy(&v.1[..]).to_string())
         }
 
+    } else if &operation == "d2j" {
+
+        let form = match form { Some(v) => v, None => {
+            return Api::error(StatusCode::BAD_REQUEST, "form data not found.");
+        }};
+    
+        if let None = form.query {
+            return Api::lose_param("query");
+        }
+
+        let query = form.query.clone().unwrap();
+
+        let dv = crate::value::DataValue::from(&query);
+
+        return Api::json(StatusCode::OK, json!({
+            "reply": dv.to_json()
+        }));
+
+    } else if &operation == "j2d" {
+
+        let form = match form { Some(v) => v, None => {
+            return Api::error(StatusCode::BAD_REQUEST, "form data not found.");
+        }};
+    
+        if let None = form.query {
+            return Api::lose_param("query");
+        }
+
+        let query = form.query.clone().unwrap();
+
+        let dv = crate::value::DataValue::from_json(&query);
+
+        return Api::json(StatusCode::OK, json!({
+            "reply": dv.to_string()
+        }));
+
     }
 
     Api::error(StatusCode::BAD_REQUEST, "operation not found.")
