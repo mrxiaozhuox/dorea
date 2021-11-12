@@ -1,7 +1,7 @@
 //! Dorea-CLI
 //! Author: YuKun Liu<mrxzx.info@gmail.com>
 //! Date: 2021/10/25
-//! @DoreaDB
+//! @DoreaDB Client
 
 use clap::clap_app;
 use dorea::client::{DoreaClient};
@@ -62,7 +62,6 @@ pub async fn main() {
             panic!("{:?}", err);
         }
     };
-
 
     let prompt = format!("{}:{} ~> ",hostname,port);
     let mut readline = Editor::<()>::new();
@@ -161,6 +160,11 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
 
     } else if operation.to_uppercase() == "BINARY" {
         
+        // 二进制操作功能
+        // 目前 Dorea 内部没有提供 Binary 原生函数
+        // Cli 专门封装了 Binary 的一些基本用途函数
+        // 二进制转字符串、二进制下载、二进制上传、二进制数组等
+
         if slice.len() < 2 {
             return (NetPacketState::ERR, "Missing command parameters.".to_string());
         }
