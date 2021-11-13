@@ -63,4 +63,6 @@ When a storage file reaches a maximum capacity, it is archived and a new write f
 
 ## Docker
 
-docker:mrxiaozhuox/dorea
+```
+docker pull mrxiaozhuox/dorea
+```
