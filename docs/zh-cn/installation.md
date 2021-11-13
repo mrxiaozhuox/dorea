@@ -24,9 +24,9 @@ cargo install --path .
 docker build -t dorea .
 ```
 
-!> 由于最新 `Release` 版本还未发布，暂未 `Pull` 到 `Docker Hub`
+!> Docker-Hub 地址：https://hub.docker.com/r/mrxiaozhuox/dorea
 
-## MacOS 安装
+## Homebrew 安装
 
 目前 `Dorea` 的最新版本已经发布到 `Homebrew` 中，你可以使用以下命令直接安装：
 
@@ -35,3 +35,9 @@ brew install doreadb/brew/dorea
 ```
 
 使用以上命令可以直接安装最新版的 `Dorea` 服务端与 CLI工具。
+
+## 二进制发布包
+
+`Dorea` 在 `Github Action` 中部署了自动编译功能，系统将在 `Release` 发布时自动编译相应版本：
+
+[https://github.com/mrxiaozhuox/dorea/releases](https://github.com/mrxiaozhuox/dorea/releases)
