@@ -6,6 +6,8 @@ Dorea-Server 中内置了 `Web Api Service` 服务。
 
 !> 我们建议您开启它，因为后续官方所开发并支持的SDK将使用 Web Service
 
+[Api文档](https://docs.apipost.cn/preview/81ea2366835dd14f/f7650f4ead7214fa)
+
 配置文件位于：
 
 ```text
