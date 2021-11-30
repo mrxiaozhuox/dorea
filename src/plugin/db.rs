@@ -20,13 +20,16 @@ impl PluginDbManager {
 }
 
 impl UserData for PluginDbManager {
+
+    fn add_fields<'lua, F: mlua::UserDataFields<'lua, Self>>(_fields: &mut F) {}
+
     fn add_methods<'lua, M: mlua::UserDataMethods<'lua, Self>>(methods: &mut M) {
- 
+
         methods.add_async_method("select", |_, mut this, db_name: String| async move {
             this.current = db_name.clone();
             this.db.lock().await.select_to(&db_name).to_lua_err()
         });
- 
+
         methods.add_async_method(
             "setex", |_, this, (key, (value, expire)): (String, (String, u64)
         )| async move {
@@ -69,6 +72,4 @@ impl UserData for PluginDbManager {
         });
 
     }
-
-    fn add_fields<'lua, F: mlua::UserDataFields<'lua, Self>>(_fields: &mut F) {}
 }

@@ -14,6 +14,9 @@ pub struct Secret {
 }
 
 impl Secret {
+
+    // Secret.apply
+    // this function will apply a JWT Token for the Dorea-Service
     pub fn apply(&self ,level: String ,expire: usize) -> crate::Result<String> {
 
         let now = chrono::Local::now().timestamp() as usize;

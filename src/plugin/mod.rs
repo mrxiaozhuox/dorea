@@ -117,6 +117,7 @@ impl PluginManager {
             info
         );
 
+        // 尝试在插件系统中运行一个命令：[command_str]
         let v = self.lua.load(&command_str).eval::<String>()?;
 
         Ok(v)
