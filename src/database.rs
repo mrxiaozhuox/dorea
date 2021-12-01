@@ -46,6 +46,8 @@ static TOTAL_INFO: Lazy<Mutex<TotalInfo>> = Lazy::new(|| Mutex::new(TotalInfo { 
 pub const CASTAGNOLI: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_ISCSI);
 
 impl DataBaseManager {
+
+    // 加载一个数据库管理对象（一个 DoreaDB 系统只会加载一次）
     pub fn new(location: PathBuf) -> Self {
         let config = configure::load_config(&location).unwrap();
 
@@ -60,6 +62,8 @@ impl DataBaseManager {
         obj
     }
 
+    // 切换数据库
+    // 当数据库不存在时，则自动初始化新数据库
     pub fn select_to(&mut self, name: &str) -> Result<()> {
 
         if self.db_list.contains_key(name) {
@@ -78,6 +82,7 @@ impl DataBaseManager {
         Ok(())
     }
 
+    // 预加载所需要的数据库数据
     fn load_database(config: &DoreaFileConfig, location: PathBuf) -> HashMap<String, DataBase> {
         let config = config.clone();
 
@@ -234,6 +239,7 @@ impl DataFile {
    
     // 初始化 数据文件系统 -> DoreaFile
     pub fn new(root: &PathBuf, name: String, max_index_size: u32) -> Self {
+
         let mut db = Self {
             root: root.clone(),
             name,

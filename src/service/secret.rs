@@ -37,6 +37,8 @@ impl Secret {
         Ok(token)
     }
 
+    // Secret.validation
+    // this function will check the token
     pub fn validation(&self, token: String) -> crate::Result<TokenData<Claims>> {
         let token = decode::<Claims>(
             &token,

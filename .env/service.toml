@@ -1,0 +1,7 @@
+[foundation]
+switch = true
+port = 3451
+token = "naEz9HTWDl2lX4w"
+
+[account]
+master = "DOREA@SERVICE"

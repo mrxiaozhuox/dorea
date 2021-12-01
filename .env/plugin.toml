@@ -1,0 +1,5 @@
+[foundation]
+path = "./.env/plugin"
+switch = true
+
+[loader]
