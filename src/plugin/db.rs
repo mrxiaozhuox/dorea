@@ -33,6 +33,7 @@ impl UserData for PluginDbManager {
         methods.add_async_method(
             "setex", |_, this, (key, (value, expire)): (String, (String, u64)
         )| async move {
+                println!("NOW: {}",this.current);
             this.db.lock().await.db_list.get_mut(&this.current).unwrap()
             .set(&key, DataValue::from(&value), expire).await.to_lua_err()
         });

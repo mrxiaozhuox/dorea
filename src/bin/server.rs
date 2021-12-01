@@ -16,9 +16,9 @@ FLAGS:
 OPTIONS:
 {options}
 
-Dorea-Core: https://github.com/doreadb/dorea.git
+Dorea-Core: https://github.com/mrxiaozhuox/dorea.git
 Dorea-Repo: https://github.com/doreadb/
-Author: ZhuoEr Liu <mrxzx.info@gmail.com>
+Author: YuKun Liu <mrxzx.info@gmail.com>
 ";
 
 #[tokio::main]

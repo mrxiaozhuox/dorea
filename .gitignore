@@ -11,3 +11,7 @@ vendor/
 
 # docker dev
 .devcontainer/
+
+# .env data
+.env/storage
+.env/plugin
