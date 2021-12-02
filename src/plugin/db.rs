@@ -25,11 +25,13 @@ impl UserData for PluginDbManager {
 
     fn add_methods<'lua, M: mlua::UserDataMethods<'lua, Self>>(methods: &mut M) {
 
+        // 切换数据库
         methods.add_async_method("select", |_, mut this, db_name: String| async move {
             this.current = db_name.clone();
             this.db.lock().await.select_to(&db_name).to_lua_err()
         });
 
+        // 插入数据
         methods.add_async_method(
             "setex", |_, this, (key, (value, expire)): (String, (String, u64)
         )| async move {
@@ -38,6 +40,7 @@ impl UserData for PluginDbManager {
             .set(&key, DataValue::from(&value), expire).await.to_lua_err()
         });
 
+        // 获取数据
         methods.add_async_method("get", |lua, this, key: String| async move {
             let val = this.db.lock().await.db_list.get_mut(&this.current).unwrap()
             .get(&key).await;
@@ -62,11 +65,13 @@ impl UserData for PluginDbManager {
             Ok(val)
         });
 
+        // 删除数据
         methods.add_async_method("delete", |_, this, key: String| async move {
             this.db.lock().await.db_list.get_mut(&this.current).unwrap()
             .delete(&key).await.to_lua_err()
         });
 
+        // 判断数据是否存在
         methods.add_async_method("exist", |_, this, key: String| async move {
             Ok(this.db.lock().await.db_list.get_mut(&this.current).unwrap()
             .contains_key(&key).await)
