@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use mlua::{ExternalResult, LuaSerdeExt, UserData};
+use mlua::{ExternalResult, LuaSerdeExt, UserData, UserDataMethods};
 use tokio::sync::Mutex;
 use crate::database::DataBaseManager;
 use crate::value::DataValue;
@@ -8,13 +8,29 @@ use crate::value::DataValue;
 #[derive(Clone)]
 pub struct PluginDbManager {
     db: Arc<Mutex<DataBaseManager>>,
+}
+
+#[derive(Clone)]
+pub struct PluginDbGroup {
+    db: Arc<Mutex<DataBaseManager>>,
     current: String,
 }
 
 impl PluginDbManager {
 
-    pub async fn init (db: Arc<Mutex<DataBaseManager>>, current: String) -> Self {
-        Self { db: db.clone(), current }
+    pub async fn init (db: Arc<Mutex<DataBaseManager>>) -> Self {
+        Self { db: db.clone() }
+    }
+
+    // 用于打开一个 Group 数据库
+    pub async fn open_group(self, group: String) -> crate::Result<PluginDbGroup> {
+        self.db.lock().await.select_to(&group)?;
+        Ok(
+            PluginDbGroup {
+                db: self.db.clone(),
+                current: group,
+            }
+        )
     }
 
 }
@@ -26,24 +42,32 @@ impl UserData for PluginDbManager {
     fn add_methods<'lua, M: mlua::UserDataMethods<'lua, Self>>(methods: &mut M) {
 
         // 切换数据库
-        methods.add_async_method("select", |_, mut this, db_name: String| async move {
-            this.current = db_name.clone();
-            this.db.lock().await.select_to(&db_name).to_lua_err()
+        methods.add_async_method("select", |_, this, db_name: String| async move {
+            // let mut this = this.borrow_mut();
+            // this.current = db_name.clone();
+            // println!("TO: {}",this.current);
+            // this.db.lock().await.select_to(&db_name).to_lua_err()
+            this.open_group(db_name).await.to_lua_err()
         });
 
+    }
+}
+
+impl UserData for PluginDbGroup {
+    fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         // 插入数据
         methods.add_async_method(
             "setex", |_, this, (key, (value, expire)): (String, (String, u64)
-        )| async move {
+            )| async move {
                 println!("NOW: {}",this.current);
-            this.db.lock().await.db_list.get_mut(&this.current).unwrap()
-            .set(&key, DataValue::from(&value), expire).await.to_lua_err()
-        });
+                this.db.lock().await.db_list.get_mut(&this.current).unwrap()
+                    .set(&key, DataValue::from(&value), expire).await.to_lua_err()
+            });
 
         // 获取数据
         methods.add_async_method("get", |lua, this, key: String| async move {
             let val = this.db.lock().await.db_list.get_mut(&this.current).unwrap()
-            .get(&key).await;
+                .get(&key).await;
 
             let val = match val {
                 Some(v) => {
@@ -68,14 +92,13 @@ impl UserData for PluginDbManager {
         // 删除数据
         methods.add_async_method("delete", |_, this, key: String| async move {
             this.db.lock().await.db_list.get_mut(&this.current).unwrap()
-            .delete(&key).await.to_lua_err()
+                .delete(&key).await.to_lua_err()
         });
 
         // 判断数据是否存在
         methods.add_async_method("exist", |_, this, key: String| async move {
             Ok(this.db.lock().await.db_list.get_mut(&this.current).unwrap()
-            .contains_key(&key).await)
+                .contains_key(&key).await)
         });
-
     }
 }

@@ -46,7 +46,7 @@ impl PluginManager {
         )
     }
 
-    pub async fn loading(&self, dorea: Arc<Mutex<DataBaseManager>>, current: String) -> crate::Result<()> {
+    pub async fn loading(&self, dorea: Arc<Mutex<DataBaseManager>>, _current: String) -> crate::Result<()> {
 
         if self.available {
 
@@ -56,7 +56,7 @@ impl PluginManager {
         
             let _ = f.read_to_string(&mut code)?;
 
-            self.lua.globals().set("DB_MANAGER", db::PluginDbManager::init(dorea, current).await)?;
+            self.lua.globals().set("DB_MANAGER", db::PluginDbManager::init(dorea).await)?;
             self.lua.globals().set("LOGGER_IN", log::LoggerIn {})?;
 
             let plugin_table = self.lua.create_table()?;
