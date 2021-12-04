@@ -82,7 +82,7 @@ impl PluginManager {
         Ok(())
     }
 
-    pub fn custom_command(&self, command: &str, mut argument: Vec<String>) -> crate::Result<String> {
+    pub fn custom_command(&self, command: &str, mut argument: Vec<String>, current_db: String) -> crate::Result<String> {
         
         argument.remove(0);
 
@@ -104,18 +104,22 @@ impl PluginManager {
                 {\
                     [\"argument\"] = {},\
                     [\"timestamp\"] = {},\
-                    [\"caller\"] = 'test'
+                    [\"caller\"] = 'test',\
+                    [\"curr_db\"] = '{}',\
                 }\
             }", 
             v2t,
-            chrono::Local::now().timestamp()
+            chrono::Local::now().timestamp(),
+            current_db,
         );
- 
+
         let command_str = format!(
             "MANAGER.call_command(\"{}\", {})", 
             command,
             info
         );
+
+        // println!("{}", command_str);
 
         // 尝试在插件系统中运行一个命令：[command_str]
         let v = self.lua.load(&command_str).eval::<String>()?;

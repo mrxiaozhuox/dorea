@@ -114,7 +114,11 @@ impl CommandManager {
             let mut lua_arg = Vec::new();
             for i in slice { lua_arg.push(i.to_string()); }
 
-            let crs = plugin_manager.lock().await.custom_command(command_str, lua_arg);
+            let crs = plugin_manager.lock().await.custom_command(
+                command_str,
+                lua_arg,
+                current.clone(),
+            );
 
             if crs.is_ok() {
                 return (
