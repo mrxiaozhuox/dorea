@@ -14,6 +14,3 @@ vendor/
 
 # .env data
 .env/
-
-# xmake build tool
-.xmake/

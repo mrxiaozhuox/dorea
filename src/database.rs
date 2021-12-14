@@ -140,15 +140,14 @@ impl DataBase {
         self.file.write(data_node, &mut self.index).await
     }
 
-    pub async fn get(&mut self, key: &str) -> Option<DataValue> {
-        let res = self.file.read(key.to_string(), &mut self.index).await;
+    pub async fn get(&self, key: &str) -> Option<DataValue> {
+        let res = self.file.read(key.to_string(), &self.index).await;
         match res {
             Some(d) => {
 
                 // 过期时间判定
                 if d.time_stamp.1 != 0 {
                     if (d.time_stamp.0 as u64 + d.time_stamp.1) < chrono::Local::now().timestamp() as u64 {
-                        let _ = self.delete(key).await;
                         return Some(DataValue::None);
                     }
                 }
@@ -531,7 +530,7 @@ impl DataFile {
     pub async fn read(
         &self,
         key: String,
-        index: &mut HashMap<String, IndexInfo>,
+        index: &HashMap<String, IndexInfo>,
     ) -> Option<DataNode> {
 
         match index.get(&key) {
