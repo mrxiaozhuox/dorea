@@ -20,5 +20,5 @@ async fn main() -> anyhow::Result<()> {
 
     println!("foo: {:?}.", db.get("foo").await.unwrap_or(DataValue::None));
 
-    Ok(())x
+    Ok(())
 }

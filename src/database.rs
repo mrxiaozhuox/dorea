@@ -148,6 +148,9 @@ impl DataBase {
                 // 过期时间判定
                 if d.time_stamp.1 != 0 {
                     if (d.time_stamp.0 as u64 + d.time_stamp.1) < chrono::Local::now().timestamp() as u64 {
+                        // 关于 2021-12-15 的更新：
+                        // 这里不再删除数据（会增加一次写入）
+                        // 过期直接返回 None 即可，不再更新为空
                         return Some(DataValue::None);
                     }
                 }
@@ -158,8 +161,8 @@ impl DataBase {
         }
     }
 
-    pub async fn meta_data(&mut self, key: &str) -> Option<DataNode> {
-        let res = self.file.read(key.to_string(), &mut self.index).await;
+    pub async fn meta_data(&self, key: &str) -> Option<DataNode> {
+        let res = self.file.read(key.to_string(), &self.index).await;
         match res {
             Some(d) => {
                 Some(d)
@@ -178,7 +181,7 @@ impl DataBase {
         }
     }
 
-    pub async fn contains_key(&mut self, key: &str) -> bool {
+    pub async fn contains_key(&self, key: &str) -> bool {
         self.index.contains_key(key)
     }
 
