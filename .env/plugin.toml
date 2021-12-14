@@ -1,6 +1,0 @@
-[foundation]
-path = "../dorea-plugin-loader"
-switch = true
-
-[loader]
-example = {}
