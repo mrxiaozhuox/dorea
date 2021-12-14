@@ -10,7 +10,7 @@ async fn main() -> anyhow::Result<()> {
     db.select("demo").await?;
 
     // try to insert a new key-value: { foo: String("bar") }
-    db.setex("foo", DataValue::String(String::from("bar")), 0).await?;
+    db.setex("foo", DataValue::String(String::from("Hello DoreaDB")), 0).await?;
 
     println!("foo: {:?}.", db.get("foo").await.unwrap_or(DataValue::None));
 

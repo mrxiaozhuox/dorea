@@ -13,5 +13,7 @@ vendor/
 .devcontainer/
 
 # .env data
-.env/storage
-.env/plugin
+.env/
+
+# xmake build tool
+.xmake/

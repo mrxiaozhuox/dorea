@@ -41,12 +41,8 @@ impl UserData for PluginDbManager {
 
     fn add_methods<'lua, M: mlua::UserDataMethods<'lua, Self>>(methods: &mut M) {
 
-        // 切换数据库
-        methods.add_async_method("select", |_, this, db_name: String| async move {
-            // let mut this = this.borrow_mut();
-            // this.current = db_name.clone();
-            // println!("TO: {}",this.current);
-            // this.db.lock().await.select_to(&db_name).to_lua_err()
+        // 打开数据库
+        methods.add_async_method("open", |_, this, db_name: String| async move {
             this.open_group(db_name).await.to_lua_err()
         });
 

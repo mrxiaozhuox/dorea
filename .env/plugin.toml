@@ -1,6 +1,6 @@
 [foundation]
-path = "./.env/plugin"
+path = "../dorea-plugin-loader"
 switch = true
 
 [loader]
-comext = {}
+example = {}
