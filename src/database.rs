@@ -491,8 +491,10 @@ impl DataFile {
         index: &mut HashMap<String, IndexInfo>,
     ) -> Result<()> {
 
+        let max_index_number = TOTAL_INFO.lock().await.max_index_number;
+
         // check total_index_number
-        if TOTAL_INFO.lock().await.index_get() > TOTAL_INFO.lock().await.max_index_number {
+        if TOTAL_INFO.lock().await.index_get() > max_index_number {
             return Err(anyhow!("exceeded max index number"));
         }
 
