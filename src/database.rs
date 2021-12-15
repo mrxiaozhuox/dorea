@@ -17,6 +17,10 @@ use crate::Result;
 use anyhow::anyhow;
 use tokio::sync::Mutex;
 
+/// 数据管理结构
+/// db_list 数据库列表（当前系统已加载的所有数据）
+/// location 数据加载位置
+/// config 数据库配置
 #[derive(Debug)]
 pub struct DataBaseManager {
     pub(crate) db_list: HashMap<String, DataBase>,
@@ -41,7 +45,10 @@ pub struct DataNode {
     time_stamp: (i64, u64),
 }
 
-static TOTAL_INFO: Lazy<Mutex<TotalInfo>> = Lazy::new(|| Mutex::new(TotalInfo { index_number: 0 }));
+// 索引数量统计
+static TOTAL_INFO: Lazy<Mutex<TotalInfo>> = Lazy::new(|| Mutex::new(
+    TotalInfo { index_number: 0, max_index_number: u32::MAX, }
+));
 
 pub const CASTAGNOLI: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_ISCSI);
 
@@ -107,13 +114,20 @@ impl DataBaseManager {
 
 #[allow(dead_code)]
 impl DataBase {
-    pub fn init(name: String, location: PathBuf, config: DataBaseConfig) -> Self {
+    pub fn init(name: String, location: PathBuf, _config: DataBaseConfig) -> Self {
+
+
         let location = location.join(&name);
 
-        let data_file = DataFile::new(&location, name.clone(), config.max_key_number);
+        // DataFile 对象初始化
+        let data_file = DataFile::new(
+            &location,
+            name.clone(),
+        );
 
         let mut index_list = HashMap::new();
 
+        // 加载本 DataFile 中的索引数据
         let _ = data_file.load_index(&mut index_list);
 
         Self {
@@ -234,18 +248,16 @@ impl DataNode {
 struct DataFile {
     root: PathBuf,
     name: String,
-    max_index_number: u32,
 }
 
 impl DataFile {
    
     // 初始化 数据文件系统 -> DoreaFile
-    pub fn new(root: &PathBuf, name: String, max_index_size: u32) -> Self {
+    pub fn new(root: &PathBuf, name: String) -> Self {
 
         let mut db = Self {
             root: root.clone(),
             name,
-            max_index_number: max_index_size,
         };
 
         db.init_db().unwrap();
@@ -254,6 +266,7 @@ impl DataFile {
     }
 
     pub fn load_index(&self, index: &mut HashMap<String, IndexInfo>) -> crate::Result<()> {
+
         if !self.root.is_dir() {
             return Err(anyhow!("root dir not found"));
         }
@@ -339,17 +352,6 @@ impl DataFile {
                                     position.1 += 1;
                                     continue;
                                 }
-
-                                // let v = match bincode::deserialize::<DataNode>(&legacy[..]) {
-                                //     Ok(v) => v,
-                                //     Err(_) => break,
-
-                                // };
-                              
-                                // let v = match serde_cbor::from_slice::<DataNode>(&legacy[..]) {
-                                //     Ok(v) => v,
-                                //     Err(_) => break,
-                                // };
 
                                 let v = match serde_json::from_slice::<DataNode>(&legacy[..]) {
                                     Ok(v) => v,
@@ -490,7 +492,7 @@ impl DataFile {
     ) -> Result<()> {
 
         // check total_index_number
-        if TOTAL_INFO.lock().await.index_get() > self.max_index_number {
+        if TOTAL_INFO.lock().await.index_get() > TOTAL_INFO.lock().await.max_index_number {
             return Err(anyhow!("exceeded max index number"));
         }
 
@@ -621,8 +623,7 @@ impl DataFile {
         let temp_dfile = root_path.parent().unwrap().join(format!("~{}", self.name));
         let mut temp_dfile = DataFile::new(
             &temp_dfile, 
-            format!("~{}", self.name), 
-            u32::MAX
+            format!("~{}", self.name),
         );
         let mut temp_index = HashMap::new();
 
@@ -707,6 +708,7 @@ struct IndexInfo {
 
 struct TotalInfo {
     index_number: u32,
+    max_index_number: u32,
 }
 
 impl TotalInfo {

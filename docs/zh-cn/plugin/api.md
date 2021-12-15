@@ -24,16 +24,19 @@ assert(db:get("key") == "value")
 
 在插件中也支持直接向 `Dorea` 输出运行日志：
 ```lua
-module = require("interface")
-
-local logger = module.log
-
-logger.trace("追踪！")
-logger.info("信息！")
-logger.debug("调试！")
-logger.warn("警告！")
-logger.error("错误！")
-
+logger:trace("追踪！")
+```
+```lua
+logger:info("信息！")
+```
+```lua
+logger:debug("调试！")
+```
+```lua
+logger:warn("警告！")
+```
+```lua
+logger:error("错误！")
 ```
 
 它们的输出样式将与 `Dorea` 内部日志一样，当然你可以进行自定义。

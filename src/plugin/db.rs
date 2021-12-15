@@ -53,7 +53,7 @@ impl UserData for PluginDbGroup {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         // 插入数据
         methods.add_async_method(
-            "setex", |_, this, (key, (value, expire)): (String, (String, u64)
+            "set", |_, this, (key, (value, expire)): (String, (String, u64)
             )| async move {
                 this.db.lock().await.db_list.get_mut(&this.current).unwrap()
                     .set(&key, DataValue::from(&value), expire).await.to_lua_err()

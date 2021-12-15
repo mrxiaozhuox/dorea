@@ -12,6 +12,7 @@
 
 <body>
     <div id="app"></div>
+    <script src="//cdn.jsdelivr.net/npm/docsify-edit-on-github"></script>
     <script>
         window.$docsify = {
             name: 'Dorea Storage',
@@ -25,12 +26,22 @@
             loadNavbar: 'nav.md',
             subMaxLevel: 2,
 
-
             alias: {
                 '/': '/zh-cn/',
                 '/zh-cn/': '/zh-cn/home',
                 '/en/': '/en/home',
-            }
+            },
+
+            plugins: [
+                EditOnGithubPlugin.create("https://github.com/mrxiaozhuox/dorea/blob/master/docs/", null, function(file) {
+                    if (file.indexOf('en') === -1) {
+                        return '在 GitHub 中编辑'
+                    } else {
+                        return 'edit on github'
+                    }
+                })
+            ]
+
         }
     </script>
     <script src="https://cdn.bootcdn.net/ajax/libs/docsify/4.12.1/docsify.min.js"></script>

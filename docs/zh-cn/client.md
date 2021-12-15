@@ -66,4 +66,5 @@ OPTIONS:
 
 语言 SDK 大部分使用 [`WebService`](/zh-cn/web-service) 完成开发，它们依赖于 Web Service.
 
-- **Python-Driver**: [PyDorea](https://pypi.org/project/pydorea/)
+- **Python-Driver**: [PyDorea](https://pypi.org/project/pydorea/) 「 Contributor: mrxiaozhuox 」
+- **Deno-Driver** [Dorea4d](https://deno.land/x/dorea4d/) 「 Contributor: mrxiaozhuox 」

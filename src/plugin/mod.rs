@@ -28,7 +28,7 @@ impl PluginManager {
         
         let lua = Lua::new();
 
-        let mut available = true;
+        let mut available = file_config.foundation.switch;
 
         if ! plugin_path.is_dir() {
             available = false;
