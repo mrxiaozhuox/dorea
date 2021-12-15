@@ -442,7 +442,6 @@ impl DataFile {
         }
 
         fs::rename(&self.root, &new_root)?;
-
         
         self.name = new_name.into();
         self.root = new_root;

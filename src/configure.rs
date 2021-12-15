@@ -7,13 +7,13 @@ use toml::value::Table;
 /// Dorea File Config Struct
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DoreaFileConfig {
-    pub(crate) connection: ConnectionConifg,
+    pub(crate) connection: ConnectionConfig,
     pub(crate) database: DataBaseConfig,
     pub(crate) cache: CacheConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ConnectionConifg {
+pub struct ConnectionConfig {
     pub(crate) max_connect_number: u16,
     pub(crate) connection_password: String,
 }
@@ -112,7 +112,7 @@ fn init_config (path: PathBuf) -> Result<()> {
 
     let config = DoreaFileConfig {
 
-        connection: ConnectionConifg {
+        connection: ConnectionConfig {
             max_connect_number: 255,
             connection_password: String::from(""),
         },
