@@ -58,8 +58,12 @@ pub const CASTAGNOLI: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_ISCSI);
 impl DataBaseManager {
 
     // 加载一个数据库管理对象（一个 DoreaDB 系统只会加载一次）
-    pub fn new(location: PathBuf) -> Self {
+    pub async fn new(location: PathBuf) -> Self {
+
         let config = configure::load_config(&location).unwrap();
+
+        // 更新数据库最大 key 数值
+        TOTAL_INFO.lock().await.maxnum_set(config.database.max_key_number);
 
         let db_list = DataBaseManager::load_database(&config, location.clone());
 
@@ -146,13 +150,15 @@ impl DataBase {
 
         let max_index_number = TOTAL_INFO.lock().await.max_index_number;
 
+        println!("{} - {} - {}", max_index_number, (max_index_number / (INDEX_PROPORTION_FOR_DB as u32)), TOTAL_INFO.lock().await.index_get());
+
         // check total_index_number
-        if TOTAL_INFO.lock().await.index_get() > max_index_number {
+        if TOTAL_INFO.lock().await.index_get() >= max_index_number {
             return Err(anyhow!("exceeded system max index number"));
         }
 
         // check group_index_number
-        if (max_index_number / (INDEX_PROPORTION_FOR_DB as u32)) < (self.index.len() as u32) {
+        if (self.index.len() as u32) >= (max_index_number / (INDEX_PROPORTION_FOR_DB as u32)) {
             return Err(anyhow!("exceeded group max index number"));
         }
 
@@ -726,6 +732,9 @@ impl TotalInfo {
     }
     fn index_add(&mut self) {
         self.index_number += 1;
+    }
+    fn maxnum_set(&mut self, num: u32) {
+        self.max_index_number = num;
     }
 }
 
