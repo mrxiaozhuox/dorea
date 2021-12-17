@@ -17,6 +17,9 @@ use crate::Result;
 use anyhow::anyhow;
 use tokio::sync::Mutex;
 
+// 单个数据库占全系统可用
+const INDEX_PROPORTION_FOR_DB: u16 = 5;
+
 /// 数据管理结构
 /// db_list 数据库列表（当前系统已加载的所有数据）
 /// location 数据加载位置
@@ -140,6 +143,18 @@ impl DataBase {
     }
 
     pub async fn set(&mut self, key: &str, value: DataValue, expire: u64) -> Result<()> {
+
+        let max_index_number = TOTAL_INFO.lock().await.max_index_number;
+
+        // check total_index_number
+        if TOTAL_INFO.lock().await.index_get() > max_index_number {
+            return Err(anyhow!("exceeded system max index number"));
+        }
+
+        // check group_index_number
+        if (max_index_number / (INDEX_PROPORTION_FOR_DB as u32)) < (self.index.len() as u32) {
+            return Err(anyhow!("exceeded group max index number"));
+        }
 
         let mut crc_digest = CASTAGNOLI.digest();
         crc_digest.update(&value.to_string().as_bytes());
@@ -490,13 +505,6 @@ impl DataFile {
         index: &mut HashMap<String, IndexInfo>,
     ) -> Result<()> {
 
-        let max_index_number = TOTAL_INFO.lock().await.max_index_number;
-
-        // check total_index_number
-        if TOTAL_INFO.lock().await.index_get() > max_index_number {
-            return Err(anyhow!("exceeded max index number"));
-        }
-
         let _ = self.check_file().unwrap();
 
         let file = self.root.join("active.db");
@@ -725,3 +733,6 @@ impl TotalInfo {
 pub async fn total_index_number() -> u32 {
     TOTAL_INFO.lock().await.index_get()
 }
+
+// 也算是个小彩蛋吧，希望在未来的某一天我能看到它qwq -YuKun Liu [2021-12-16: SC-CD-7ZWD]
+// 这是一段有特殊意义的加密字符串：8F0554F5C42D9989F04805D38DD52290
