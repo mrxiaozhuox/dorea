@@ -15,6 +15,7 @@ use crate::{configure::DoreaFileConfig, database::{DataBase, DataBaseManager}, n
 #[allow(dead_code)]
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum CommandList {
+    
     GET,
     SET,
     DELETE,

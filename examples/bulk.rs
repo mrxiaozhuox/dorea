@@ -12,9 +12,11 @@ async fn main() -> anyhow::Result<()> {
 
     // 循环 1024 次：
     for i in 1..1025  {
-        println!("NOW: {:?}", i);
         // 将 {i} Key 设置为一个 Number 数据：{i}
-        db.setex(&i.to_string(), DataValue::Number(i as f64), 0).await.unwrap();
+        match db.setex(&i.to_string(), DataValue::Number(i as f64), 0).await {
+            Ok(_) => { println!("SUCCESS: {:?}", i); },
+            Err(err) => { panic!("{}", err); },
+        };
     }
 
     Ok(())

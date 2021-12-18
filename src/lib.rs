@@ -4,7 +4,7 @@
 use once_cell::sync::Lazy;
 
 // Dorea db version (current)
-pub const DOREA_VERSION: &'static str = "0.3.0";
+pub const DOREA_VERSION: &'static str = "0.3.1";
 
 // current version support load-storage version list.
 #[allow(dead_code)]
@@ -16,8 +16,12 @@ const COMPATIBLE_VERSION: Lazy<Vec<String>> = Lazy::new(|| {
         ),
         format!(
             "{:x}",
+            md5::compute(format!("Dorea::{}", "0.3.0").as_bytes())
+        ),
+        format!(
+            "{:x}",
             md5::compute(format!("Dorea::{}", "0.3.0-alpha").as_bytes())
-        )
+        ),
     ]
 });
 

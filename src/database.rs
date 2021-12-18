@@ -9,6 +9,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use bytes::{BufMut, BytesMut};
+use serde_json::json;
 
 use crate::configure::{self, DataBaseConfig, DoreaFileConfig};
 use crate::value::DataValue;
@@ -18,7 +19,7 @@ use anyhow::anyhow;
 use tokio::sync::Mutex;
 
 // 单个数据库占全系统可用
-const INDEX_PROPORTION_FOR_DB: u16 = 5;
+const INDEX_PROPORTION_FOR_DB: u16 = 12;
 
 /// 数据管理结构
 /// db_list 数据库列表（当前系统已加载的所有数据）
@@ -150,8 +151,6 @@ impl DataBase {
 
         let max_index_number = TOTAL_INFO.lock().await.max_index_number;
 
-        println!("{} - {} - {}", max_index_number, (max_index_number / (INDEX_PROPORTION_FOR_DB as u32)), TOTAL_INFO.lock().await.index_get());
-
         // check total_index_number
         if TOTAL_INFO.lock().await.index_get() >= max_index_number {
             return Err(anyhow!("exceeded system max index number"));
@@ -253,7 +252,6 @@ impl DataBase {
     pub async fn merge(&mut self) -> crate::Result<()> {
         self.file.merge_struct(&mut self.index).await
     }
-
 }
 
 impl DataNode {
@@ -341,8 +339,6 @@ impl DataFile {
 
                         bs.put(&buf[0..v]);
 
-                        // println!("{:?}",buf);
-
                         let mut slice_symbol: bool = false;
 
                         for rec in 0..bs.len() {
@@ -374,6 +370,7 @@ impl DataFile {
                                     continue;
                                 }
 
+                                // 查找到一条数据（生成 DataNode 对象）
                                 let v = match serde_json::from_slice::<DataNode>(&legacy[..]) {
                                     Ok(v) => v,
                                     Err(_) => break,
@@ -390,7 +387,6 @@ impl DataFile {
                                     if !index.contains_key(&v.key) {
                                         count += 1;
                                     }
-
                                     index.insert(v.key.clone(), info);
                                 } else {
                                     if index.contains_key(&v.key) {
@@ -448,6 +444,17 @@ impl DataFile {
             if !record_in.is_file() {
                 fs::write(record_in, b"1")?;
             }
+
+            // state 文件会在数据库加载后被更新（也就是说它并不会被实时更新也就是说）
+            let state_json = self.root.join("state.json");
+            if !state_json.is_file() {
+                fs::write(state_json, json!({
+                    "index-number": 0,
+                    "init-version": crate::DOREA_VERSION,
+                    "update-time": chrono::Local::now().timestamp(),
+                }).to_string().as_bytes())?;
+            }
+
         }
 
         Ok(())
@@ -616,7 +623,6 @@ impl DataFile {
     }
 
     // 合并已归档的数据
-    #[allow(dead_code)]
     pub async fn merge_struct(&mut self,index: &mut HashMap<String, IndexInfo>) -> crate::Result<()> {
 
         let root_path = self.root.clone();
@@ -660,6 +666,7 @@ impl DataFile {
 
 
     fn active(&self) -> crate::Result<()> {
+
         let file = self.root.join("active.db");
 
         let mut content = BytesMut::new();
@@ -710,7 +717,6 @@ impl DataFile {
             Err(_) => 1,
         }
     }
-
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
