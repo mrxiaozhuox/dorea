@@ -24,7 +24,7 @@ impl PluginDbManager {
 
     // 用于打开一个 Group 数据库
     pub async fn open_group(self, group: String) -> crate::Result<PluginDbGroup> {
-        self.db.lock().await.select_to(&group)?;
+        self.db.lock().await.select_to(&group).await?;
         Ok(
             PluginDbGroup {
                 db: self.db.clone(),

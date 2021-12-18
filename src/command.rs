@@ -167,7 +167,7 @@ impl CommandManager {
                 current.to_string(),
                 database_manager.lock().await.location.clone(),
                 config.database.clone(),
-            );
+            ).await;
 
             database_manager
                 .lock()
@@ -307,7 +307,7 @@ impl CommandManager {
         if command == CommandList::SELECT {
             let db_name = slice.get(0).unwrap();
 
-            return match database_manager.lock().await.select_to(db_name) {
+            return match database_manager.lock().await.select_to(db_name).await {
                 Ok(_) => {
                     *current = db_name.to_string();
                     (NetPacketState::OK, vec![])

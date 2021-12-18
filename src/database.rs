@@ -66,7 +66,7 @@ impl DataBaseManager {
         // 更新数据库最大 key 数值
         TOTAL_INFO.lock().await.maxnum_set(config.database.max_key_number);
 
-        let db_list = DataBaseManager::load_database(&config, location.clone());
+        let db_list = DataBaseManager::load_database(&config, location.clone()).await;
 
         let obj = Self {
             db_list,
@@ -79,7 +79,7 @@ impl DataBaseManager {
 
     // 切换数据库
     // 当数据库不存在时，则自动初始化新数据库
-    pub fn select_to(&mut self, name: &str) -> Result<()> {
+    pub async fn select_to(&mut self, name: &str) -> Result<()> {
 
         if self.db_list.contains_key(name) {
             return Ok(())
@@ -90,7 +90,7 @@ impl DataBaseManager {
                   name.to_string(),
                   self.location.clone().join("storage"),
                   self.config.database.clone()
-                )
+                ).await
             );
         }
 
@@ -98,7 +98,7 @@ impl DataBaseManager {
     }
 
     // 预加载所需要的数据库数据
-    fn load_database(config: &DoreaFileConfig, location: PathBuf) -> HashMap<String, DataBase> {
+    async fn load_database(config: &DoreaFileConfig, location: PathBuf) -> HashMap<String, DataBase> {
         let config = config.clone();
 
         let mut db_list = HashMap::new();
@@ -112,7 +112,7 @@ impl DataBaseManager {
                     db.to_string(),
                     location.clone().join("storage"),
                     config.database.clone(),
-                ),
+                ).await,
             );
         }
 
@@ -122,7 +122,7 @@ impl DataBaseManager {
 
 #[allow(dead_code)]
 impl DataBase {
-    pub fn init(name: String, location: PathBuf, _config: DataBaseConfig) -> Self {
+    pub async fn init(name: String, location: PathBuf, _config: DataBaseConfig) -> Self {
 
 
         let location = location.join(&name);
@@ -136,7 +136,7 @@ impl DataBase {
         let mut index_list = HashMap::new();
 
         // 加载本 DataFile 中的索引数据
-        let _ = data_file.load_index(&mut index_list);
+        let _ = data_file.load_index(&mut index_list).await;
 
         Self {
             name: name.clone(),
@@ -284,7 +284,7 @@ impl DataFile {
         db
     }
 
-    pub fn load_index(&self, index: &mut HashMap<String, IndexInfo>) -> crate::Result<()> {
+    pub async fn load_index(&self, index: &mut HashMap<String, IndexInfo>) -> crate::Result<()> {
 
         if !self.root.is_dir() {
             return Err(anyhow!("root dir not found"));
@@ -384,6 +384,7 @@ impl DataFile {
                                 };
 
                                 if v.value != DataValue::None {
+                                    
                                     if !index.contains_key(&v.key) {
                                         count += 1;
                                     }
@@ -741,6 +742,12 @@ impl TotalInfo {
     }
     fn maxnum_set(&mut self, num: u32) {
         self.max_index_number = num;
+    }
+    fn get_all(&self) -> (u32, u32) {
+        (self.index_number, self.max_index_number)
+    }
+    fn overflow(&self, max_proportion: u32) -> bool {
+        self.index_number >= (self.max_index_number / max_proportion)
     }
 }
 
