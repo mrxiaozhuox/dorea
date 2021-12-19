@@ -19,7 +19,7 @@ use anyhow::anyhow;
 use tokio::sync::Mutex;
 
 // 单个数据库占全系统可用
-const INDEX_PROPORTION_FOR_DB: u16 = 12;
+const INDEX_PROPORTION_FOR_DB: u16 = 4;
 
 /// 数据管理结构
 /// db_list 数据库列表（当前系统已加载的所有数据）
@@ -115,6 +115,9 @@ impl DataBaseManager {
                 ).await,
             );
         }
+
+        let temp_index_info = TOTAL_INFO.lock().await.get_all();
+        info!("total index loaded number: {} [MAX: {}].", temp_index_info.0, temp_index_info.1);
 
         db_list
     }
@@ -384,7 +387,6 @@ impl DataFile {
                                 };
 
                                 if v.value != DataValue::None {
-                                    
                                     if !index.contains_key(&v.key) {
                                         count += 1;
                                     }
@@ -422,6 +424,7 @@ impl DataFile {
             self.root.file_name().unwrap(),
             count,
         );
+        TOTAL_INFO.lock().await.index_add(count);
 
         Ok(())
     }
@@ -547,7 +550,7 @@ impl DataFile {
 
         // add total index number
         if !index.contains_key(&data.key) {
-            TOTAL_INFO.lock().await.index_add();
+            TOTAL_INFO.lock().await.index_add(1);
         }
 
         index.insert(data.key.clone(), index_info);
@@ -737,17 +740,21 @@ impl TotalInfo {
     fn index_get(&self) -> u32 {
         self.index_number
     }
-    fn index_add(&mut self) {
-        self.index_number += 1;
+    fn index_add(&mut self, num: u32) {
+        self.index_number += num;
     }
+    // fn index_set(&mut self, num: u32) {
+    //     self.index_number = num;
+    // }
     fn maxnum_set(&mut self, num: u32) {
         self.max_index_number = num;
     }
     fn get_all(&self) -> (u32, u32) {
         (self.index_number, self.max_index_number)
     }
-    fn overflow(&self, max_proportion: u32) -> bool {
-        self.index_number >= (self.max_index_number / max_proportion)
+    // 这个函数用于检查数据库索引数量是否溢出（超出最大限制）
+    fn overflow(&self) -> bool {
+        self.index_number >= self.max_index_number
     }
 }
 
