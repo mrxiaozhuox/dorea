@@ -152,16 +152,18 @@ impl DataBase {
 
     pub async fn set(&mut self, key: &str, value: DataValue, expire: u64) -> Result<()> {
 
-        let max_index_number = TOTAL_INFO.lock().await.max_index_number;
+        if !self.contains_key(key).await {
+            let max_index_number = TOTAL_INFO.lock().await.max_index_number;
 
-        // check total_index_number
-        if TOTAL_INFO.lock().await.index_get() >= max_index_number {
-            return Err(anyhow!("exceeded system max index number"));
-        }
-
-        // check group_index_number
-        if (self.index.len() as u32) >= (max_index_number / (INDEX_PROPORTION_FOR_DB as u32)) {
-            return Err(anyhow!("exceeded group max index number"));
+            // check total_index_number
+            if TOTAL_INFO.lock().await.index_get() >= max_index_number {
+                return Err(anyhow!("exceeded system max index number"));
+            }
+    
+            // check group_index_number
+            if (self.index.len() as u32) >= (max_index_number / (INDEX_PROPORTION_FOR_DB as u32)) {
+                return Err(anyhow!("exceeded group max index number"));
+            }
         }
 
         let mut crc_digest = CASTAGNOLI.digest();
