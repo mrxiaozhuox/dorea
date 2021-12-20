@@ -84,6 +84,14 @@ impl DataBaseManager {
         if self.db_list.contains_key(name) {
             return Ok(())
         } else {
+
+
+            // 检查缓存是否已满了：
+            if TOTAL_INFO.lock().await.overflow() {
+                // log::warn!("The maximum number of indexes is full!");
+                
+            }
+
             self.db_list.insert(
               name.to_string(),
               DataBase::init(
