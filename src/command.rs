@@ -378,6 +378,7 @@ impl CommandManager {
             }
 
             if argument == "keys" {
+                
                 let list = database_manager
                     .lock()
                     .await
