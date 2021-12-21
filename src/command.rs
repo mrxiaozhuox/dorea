@@ -224,6 +224,9 @@ impl CommandManager {
                 }
             }
 
+            // 为 current 增加权重
+            // 对数据更新提升 2 点的权重
+            database_manager.lock().await.add_weight(current.to_string(), 2).await;
             let result = database_manager
                 .lock()
                 .await
@@ -242,11 +245,12 @@ impl CommandManager {
         if command == CommandList::GET {
             let key = slice.get(0).unwrap().to_string();
 
+            // 暂时不考虑为读取增加权重（因为我就是不想哈哈哈）
             let result = database_manager
                 .lock()
                 .await
                 .db_list
-                .get_mut(current)
+                .get(current)
                 .unwrap()
                 .get(&key)
                 .await;
@@ -273,6 +277,8 @@ impl CommandManager {
         if command == CommandList::DELETE {
             let key = slice.get(0).unwrap();
 
+            // 为删除数据增加 1 的权重
+            database_manager.lock().await.add_weight(current.to_string(), 1).await;
             let result = database_manager
                 .lock()
                 .await
@@ -289,6 +295,11 @@ impl CommandManager {
         }
 
         if command == CommandList::CLEAN {
+
+
+            // 为清空数据减少 50 的权重（清空数据使得库被继续缓存的意义大大减低）
+            // 这里我在思考（如果直接把清空的数据库删除出缓存中是否性能会更好）- 2021/12/21 待更新（mrxiaozhuox）
+            database_manager.lock().await.add_weight(current.to_string(), -50).await;
             let result = database_manager
                 .lock()
                 .await

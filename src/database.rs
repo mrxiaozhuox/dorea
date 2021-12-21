@@ -30,6 +30,7 @@ pub struct DataBaseManager {
     pub(crate) db_list: HashMap<String, DataBase>,
     pub(crate) location: PathBuf,
     pub(crate) config: DoreaFileConfig,
+    pub(crate) eli_queue: HashMap<String, isize>,
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +73,7 @@ impl DataBaseManager {
             db_list,
             location: location.clone(),
             config,
+            eli_queue: HashMap::new(),
         };
 
         obj
@@ -89,7 +91,7 @@ impl DataBaseManager {
             // 检查缓存是否已满了：
             if TOTAL_INFO.lock().await.overflow() {
                 // log::warn!("The maximum number of indexes is full!");
-                
+
             }
 
             self.db_list.insert(
@@ -100,6 +102,9 @@ impl DataBaseManager {
                   self.config.database.clone()
                 ).await
             );
+
+            // 默认权重值为 1
+            self.eli_queue.insert(name.to_string(), 1);
         }
 
         Ok(())
@@ -107,6 +112,7 @@ impl DataBaseManager {
 
     // 预加载所需要的数据库数据
     async fn load_database(config: &DoreaFileConfig, location: PathBuf) -> HashMap<String, DataBase> {
+        
         let config = config.clone();
 
         let mut db_list = HashMap::new();
@@ -128,6 +134,18 @@ impl DataBaseManager {
         info!("total index loaded number: {} [MAX: {}].", temp_index_info.0, temp_index_info.1);
 
         db_list
+    }
+
+    pub async fn add_weight(&mut self,db: String, num: isize) -> bool {
+        if self.eli_queue.contains_key(&db) {
+            let old = match self.eli_queue.get(&db) {
+                None => { return false; },
+                Some(v) => {*v},
+            };
+            self.eli_queue.insert(db,old + num as isize);
+            return true;
+        }
+        false
     }
 }
 
