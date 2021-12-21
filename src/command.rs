@@ -362,9 +362,10 @@ impl CommandManager {
             }
 
             if argument == "total-index-number" || argument == "tin" {
+                let temp = crate::database::total_index_number().await;
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::database::total_index_number().await)
+                    format!("{}/{}", temp.0, temp.1)
                         .as_bytes()
                         .to_vec(),
                 );
@@ -378,7 +379,7 @@ impl CommandManager {
             }
 
             if argument == "keys" {
-                
+
                 let list = database_manager
                     .lock()
                     .await

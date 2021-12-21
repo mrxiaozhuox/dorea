@@ -67,13 +67,16 @@ impl DataBaseManager {
         // 更新数据库最大 key 数值
         TOTAL_INFO.lock().await.maxnum_set(config.database.max_key_number);
 
-        let db_list = DataBaseManager::load_database(&config, location.clone()).await;
+        let (
+            db_list, 
+            eli_que,
+        ) = DataBaseManager::load_database(&config, location.clone()).await;
 
         let obj = Self {
             db_list,
             location: location.clone(),
             config,
-            eli_queue: HashMap::new(),
+            eli_queue: eli_que,
         };
 
         obj
@@ -92,6 +95,17 @@ impl DataBaseManager {
             if TOTAL_INFO.lock().await.overflow() {
                 // log::warn!("The maximum number of indexes is full!");
 
+                // 对于 db 遍历并不会有太高的时间消耗（因为这本身就不会为一个极大的量级：O(n) 完全够用）
+                let mut minimum = (String::new(), isize::MAX);
+                for (name, num) in &self.eli_queue {
+                    if minimum.1 > *num {
+                        // 找到更小的权重值
+                        minimum = (name.to_string(), *num);
+                    }
+                }
+                // 这里会直接卸载掉权重最低的那个数据库，并加载新的。
+                log::info!("weight judge: @{}[:{}] will be eliminate.", minimum.0, minimum.1);
+                self.unload_database(minimum.0.to_string()).await?;
             }
 
             self.db_list.insert(
@@ -102,8 +116,6 @@ impl DataBaseManager {
                   self.config.database.clone()
                 ).await
             );
-
-            // 默认权重值为 1
             self.eli_queue.insert(name.to_string(), 1);
         }
 
@@ -111,11 +123,15 @@ impl DataBaseManager {
     }
 
     // 预加载所需要的数据库数据
-    async fn load_database(config: &DoreaFileConfig, location: PathBuf) -> HashMap<String, DataBase> {
+    async fn load_database(config: &DoreaFileConfig, location: PathBuf) -> (
+        HashMap<String, DataBase>, 
+        HashMap<String, isize>,
+    ) {
         
         let config = config.clone();
 
         let mut db_list = HashMap::new();
+        let mut eli_que = HashMap::new();
 
         let groups = &config.database.pre_load_group;
 
@@ -128,24 +144,49 @@ impl DataBaseManager {
                     config.database.clone(),
                 ).await,
             );
+            eli_que.insert(
+                db.to_string(),
+                2,
+            );
         }
 
         let temp_index_info = TOTAL_INFO.lock().await.get_all();
         info!("total index loaded number: {} [MAX: {}].", temp_index_info.0, temp_index_info.1);
 
-        db_list
+        (db_list, eli_que)
     }
 
     pub async fn add_weight(&mut self,db: String, num: isize) -> bool {
+
         if self.eli_queue.contains_key(&db) {
             let old = match self.eli_queue.get(&db) {
                 None => { return false; },
                 Some(v) => {*v},
             };
-            self.eli_queue.insert(db,old + num as isize);
+            self.eli_queue.insert(db.to_string(),old + num as isize);
+
+            log::debug!("[{}] weight update to {}.", db, old + num);
+
             return true;
         }
+
         false
+    }
+
+    pub async fn unload_database(&mut self, db: String) -> crate::Result<()> {
+
+        // 卸载某一个数据库
+
+        let db_index_size = match self.db_list.get(&db) {
+            Some(v) => { v.size() as u32 },
+            None => { 0 },
+        };
+
+        TOTAL_INFO.lock().await.index_reduce(db_index_size);
+        self.db_list.remove(&db);
+        self.eli_queue.remove(&db);
+
+        Ok(())
     }
 }
 
@@ -178,7 +219,7 @@ impl DataBase {
 
     pub async fn set(&mut self, key: &str, value: DataValue, expire: u64) -> Result<()> {
 
-        if !self.contains_key(key).await {
+        if !self.contains_key(key).await && value != DataValue::None {
             let max_index_number = TOTAL_INFO.lock().await.max_index_number;
 
             // check total_index_number
@@ -238,6 +279,7 @@ impl DataBase {
 
     pub async fn delete(&mut self, key: &str) -> Result<()> {
 
+        TOTAL_INFO.lock().await.index_reduce(1);
         return match self.set(key, DataValue::None, 0).await {
             Ok(_) => {
                 self.index.remove(&key.to_string()); Ok(())
@@ -253,6 +295,7 @@ impl DataBase {
     pub async fn clean(&mut self) -> Result<()> {
 
         // traverse all file and remove it
+        TOTAL_INFO.lock().await.index_reduce(self.index.len() as u32);
         for entry in walkdir::WalkDir::new(&self.location)
             .into_iter()
             .filter_map(|e| e.ok())
@@ -268,16 +311,22 @@ impl DataBase {
         // re-init storage file struct
         self.file.init_db()?;
 
+        info!("@{} group has been clean.", self.name);
+
         Ok(())
     }
 
-    pub async fn keys(self) -> Vec<String> {
+    pub async fn keys(&self) -> Vec<String> {
         let mut temp = vec![];
-        for (i, _) in self.index {
-            temp.push(i);
+        for (i, _) in &self.index {
+            temp.push(i.to_string());
         }
 
         temp
+    }
+
+    pub fn size(&self) -> usize {
+        self.index.len()
     }
 
     pub async fn merge(&mut self) -> crate::Result<()> {
@@ -771,6 +820,9 @@ impl TotalInfo {
     fn index_add(&mut self, num: u32) {
         self.index_number += num;
     }
+    fn index_reduce(&mut self, num: u32) {
+        self.index_number -= num;
+    }
     // fn index_set(&mut self, num: u32) {
     //     self.index_number = num;
     // }
@@ -787,8 +839,8 @@ impl TotalInfo {
 }
 
 // 将 total_index 数据公开到外部
-pub async fn total_index_number() -> u32 {
-    TOTAL_INFO.lock().await.index_get()
+pub async fn total_index_number() -> (u32, u32) {
+    TOTAL_INFO.lock().await.get_all()
 }
 
 // 也算是个小彩蛋吧，希望在未来的某一天我能看到它qwq -YuKun Liu [2021-12-16: SC-CD-7ZWD]
