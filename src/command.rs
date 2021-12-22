@@ -10,7 +10,13 @@ use std::collections::HashMap;
 
 use tokio::sync::Mutex;
 
-use crate::{configure::DoreaFileConfig, database::{DataBase, DataBaseManager}, network::NetPacketState, plugin::PluginManager, value::DataValue};
+use crate::{
+    configure::DoreaFileConfig, 
+    database::{DataBase, DataBaseManager}, 
+    network::NetPacketState, 
+    plugin::PluginManager, 
+    value::DataValue,
+};
 
 #[allow(dead_code)]
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -402,7 +408,7 @@ impl CommandManager {
                     .lock()
                     .await
                     .db_list
-                    .get_mut(current)
+                    .get(current)
                     .unwrap()
                     .meta_data(var)
                     .await;
@@ -459,13 +465,15 @@ impl CommandManager {
             let operation: &str = slice.get(1).unwrap();
 
             if &key[0..1] == "@" {
+
                 let key: &str = &key[1..];
+                println!("@{}:{}", current, key);
 
                 let node = database_manager
                     .lock()
                     .await
                     .db_list
-                    .get_mut(current)
+                    .get(current)
                     .unwrap()
                     .meta_data(key)
                     .await;
@@ -484,14 +492,17 @@ impl CommandManager {
 
                 // 计算剩余过期时间
                 let current_time = chrono::Local::now().timestamp() as u64;
-                if current_time >= (node_timestamp.0 as u64 + node_timestamp.1) as u64 {
+                if current_time >= (node_timestamp.0 as u64 + node_timestamp.1) as u64 && node_timestamp.1 != 0 {
                     return (
                         NetPacketState::ERR,
                         format!("Key '{}' not found.", key).as_bytes().to_vec(),
                     );
                 }
 
-                let mut expire = (node_timestamp.0 as u64 + node_timestamp.1) - current_time;
+                let mut expire = 0;
+                if node_timestamp.1 != 0 {
+                    expire = (node_timestamp.0 as u64 + node_timestamp.1) - current_time;
+                }
 
                 // data_value was none_value
                 if origin_value == DataValue::None {
@@ -526,6 +537,7 @@ impl CommandManager {
 
                     _result = edit_operation::incr(origin_value, incr_num);
                 } else if operation == "expire" {
+
                     if sub_arg.len() != 1 {
                         return (
                             NetPacketState::ERR,
