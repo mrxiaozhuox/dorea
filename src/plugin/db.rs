@@ -1,3 +1,9 @@
+// 插件系统目前所涉及的问题：
+// 我不希望插件系统能直接的访问 db_manager.db_list[cur] 下的 DB 对象。
+// DB 对象下的 CURD 只是较为简陋的CURD封装，目前的 `GET` 函数更是无法删除已过期的数据。
+// 所以说在这里直接使用底层的 db 对象交给用户操作，会出现较大的问题（如过期数据依旧被保存在数据库中，只是无法查询到）
+// 2021-12-22 LiuYuKun <mrxzx.info@gmail.com>
+
 use std::sync::Arc;
 
 use mlua::{ExternalResult, LuaSerdeExt, UserData, UserDataMethods};
