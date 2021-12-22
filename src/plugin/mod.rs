@@ -28,11 +28,16 @@ impl PluginManager {
         
         let lua = Lua::new();
 
-        let mut available = file_config.foundation.switch;
+        // TODO:
 
-        if ! plugin_path.is_dir() {
-            available = false;
-        }
+        // let mut available = file_config.foundation.switch;
+
+        // if ! plugin_path.is_dir() {
+        //     available = false;
+        // }
+        
+        // 插件系统暂时永久关闭：目前暂未找到最好的介入DB方式「不知道后续还会维护插件系统不」
+        let available = false;
 
         // 获取加载初始化代码
         if available {
