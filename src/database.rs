@@ -335,7 +335,7 @@ impl DataBase {
 }
 
 impl DataNode {
-    pub(crate) fn timestamp(self) -> (i64, u64) {
+    pub(crate) fn timestamp(&self) -> (i64, u64) {
         self.time_stamp
     }
     pub(crate) fn weight(self) -> f64 {

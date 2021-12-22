@@ -4,7 +4,7 @@
 //!
 //! If you want modify(create) some new command, you should edit this file.
 //!
-//! Author: (ZhuoEr Liu <mrxzx@qq.com>)
+//! Author: (YuKun Liu <mrxzx@qq.com>)
 
 use std::collections::HashMap;
 
@@ -258,19 +258,36 @@ impl CommandManager {
                 .db_list
                 .get(current)
                 .unwrap()
-                .get(&key)
+                .meta_data(&key)
                 .await;
+
 
             return match result {
                 Some(v) => {
-                    if v == DataValue::None {
+
+                    // 这个地方检查具体的是否过期
+                    // 惰性删除数据
+                    let exp = v.timestamp();
+                    let current_time = chrono::Local::now().timestamp() as u64;
+                    if current_time >= (exp.0 as u64 + exp.1) as u64 && exp.1 != 0 {
+                        let _ = database_manager
+                            .lock()
+                            .await
+                            .db_list
+                            .get_mut(current)
+                            .unwrap()
+                            .delete(&key)
+                            .await;
+                    }
+
+                    if v.value.clone() == DataValue::None {
                         return (NetPacketState::ERR, "Data Not Found".as_bytes().to_vec());
                     }
 
                     (
                         NetPacketState::OK, 
                         crate::value::value_ser_string(
-                            v,
+                            v.value,
                             &value_ser_style
                         )
                         .as_bytes().to_vec()
@@ -421,6 +438,24 @@ impl CommandManager {
                 }
                 let data = data.unwrap();
 
+                // 惰性删除数据
+                let exp = data.timestamp();
+                let current_time = chrono::Local::now().timestamp() as u64;
+                if current_time >= (exp.0 as u64 + exp.1) as u64 && exp.1 != 0 {
+                    let _ = database_manager
+                        .lock()
+                        .await
+                        .db_list
+                        .get_mut(current)
+                        .unwrap()
+                        .delete(var)
+                        .await;
+                    return (
+                        NetPacketState::ERR,
+                        format!("Key '{}' not found.", var).as_bytes().to_vec(),
+                    );
+                }
+
                 let mut sub_arg = slice.clone();
                 sub_arg.remove(0);
 
@@ -493,6 +528,17 @@ impl CommandManager {
                 // 计算剩余过期时间
                 let current_time = chrono::Local::now().timestamp() as u64;
                 if current_time >= (node_timestamp.0 as u64 + node_timestamp.1) as u64 && node_timestamp.1 != 0 {
+                    
+                    // 惰性删除数据
+                    let _ = database_manager
+                        .lock()
+                        .await
+                        .db_list
+                        .get_mut(current)
+                        .unwrap()
+                        .delete(key)
+                        .await;
+
                     return (
                         NetPacketState::ERR,
                         format!("Key '{}' not found.", key).as_bytes().to_vec(),
