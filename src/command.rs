@@ -78,6 +78,7 @@ impl CommandManager {
         config: &DoreaFileConfig,
         database_manager: &Mutex<DataBaseManager>,
         plugin_manager: &Mutex<PluginManager>,
+        connect_id: &uuid::Uuid,
     ) -> (NetPacketState, Vec<u8>) {
 
         let message = message.trim().to_string();
@@ -208,6 +209,7 @@ impl CommandManager {
         }
 
         if command == CommandList::SET {
+            
             let key = slice.get(0).unwrap();
             let value = slice.get(1).unwrap();
 
@@ -231,8 +233,17 @@ impl CommandManager {
             }
 
             // 为 current 增加权重
-            // 对数据更新提升 2 点的权重
-            database_manager.lock().await.add_weight(current.to_string(), 2).await;
+            // 对数据更新提升 5 点的权重
+            database_manager.lock().await.add_weight(current.to_string(), 5).await;
+            
+            // 检查数据是追加还是更新
+            if !database_manager.lock().await.db_list.get(current).unwrap().contains_key(key).await {
+                // 卸载掉一个数据库（最不常用的）
+                // TODO:
+                // 这里的错误数据没有处理
+                let _ = database_manager.lock().await.check_eli_db(Some(current.to_string())).await;
+            }
+
             let result = database_manager
                 .lock()
                 .await
@@ -300,8 +311,8 @@ impl CommandManager {
         if command == CommandList::DELETE {
             let key = slice.get(0).unwrap();
 
-            // 为删除数据增加 1 的权重
-            database_manager.lock().await.add_weight(current.to_string(), 1).await;
+            // 为删除数据增加 5 的权重
+            database_manager.lock().await.add_weight(current.to_string(), 5).await;
             let result = database_manager
                 .lock()
                 .await
@@ -320,9 +331,9 @@ impl CommandManager {
         if command == CommandList::CLEAN {
 
 
-            // 为清空数据减少 50 的权重（清空数据使得库被继续缓存的意义大大减低）
+            // 为清空数据增加 50 的权重（感谢您为 Index 存储节约了大量空间qwq）
             // 这里我在思考（如果直接把清空的数据库删除出缓存中是否性能会更好）- 2021/12/21 待更新（mrxiaozhuox）
-            database_manager.lock().await.add_weight(current.to_string(), -50).await;
+            database_manager.lock().await.add_weight(current.to_string(), 50).await;
             let result = database_manager
                 .lock()
                 .await
@@ -339,7 +350,10 @@ impl CommandManager {
         }
 
         if command == CommandList::SELECT {
+
             let db_name = slice.get(0).unwrap();
+
+            crate::server::db_stat_set(connect_id.clone(), db_name.to_string()).await;
 
             return match database_manager.lock().await.select_to(db_name).await {
                 Ok(_) => {
@@ -398,6 +412,13 @@ impl CommandManager {
                 return (
                     NetPacketState::OK,
                     "@[SERVER_STARTUP_TIME]".as_bytes().to_vec(),
+                );
+            }
+
+            if argument == "connect-id" || argument == "cid" {
+                return (
+                    NetPacketState::OK,
+                    format!("{}", connect_id).as_bytes().to_vec(),
                 );
             }
 

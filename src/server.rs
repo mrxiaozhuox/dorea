@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::{fs, path::PathBuf};
 
@@ -16,6 +17,8 @@ use once_cell::sync::Lazy;
 
 // 判断服务器是否已被初始化过
 static INIT_STATE: Lazy<Mutex<InitState>> = Lazy::new(|| Mutex::new(InitState { state: false }));
+
+static DB_STATISTICS: Lazy<Mutex<HashMap<uuid::Uuid, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 struct InitState { state: bool }
 
@@ -148,7 +151,10 @@ impl DoreaServer {
                 continue;
             }
 
-            // info!("new client connected: '{:?}'.", socket_addr);
+
+            let connid = uuid::Uuid::new_v4();
+
+            info!("new connection [CID: {}]", connid);
 
             // add connection number (+1).
             self.connection_number.lock().await.add();
@@ -168,7 +174,11 @@ impl DoreaServer {
 
             let startup_time = self.startup_time;
 
+            DB_STATISTICS.lock().await.insert(connid.clone(), current_db.clone());
+
             task::spawn(async move {
+
+                // 开始漫长不断的数据接受
                 let _ = handle::process(
                     &mut socket,
                     config,
@@ -177,10 +187,12 @@ impl DoreaServer {
                     &plugin_manager,
                     startup_time,
                     value_ser_style.clone(),
+                    connid.clone(),
                 ).await;
 
                 // connection number -1;
                 connect_num.lock().await.low();
+                DB_STATISTICS.lock().await.remove(&connid);
             });
 
         }
@@ -201,4 +213,9 @@ impl ConnectNumber {
     pub fn get(&self) -> u16 {
         self.num
     }
+}
+
+pub async fn db_stat_set(connid: uuid::Uuid, db_name: String) {
+    println!("{:?}", DB_STATISTICS);
+    DB_STATISTICS.lock().await.insert(connid, db_name);
 }

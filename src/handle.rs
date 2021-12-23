@@ -17,6 +17,7 @@ pub(crate) async fn process(
     plugin_manager: &Mutex<PluginManager>,
     startup_time: i64,
     value_ser_style: String,
+    connect_id: uuid::Uuid,
 ) -> Result<()> {
 
     let mut current = current;
@@ -61,6 +62,7 @@ pub(crate) async fn process(
                 &config,
                 database_manager,
                 plugin_manager,
+                &connect_id,
             )
             .await;
 

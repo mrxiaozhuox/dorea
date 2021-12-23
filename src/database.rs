@@ -90,23 +90,7 @@ impl DataBaseManager {
             return Ok(())
         } else {
 
-
-            // 检查缓存是否已满了：
-            if TOTAL_INFO.lock().await.overflow() {
-                // log::warn!("The maximum number of indexes is full!");
-
-                // 对于 db 遍历并不会有太高的时间消耗（因为这本身就不会为一个极大的量级：O(n) 完全够用）
-                let mut minimum = (String::new(), isize::MAX);
-                for (name, num) in &self.eli_queue {
-                    if minimum.1 > *num {
-                        // 找到更小的权重值
-                        minimum = (name.to_string(), *num);
-                    }
-                }
-                // 这里会直接卸载掉权重最低的那个数据库，并加载新的。
-                log::info!("weight judge: @{}[:{}] will be eliminate.", minimum.0, minimum.1);
-                self.unload_database(minimum.0.to_string()).await?;
-            }
+            self.check_eli_db(None).await?;
 
             self.db_list.insert(
               name.to_string(),
@@ -188,6 +172,27 @@ impl DataBaseManager {
 
         Ok(())
     }
+
+
+    pub async fn check_eli_db(&mut self, current: Option<String>) -> crate::Result<()> {
+        // 检查缓存是否已满了：
+        if TOTAL_INFO.lock().await.overflow() {
+            // log::warn!("The maximum number of indexes is full!");
+        
+            // 对于 db 遍历并不会有太高的时间消耗（因为这本身就不会为一个极大的量级：O(n) 完全够用）
+            let mut minimum = (String::new(), isize::MAX);
+            for (name, num) in &self.eli_queue {
+                if minimum.1 > *num {
+                    // 找到更小的权重值
+                    minimum = (name.to_string(), *num);
+                }
+            }
+            // 这里会直接卸载掉权重最低的那个数据库，并加载新的。
+            log::info!("weight judge: @{}[:{}] will be eliminate.", minimum.0, minimum.1);
+            self.unload_database(minimum.0.to_string()).await?;
+        }
+        Ok(())
+    }
 }
 
 #[allow(dead_code)]
@@ -220,6 +225,7 @@ impl DataBase {
     pub async fn set(&mut self, key: &str, value: DataValue, expire: u64) -> Result<()> {
 
         if !self.contains_key(key).await && value != DataValue::None {
+            
             let max_index_number = TOTAL_INFO.lock().await.max_index_number;
 
             // check total_index_number
@@ -842,6 +848,10 @@ impl TotalInfo {
 pub async fn total_index_number() -> (u32, u32) {
     TOTAL_INFO.lock().await.get_all()
 }
+
+// pub async fn index_overflow() -> bool {
+//     TOTAL_INFO.lock().await.overflow()
+// }
 
 // 也算是个小彩蛋吧，希望在未来的某一天我能看到它qwq -YuKun Liu [2021-12-16: SC-CD-7ZWD]
 // 这是一段有特殊意义的加密字符串：8F0554F5C42D9989F04805D38DD52290
