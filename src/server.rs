@@ -216,6 +216,14 @@ impl ConnectNumber {
 }
 
 pub async fn db_stat_set(connid: uuid::Uuid, db_name: String) {
-    println!("{:?}", DB_STATISTICS);
     DB_STATISTICS.lock().await.insert(connid, db_name);
+}
+
+pub async fn db_stat_exist(db_name: String) -> bool {
+    for ( _, v) in DB_STATISTICS.lock().await.iter() {
+        if v.to_string() == db_name {
+            return true;
+        }
+    }
+    false
 }

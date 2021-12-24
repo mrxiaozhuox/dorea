@@ -90,7 +90,7 @@ impl DataBaseManager {
             return Ok(())
         } else {
 
-            self.check_eli_db(None).await?;
+            self.check_eli_db().await?;
 
             self.db_list.insert(
               name.to_string(),
@@ -174,19 +174,42 @@ impl DataBaseManager {
     }
 
 
-    pub async fn check_eli_db(&mut self, current: Option<String>) -> crate::Result<()> {
+    pub async fn check_eli_db(&mut self) -> crate::Result<()> {
+        
+        println!("{:?}", TOTAL_INFO.lock().await);
+
         // 检查缓存是否已满了：
         if TOTAL_INFO.lock().await.overflow() {
-            // log::warn!("The maximum number of indexes is full!");
+
+            let max_index_number = TOTAL_INFO.lock().await.max_index_number;
+            let group_max_index_number = (max_index_number / 4) as usize;
         
             // 对于 db 遍历并不会有太高的时间消耗（因为这本身就不会为一个极大的量级：O(n) 完全够用）
-            let mut minimum = (String::new(), isize::MAX);
+            let mut minimum = (String::new(), u64::MAX);
             for (name, num) in &self.eli_queue {
-                if minimum.1 > *num {
+
+                let db_index_number = self.db_list.get(name).unwrap().size() as u64;
+
+                if db_index_number == 0 {
+                    // 索引数为 0 的不考虑卸载
+                    continue;
+                }
+                if crate::server::db_stat_exist(name.to_string()).await {
+                    // 如果当前正被使用则不考虑卸载
+                    continue;
+                }
+
+
+                let final_weight = *num as u64 * (group_max_index_number as u64 / db_index_number);
+
+                println!("{}: 最终权重：{}", name, final_weight);
+
+                if minimum.1 > final_weight {
                     // 找到更小的权重值
-                    minimum = (name.to_string(), *num);
+                    minimum = (name.to_string(), final_weight);
                 }
             }
+
             // 这里会直接卸载掉权重最低的那个数据库，并加载新的。
             log::info!("weight judge: @{}[:{}] will be eliminate.", minimum.0, minimum.1);
             self.unload_database(minimum.0.to_string()).await?;
@@ -197,6 +220,7 @@ impl DataBaseManager {
 
 #[allow(dead_code)]
 impl DataBase {
+    
     pub async fn init(name: String, location: PathBuf, _config: DataBaseConfig) -> Self {
 
 
@@ -814,6 +838,7 @@ struct IndexInfo {
     time_stamp: (i64, u64),
 }
 
+#[derive(Debug)]
 struct TotalInfo {
     index_number: u32,
     max_index_number: u32,

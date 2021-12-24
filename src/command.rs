@@ -241,7 +241,7 @@ impl CommandManager {
                 // 卸载掉一个数据库（最不常用的）
                 // TODO:
                 // 这里的错误数据没有处理
-                let _ = database_manager.lock().await.check_eli_db(Some(current.to_string())).await;
+                let _ = database_manager.lock().await.check_eli_db().await;
             }
 
             let result = database_manager
@@ -353,6 +353,7 @@ impl CommandManager {
 
             let db_name = slice.get(0).unwrap();
 
+            // 将当前使用的库加入到 DB统计 中（防止被动态卸载）
             crate::server::db_stat_set(connect_id.clone(), db_name.to_string()).await;
 
             return match database_manager.lock().await.select_to(db_name).await {
