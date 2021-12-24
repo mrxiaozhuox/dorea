@@ -64,7 +64,7 @@ pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
 
     let value = fs::read_to_string(config)?;
 
-    let result = toml::from_str::<DoreaFileConfig>(&value)?;
+    let mut result = toml::from_str::<DoreaFileConfig>(&value)?;
 
     // 不能大于这个峰值 2048000 条数据
     if result.database.max_index_number >= 2048000 {
