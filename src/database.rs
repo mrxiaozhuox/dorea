@@ -33,6 +33,7 @@ pub struct DataBaseManager {
     pub(crate) eli_queue: HashMap<String, isize>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct DataBase {
     name: String,
@@ -90,7 +91,10 @@ impl DataBaseManager {
             return Ok(())
         } else {
 
-            let state = DataBase::state(name.to_string(), self.location.clone()).await.unwrap_or(
+            let state = DataBase::state(
+                name.to_string(), 
+                self.location.clone()
+            ).await.unwrap_or(
                 StateInfo {
                     index_number: 0,
                     init_version: crate::DOREA_VERSION.to_string(),
@@ -98,7 +102,7 @@ impl DataBaseManager {
                 }
             );
 
-            self.check_eli_db(Some(state.index_number as u64)).await?;
+            self.check_eli_db(state.index_number as u64).await?;
 
             self.db_list.insert(
               name.to_string(),
@@ -185,12 +189,15 @@ impl DataBaseManager {
     }
 
 
-    pub async fn check_eli_db(&mut self, need: Option<u64>) -> crate::Result<()> {
+    pub async fn check_eli_db(&mut self, need: u64) -> crate::Result<()> {
         
-        // 检查缓存是否已满了：
-        if TOTAL_INFO.lock().await.overflow() {
+        let (total_index_number, max_index_number) = TOTAL_INFO.lock().await.get_all();
 
-            let max_index_number = TOTAL_INFO.lock().await.max_index_number;
+        // 检查缓存是否已满了：
+        println!("{} + {} >= {}",total_index_number, need, max_index_number);
+        if (total_index_number + need as u32) >= max_index_number {
+
+
             let group_max_index_number = (max_index_number / 4) as usize;
         
             // 对于 db 遍历并不会有太高的时间消耗（因为这本身就不会为一个极大的量级：O(n) 完全够用）
@@ -199,15 +206,11 @@ impl DataBaseManager {
 
                 let db_index_number = self.db_list.get(name).unwrap().size() as u64;
 
-                if need != None && db_index_number < need.unwrap() {
+                if db_index_number < need {
                     // 小于需求数量的也不考虑卸载
                     continue;
                 }
 
-                if db_index_number == 0 {
-                    // 索引数为 0 的不考虑卸载
-                    continue;
-                }
                 if crate::server::db_stat_exist(name.to_string()).await {
                     // 如果当前正被使用则不考虑卸载
                     continue;
@@ -232,6 +235,7 @@ impl DataBaseManager {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Clone, Debug)]
 pub struct StateInfo {
     pub(crate) index_number: usize,
@@ -244,7 +248,9 @@ impl DataBase {
 
     // 获取 State 信息（ State 不一定完全准确 ）
     pub async fn state(name: String, location: PathBuf) -> crate::Result<StateInfo> {
-        let location = location.join(&name);
+
+        let location = location.join("storage").join(&name);
+
         let v = fs::read_to_string(location.join("state.json"))?;
         let s = serde_json::from_str::<StateInfo>(&v)?;
 
@@ -911,9 +917,9 @@ impl TotalInfo {
         (self.index_number, self.max_index_number)
     }
     // 这个函数用于检查数据库索引数量是否溢出（超出最大限制）
-    fn overflow(&self) -> bool {
-        self.index_number >= self.max_index_number
-    }
+    // fn overflow(&self) -> bool {
+    //     self.index_number >= self.max_index_number
+    // }
 }
 
 // 将 total_index 数据公开到外部
