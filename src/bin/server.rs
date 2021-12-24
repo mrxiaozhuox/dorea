@@ -90,6 +90,6 @@ async fn main() {
         document_path: workspace.clone(),
         logger_level: log_level.into()
     }).await;
-
+    
     server.listen().await;
 }

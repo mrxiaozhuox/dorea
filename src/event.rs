@@ -28,11 +28,11 @@ impl EventManager {
         let mut tick_list: HashMap<String, u32> = HashMap::new();
 
         tick_list.insert("_c_merge_db".into(), 60 * 60 * 48);
-        // tick_list.insert("_c_plugin_event".into(), 2);
+        tick_list.insert("_c_save_all".into(), 2);
 
         loop {
             self._c_merge_db(tick_list.get_mut("_c_merge_db").unwrap()).await;
-            self._c_plugin_event().await;
+            self._c_save_all(tick_list.get_mut("_c_save_all").unwrap()).await;
             interval.tick().await; 
         }
     }
@@ -58,6 +58,22 @@ impl EventManager {
 
     pub async fn _c_plugin_event(&self) {
         let _ = self.plugin_manager.lock().await.call("MANAGER.call_interval()");
+    }
+
+    pub async fn _c_save_all(&self, tick: &mut u32) {
+        
+        if *tick != 60 * 5 {
+            *tick += 1;
+            return ();
+        }
+
+        for ( _, db) in self.db_manager.lock().await.db_list.iter() {
+            let _ = db.save_state_json().await;
+        }
+
+        log::debug!("state file has been saved.");
+
+        *tick = 0;
     }
 
 }

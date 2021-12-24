@@ -90,7 +90,15 @@ impl DataBaseManager {
             return Ok(())
         } else {
 
-            self.check_eli_db().await?;
+            let state = DataBase::state(name.to_string(), self.location.clone()).await.unwrap_or(
+                StateInfo {
+                    index_number: 0,
+                    init_version: crate::DOREA_VERSION.to_string(),
+                    update_time: chrono::Local::now().timestamp(),
+                }
+            );
+
+            self.check_eli_db(Some(state.index_number as u64)).await?;
 
             self.db_list.insert(
               name.to_string(),
@@ -162,7 +170,10 @@ impl DataBaseManager {
         // 卸载某一个数据库
 
         let db_index_size = match self.db_list.get(&db) {
-            Some(v) => { v.size() as u32 },
+            Some(v) => { 
+                v.save_state_json().await?;
+                v.size() as u32
+            },
             None => { 0 },
         };
 
@@ -174,10 +185,8 @@ impl DataBaseManager {
     }
 
 
-    pub async fn check_eli_db(&mut self) -> crate::Result<()> {
+    pub async fn check_eli_db(&mut self, need: Option<u64>) -> crate::Result<()> {
         
-        println!("{:?}", TOTAL_INFO.lock().await);
-
         // 检查缓存是否已满了：
         if TOTAL_INFO.lock().await.overflow() {
 
@@ -189,6 +198,11 @@ impl DataBaseManager {
             for (name, num) in &self.eli_queue {
 
                 let db_index_number = self.db_list.get(name).unwrap().size() as u64;
+
+                if need != None && db_index_number < need.unwrap() {
+                    // 小于需求数量的也不考虑卸载
+                    continue;
+                }
 
                 if db_index_number == 0 {
                     // 索引数为 0 的不考虑卸载
@@ -202,7 +216,7 @@ impl DataBaseManager {
 
                 let final_weight = *num as u64 * (group_max_index_number as u64 / db_index_number);
 
-                println!("{}: 最终权重：{}", name, final_weight);
+                println!("{}: 最终权重: {}", name, final_weight);
 
                 if minimum.1 > final_weight {
                     // 找到更小的权重值
@@ -218,9 +232,25 @@ impl DataBaseManager {
     }
 }
 
+#[derive(Deserialize, Clone, Debug)]
+pub struct StateInfo {
+    pub(crate) index_number: usize,
+    pub(crate) init_version: String,
+    pub(crate) update_time: i64,
+}
+
 #[allow(dead_code)]
 impl DataBase {
-    
+
+    // 获取 State 信息（ State 不一定完全准确 ）
+    pub async fn state(name: String, location: PathBuf) -> crate::Result<StateInfo> {
+        let location = location.join(&name);
+        let v = fs::read_to_string(location.join("state.json"))?;
+        let s = serde_json::from_str::<StateInfo>(&v)?;
+
+        Ok(s)
+    }
+
     pub async fn init(name: String, location: PathBuf, _config: DataBaseConfig) -> Self {
 
 
@@ -237,13 +267,30 @@ impl DataBase {
         // 加载本 DataFile 中的索引数据
         let _ = data_file.load_index(&mut index_list).await;
 
-        Self {
+        let obj = Self {
             name: name.clone(),
             index: index_list,
             timestamp: chrono::Local::now().timestamp(),
             file: data_file,
             location,
-        }
+        };
+
+        let _ = obj.save_state_json().await;
+
+        obj
+    }
+
+    pub async fn save_state_json(&self) -> crate::Result<()> {
+        
+        let path = self.location.clone();
+
+        fs::write(path.join("state.json"), serde_json::json!({
+            "index_number": self.size(),
+            "init_version": crate::DOREA_VERSION,
+            "update_time": chrono::Local::now().timestamp(),
+        }).to_string().as_bytes())?;
+
+        Ok(())
     }
 
     pub async fn set(&mut self, key: &str, value: DataValue, expire: u64) -> Result<()> {
@@ -560,9 +607,9 @@ impl DataFile {
             let state_json = self.root.join("state.json");
             if !state_json.is_file() {
                 fs::write(state_json, json!({
-                    "index-number": 0,
-                    "init-version": crate::DOREA_VERSION,
-                    "update-time": chrono::Local::now().timestamp(),
+                    "index_number": 0,
+                    "init_version": crate::DOREA_VERSION,
+                    "update_time": chrono::Local::now().timestamp(),
                 }).to_string().as_bytes())?;
             }
 

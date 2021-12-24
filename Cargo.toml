@@ -107,3 +107,6 @@ doson = "0.1.5"
 
 # Tools
 rand = "0.8"
+
+# Ctrl-C signal
+ctrlc = "3.2.1"

@@ -197,6 +197,14 @@ impl DoreaServer {
 
         }
     }
+
+    /// Before you close the server, you need to call this function save some mem data.
+    pub async fn save_all(&mut self) -> crate::Result<()> {
+        for ( _, db) in self.db_manager.lock().await.db_list.iter() {
+            db.save_state_json().await?;
+        }
+        Ok(())
+    }
 }
 
 struct ConnectNumber {
