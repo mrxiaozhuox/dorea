@@ -9,7 +9,6 @@ use toml::value::Table;
 pub struct DoreaFileConfig {
     pub(crate) connection: ConnectionConfig,
     pub(crate) database: DataBaseConfig,
-    pub(crate) cache: CacheConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -23,13 +22,7 @@ pub struct DataBaseConfig {
     pub(crate) max_group_number: u16,
     pub(crate) default_group: String,
     pub(crate) pre_load_group: Vec<String>,
-    pub(crate) max_key_number: u32,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CacheConfig {
-    pub(crate) group_cache_size: u16,
-    pub(crate) check_interval: u16,
+    pub(crate) max_index_number: u32,
 }
 
 
@@ -72,6 +65,11 @@ pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
     let value = fs::read_to_string(config)?;
 
     let result = toml::from_str::<DoreaFileConfig>(&value)?;
+
+    // 不能大于这个峰值 2048000 条数据
+    if result.database.max_index_number >= 2048000 {
+        result.database.max_index_number = 2048000;
+    }
 
     Ok(result)
 }
@@ -121,14 +119,8 @@ fn init_config (path: PathBuf) -> Result<()> {
             max_group_number: 20,
             default_group: String::from("default"),
             pre_load_group: vec![String::from("default"), String::from("system")],
-            max_key_number: 102400,
+            max_index_number: 102400,
         },
-
-        cache: CacheConfig {
-            group_cache_size: 128,
-            check_interval: (10 * 1000),
-        },
-
     };
 
     let str = toml::to_string(&config)?;

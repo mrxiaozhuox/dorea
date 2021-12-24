@@ -65,7 +65,7 @@ impl DataBaseManager {
         let config = configure::load_config(&location).unwrap();
 
         // 更新数据库最大 key 数值
-        TOTAL_INFO.lock().await.maxnum_set(config.database.max_key_number);
+        TOTAL_INFO.lock().await.maxnum_set(config.database.max_index_number);
 
         let (
             db_list, 
