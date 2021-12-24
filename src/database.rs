@@ -194,7 +194,7 @@ impl DataBaseManager {
         let (total_index_number, max_index_number) = TOTAL_INFO.lock().await.get_all();
 
         // 检查缓存是否已满了：
-        println!("{} + {} >= {}",total_index_number, need, max_index_number);
+        // println!("{} + {} >= {}",total_index_number, need, max_index_number);
         if (total_index_number + need as u32) >= max_index_number {
 
 
@@ -219,7 +219,7 @@ impl DataBaseManager {
 
                 let final_weight = *num as u64 * (group_max_index_number as u64 / db_index_number);
 
-                println!("{}: 最终权重: {}", name, final_weight);
+                // println!("{}: 最终权重: {}", name, final_weight);
 
                 if minimum.1 > final_weight {
                     // 找到更小的权重值

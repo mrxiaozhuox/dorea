@@ -71,6 +71,18 @@ pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
         result.database.max_index_number = 2048000;
     }
 
+    // pre_load 最多为 4 个（保证索引数不溢出）
+    if result.database.pre_load_group.len() > 4 {
+        let mut temp = vec![];
+        let mut number = 1;
+        for i in result.database.pre_load_group {
+            if number >= 4 { break }
+            temp.push(i);
+            number += 1;
+        }
+        result.database.pre_load_group = temp;
+    }
+
     Ok(result)
 }
 
