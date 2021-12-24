@@ -260,9 +260,11 @@ impl CommandManager {
         }
 
         if command == CommandList::GET {
+
             let key = slice.get(0).unwrap().to_string();
 
-            // 暂时不考虑为读取增加权重（因为我就是不想哈哈哈）
+            // 为读取增加 1 的权重
+            database_manager.lock().await.add_weight(current.to_string(), 1).await;
             let result = database_manager
                 .lock()
                 .await
