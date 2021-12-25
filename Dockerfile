@@ -13,7 +13,7 @@ FROM rust:latest
 
 # some information
 LABEL MAINTAINER="ZhuoEr Liu <mrxzx@qq.com>"
-ENV DOREA_VERSION="3.0"
+ENV DOREA_VERSION="3.1"
 ENV DOREA_WEBSITE="https://dorea.mrxzx.info"
 
 # dorea-core work dir
