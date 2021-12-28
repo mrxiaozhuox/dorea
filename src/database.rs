@@ -56,6 +56,19 @@ static TOTAL_INFO: Lazy<Mutex<TotalInfo>> = Lazy::new(|| Mutex::new(
     TotalInfo { index_number: 0, max_index_number: u32::MAX, }
 ));
 
+pub static DB_STATE: Lazy<Mutex<HashMap<String, DataBaseState>>> = Lazy::new(|| Mutex::new(
+    HashMap::new()
+));
+
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum DataBaseState {
+    NORMAL,
+    LOCKED,
+    LOADING,
+    UNLOAD,
+}
+
 pub const CASTAGNOLI: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_ISCSI);
 
 impl DataBaseManager {
@@ -114,6 +127,15 @@ impl DataBaseManager {
             );
             self.eli_queue.insert(name.to_string(), 1);
         }
+
+        Ok(())
+    }
+
+    pub async fn load_from(&mut self,name: &str, db: DataBase) -> Result<()> {
+        self.check_eli_db(db.size() as u64).await?;
+
+        self.db_list.insert(name.to_string(), db);
+        self.eli_queue.insert(name.to_string(), 1);
 
         Ok(())
     }
@@ -216,6 +238,10 @@ impl DataBaseManager {
                     continue;
                 }
 
+                if *crate::database::DB_STATE.lock().await.get(name).unwrap_or(&DataBaseState::NORMAL) == DataBaseState::LOCKED {
+                    continue;
+                }
+
 
                 let final_weight = *num as u64 * (group_max_index_number as u64 / db_index_number);
 
@@ -228,8 +254,13 @@ impl DataBaseManager {
             }
 
             // 这里会直接卸载掉权重最低的那个数据库，并加载新的。
-            log::info!("weight judge: @{}[:{}] will be eliminate.", minimum.0, minimum.1);
-            self.unload_database(minimum.0.to_string()).await?;
+            if minimum.1 != u64::MAX {
+                log::info!("weight judge: @{}[:{}] will be eliminate.", minimum.0, minimum.1);
+                self.unload_database(minimum.0.to_string()).await?;
+            } else {
+                log::error!("no database can be eliminate.");
+                return Err(anyhow::anyhow!("no database can be eliminate."));
+            }
         }
         Ok(())
     }

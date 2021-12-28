@@ -10,8 +10,10 @@ async fn main() -> anyhow::Result<()> {
 
     let mut db = DoreaClient::connect(("127.0.0.1", 3450), "").await?;
 
+    db.select("bulk").await;
+
     // 循环 1024 次：
-    for i in 1..1025  {
+    for i in 1..100721  {
         // 将 {i} Key 设置为一个 Number 数据：{i}
         match db.setex(&i.to_string(), DataValue::Number(i as f64), 0).await {
             Ok(_) => { println!("SUCCESS: {:?}", i); },

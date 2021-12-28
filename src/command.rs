@@ -6,7 +6,7 @@
 //!
 //! Author: (YuKun Liu <mrxzx@qq.com>)
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use tokio::sync::Mutex;
 
@@ -35,6 +35,8 @@ pub enum CommandList {
     AUTH,
     VALUE,
 
+    DB,
+
     UNKNOWN,
 }
 
@@ -59,6 +61,7 @@ impl CommandList {
             "EVAL" => Self::EVAL,
             "AUTH" => Self::AUTH,
             "VALUE" => Self::VALUE,
+            "DB" => Self::DB,
 
             _ => Self::UNKNOWN,
         }
@@ -76,8 +79,8 @@ impl CommandManager {
         current: &mut String,
         value_ser_style: &mut String,
         config: &DoreaFileConfig,
-        database_manager: &Mutex<DataBaseManager>,
-        plugin_manager: &Mutex<PluginManager>,
+        database_manager: &Arc<Mutex<DataBaseManager>>,
+        plugin_manager: &Arc<Mutex<PluginManager>>,
         connect_id: &uuid::Uuid,
     ) -> (NetPacketState, Vec<u8>) {
 
@@ -102,6 +105,7 @@ impl CommandManager {
         command_argument_info.insert(CommandList::EVAL, (1, -1));
         command_argument_info.insert(CommandList::AUTH, (1, 1));
         command_argument_info.insert(CommandList::VALUE, (1, 2));
+        command_argument_info.insert(CommandList::DB, (1, 2));
 
         let mut slice: Vec<&str> = message.split(" ").collect();
 
@@ -812,6 +816,138 @@ impl CommandManager {
             );
         }
 
+        if command == CommandList::DB {
+            
+            let operation: &str = slice.get(0).unwrap();
+
+            if operation == "unload" {
+                
+                if slice.len() != 2 {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Parameter non-specification").as_bytes().to_vec(),
+                    );
+                }
+
+                let db_name: &str = slice.get(1).unwrap();
+
+                if crate::server::db_stat_exist(db_name.to_string()).await {
+                    return (
+                        NetPacketState::ERR,
+                        format!("This database is in use").as_bytes().to_vec(),
+                    );
+                }
+
+                if *crate::database::DB_STATE.lock().await.get(db_name).unwrap_or(&crate::database::DataBaseState::UNLOAD) == crate::database::DataBaseState::LOCKED {
+                    return (
+                        NetPacketState::ERR,
+                        format!("This database is locked").as_bytes().to_vec(),
+                    );
+                }
+
+                match database_manager.lock().await.unload_database(db_name.to_string()).await {
+                    Ok(_) => {
+                        return (
+                            NetPacketState::OK,
+                            vec![],
+                        );
+                    },
+                    Err(_) => {
+                        return (
+                            NetPacketState::ERR,
+                            format!("Unload failed").as_bytes().to_vec(),
+                        )
+                    },
+                };
+
+            } else if operation == "preload" {
+
+                if slice.len() != 2 {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Parameter non-specification").as_bytes().to_vec(),
+                    );
+                }
+
+                let db_name: &str = slice.get(1).unwrap();
+
+                if db_name == "" {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Parameter non-specification").as_bytes().to_vec(),
+                    );
+                }
+
+                return (
+                    NetPacketState::OK,
+                    format!("@[PRELOAD_DB]:{}", db_name).as_bytes().to_vec(),
+                );
+            } else if operation == "list" {
+
+                let mut list = vec![];
+                for ( name, _ ) in database_manager.lock().await.db_list.iter() {
+                    list.push(name.to_string());
+                }
+
+                return (
+                    NetPacketState::OK,
+                    format!("{:?}", list).as_bytes().to_vec(),
+                );
+            } else if operation == "lock" {
+
+                if slice.len() != 2 {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Parameter non-specification").as_bytes().to_vec(),
+                    );
+                }
+
+                let db_name: &str = slice.get(1).unwrap();
+
+                if db_name == "" {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Parameter non-specification").as_bytes().to_vec(),
+                    );
+                }
+
+                // 将一个数据库锁死（使得它无法被卸载，包括自动、手动卸载）
+                // 当手动卸载被执行时，程序会告知本库无法卸载（已加锁
+                crate::database::DB_STATE.lock().await.insert(
+                    db_name.to_string(), 
+                    crate::database::DataBaseState::LOCKED
+                );
+
+                return (NetPacketState::OK, vec![]);
+            } else if operation == "unlock" {
+
+                if slice.len() != 2 {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Parameter non-specification").as_bytes().to_vec(),
+                    );
+                }
+
+                let db_name: &str = slice.get(1).unwrap();
+
+                if db_name == "" {
+                    return (
+                        NetPacketState::ERR,
+                        format!("Parameter non-specification").as_bytes().to_vec(),
+                    );
+                }
+
+                // 取消锁标记
+                crate::database::DB_STATE.lock().await.insert(
+                    db_name.to_string(), 
+                    crate::database::DataBaseState::NORMAL
+                );
+
+                return (NetPacketState::OK, vec![]);
+            }
+
+        }
+
         // unknown operation.
         return (
             NetPacketState::ERR,
@@ -961,6 +1097,7 @@ mod edit_operation {
         return origin;
     }
 
+    // 将数组、元组进行元素反转
     pub fn reverse(origin: DataValue) -> DataValue {
         if let DataValue::List(mut x) = origin.clone() {
             x.reverse();

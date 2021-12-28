@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 
@@ -13,8 +15,8 @@ pub(crate) async fn process(
     socket: &mut TcpStream,
     config: DoreaFileConfig,
     current: String,
-    database_manager: &Mutex<DataBaseManager>,
-    plugin_manager: &Mutex<PluginManager>,
+    database_manager: Arc<Mutex<DataBaseManager>>,
+    plugin_manager: Arc<Mutex<PluginManager>>,
     startup_time: i64,
     value_ser_style: String,
     connect_id: uuid::Uuid,
@@ -60,8 +62,8 @@ pub(crate) async fn process(
                 &mut current,
                 &mut value_ser_style,
                 &config,
-                database_manager,
-                plugin_manager,
+                &database_manager,
+                &plugin_manager,
                 &connect_id,
             )
             .await;
@@ -72,8 +74,48 @@ pub(crate) async fn process(
             let body = match String::from_utf8_lossy(&res.1[..]).to_string().as_str() {
                 "@[SERVER_STARTUP_TIME]" => {
                     startup_time.to_string().as_bytes().to_vec()
-                }
-                _ => { res.1 } /* 不是预设数据，不处理 */
+                },
+                _ => {
+
+                    let mut tmp = res.1.clone();
+
+                    let val = String::from_utf8_lossy(&res.1[..]).to_string();
+                    if val.len() > 14 && &val[0..14] == "@[PRELOAD_DB]:" {
+                        let db_name = String::from(&val[14..]);
+                        let tmp_db_manager = database_manager.clone();
+                        tokio::spawn(async move {
+
+                            crate::database::DB_STATE.lock().await.insert(
+                                db_name.clone(), 
+                                crate::database::DataBaseState::LOADING
+                            );
+
+                            let storage_path = tmp_db_manager.lock().await.location.clone().join("storage");
+                            let db_config = tmp_db_manager.lock().await.config.database.clone();
+
+                            let ndb = crate::database::DataBase::init(
+                                db_name.to_string(),
+                                storage_path,
+                                db_config,
+                            ).await;
+
+                            match tmp_db_manager.lock().await.load_from(&db_name, ndb).await {
+                                Ok(_) => {
+                                    crate::database::DB_STATE.lock().await.insert(
+                                        db_name.clone(), 
+                                        crate::database::DataBaseState::NORMAL
+                                    );
+                                },
+                                Err(e) => {
+                                    log::error!("database load error: {}", e.to_string())
+                                }
+                            };
+                        });
+                        tmp = vec![];
+                    }
+
+                    tmp
+                } /* 不是预设数据，不处理 */
             };
 
             NetPacket::make(body, res.0).send(socket).await?;
