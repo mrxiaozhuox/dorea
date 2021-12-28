@@ -105,7 +105,7 @@ impl CommandManager {
         command_argument_info.insert(CommandList::EVAL, (1, -1));
         command_argument_info.insert(CommandList::AUTH, (1, 1));
         command_argument_info.insert(CommandList::VALUE, (1, 2));
-        command_argument_info.insert(CommandList::DB, (1, 2));
+        command_argument_info.insert(CommandList::DB, (1, 3));
 
         let mut slice: Vec<&str> = message.split(" ").collect();
 
@@ -944,6 +944,33 @@ impl CommandManager {
                 );
 
                 return (NetPacketState::OK, vec![]);
+
+            } else if operation == "status" {
+
+
+                let mut result = HashMap::new();
+                if slice.len() == 1 {
+                    let elis = database_manager.lock().await.eli_queue.clone();
+                    for (name, db) in database_manager.lock().await.db_list.iter() {
+
+                        let state = crate::database::DB_STATE.lock().await
+                            .get(name)
+                            .unwrap_or(&crate::database::DataBaseState::NORMAL).clone();
+
+                        result.insert(
+                            name.to_string(),
+                            serde_json::json!({
+                                "state": state.to_string(),
+                                "weight": elis.get(name),
+                            }),
+                        );
+                    }
+                }
+
+                return (
+                    NetPacketState::OK,
+                    serde_json::to_string(&result).unwrap_or("{}".into()).as_bytes().to_vec(),
+                );
             }
 
         }

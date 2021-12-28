@@ -3,8 +3,8 @@
 //! Date: 2021/10/25
 //! @DoreaDB Client
 
-use clap::clap_app;
-use dorea::client::{DoreaClient};
+use clap::{App, Arg, SubCommand};
+use dorea::client::DoreaClient;
 use doson::binary::Binary;
 use rustyline::Editor;
 use dorea::network::NetPacketState;
@@ -16,42 +16,122 @@ use std::process::exit;
 #[tokio::main]
 pub async fn main() {
 
-    let matches = clap_app!(dorea =>
-        (version: "0.2.1")
-        (author: "ZhuoEr Liu <mrxzx@qq.com>")
-        (about: "DoreaDB Cli Tool")
-        (@arg HOSTNAME: -h --hostname +takes_value "Set the server hostname")
-        (@arg PORT: -p --port +takes_value "Set the server port")
-        (@arg PASSWORD: -a --password +takes_value "Connect password")
-    ).get_matches();
+    // let matches = clap_app!(dorea =>
+    //     (version: "0.2.1")
+    //     (author: "ZhuoEr Liu <mrxzx@qq.com>")
+    //     (about: "DoreaDB Cli Tool")
+    //     (@arg HOSTNAME: -h --hostname +takes_value "Set the server hostname")
+    //     (@arg PORT: -p --port +takes_value "Set the server port")
+    //     (@arg PASSWORD: -a --password +takes_value "Connect password")
+    //     (@subcommand run => 
+    //         (about: "Try to run a command with dorea-cli")
+    //         (@arg COMMAND: +required "target command")
+    //         (@arg HOSTNAME: -h --hostname +takes_value "Set the server hostname")
+    //         (@arg PORT: -p --port +takes_value "Set the server port")
+    //         (@arg PASSWORD: -a --password +takes_value "Connect password")
+    //         (@arg DATABASE: -d --database +takes_value "Select DataBase")
+    //     )
+    // ).get_matches();
 
-    let hostname = match matches.value_of("HOSTNAME") {
-        None => "127.0.0.1",
-        Some(v) => v
-    }.to_string();
+    let matches = App::new("Dorea Cli")
+        .version("0.3.1")
+        .author("YuKun Liu <mrxzx.info@gmail.com>")
+        .about("DoreaDB Cli Tool")
+        .arg(
+            Arg::with_name("HOSTNAME").short("h").long("hostname")
+                .takes_value(true)
+                .help("Set the server hostname")
+                .default_value("127.0.0.1")
+        )
+        .arg(
+            Arg::with_name("PORT").short("p").long("port")
+                .takes_value(true)
+                .help("Set the server port")
+                .default_value("3450")
+        )
+        .arg(
+            Arg::with_name("PASSWORD").short("a").long("password")
+                .takes_value(true)
+                .help("Connect password")
+                .default_value("")
+        )
+        .subcommand(
+        SubCommand::with_name("run").about("Try to run a command with dorea-cli")
+                .arg(Arg::with_name("COMMAND").required(true))
+                .arg(
+                    Arg::with_name("HOSTNAME").short("h").long("hostname")
+                        .takes_value(true)
+                        .help("Set the server hostname")
+                        .default_value("127.0.0.1")
+                )
+                .arg(
+                    Arg::with_name("PORT").short("p").long("port")
+                        .takes_value(true)
+                        .help("Set the server port")
+                        .default_value("3450")
+                )
+                .arg(
+                    Arg::with_name("PASSWORD").short("a").long("password")
+                        .takes_value(true)
+                        .help("Connect password")
+                        .default_value("")
+                )
+                .arg(
+                    Arg::with_name("DATABASE").short("t").long("database")
+                        .takes_value(true)
+                        .help("Target database")
+                        .default_value("default")
+                )
+        )
+    .get_matches();
 
-    let port = match matches.value_of("PORT") {
-        None => 3450,
-        Some(v) => {
-            match v.parse::<u16>() {
-                Ok(n) => n,
-                Err(_) => 3450
+    let hostname = matches.value_of("HOSTNAME").unwrap();
+    let port = matches.value_of("PORT").unwrap();
+    let password = matches.value_of("PASSWORD").unwrap();
+
+    if let Some(matches) = matches.subcommand_matches("run") {
+
+        let hostname = matches.value_of("HOSTNAME").unwrap();
+        let port = matches.value_of("PORT").unwrap();
+        let password = matches.value_of("PASSWORD").unwrap();
+        let target = matches.value_of("DATABASE").unwrap();
+
+        let command = matches.value_of("COMMAND").unwrap();
+        
+        let tc = DoreaClient::connect(
+            (
+                Box::leak(hostname.to_string().into_boxed_str()),
+                port.parse::<u16>().unwrap_or(3450),
+            ),
+            password
+        ).await;
+
+        let mut tc = match tc {
+            Ok(c) => c,
+            Err(err) => {
+                panic!("{:?}", err);
             }
-        }
-    };
+        };
 
-    let password = match matches.value_of("PASSWORD") {
-        None => "",
-        Some(v) => v
-    };
+        tc.select(target).await.expect("database select failed!");
+
+        let res = execute(command, &mut tc).await;
+        if res.0 == NetPacketState::ERR {
+            println!("[Error]: {}", res.1);
+        } else {
+            println!("{}", res.1);
+        }
+
+        return;
+    }
 
     let password = password.clone();
 
     // 获取数据库客户端连接
-    let c =DoreaClient::connect(
+    let c = DoreaClient::connect(
         (
-            Box::leak(hostname.clone().into_boxed_str()),
-            port
+            Box::leak(hostname.to_string().into_boxed_str()),
+            port.parse::<u16>().unwrap_or(3450),
         ),
         password
     ).await;
@@ -63,7 +143,7 @@ pub async fn main() {
         }
     };
 
-    let prompt = format!("{}:{} ~> ",hostname,port);
+    let prompt = format!("{}:{} ~> ", hostname, port);
     let mut readline = Editor::<()>::new();
 
     loop {

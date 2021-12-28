@@ -61,12 +61,23 @@ pub static DB_STATE: Lazy<Mutex<HashMap<String, DataBaseState>>> = Lazy::new(|| 
 ));
 
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum DataBaseState {
     NORMAL,
     LOCKED,
     LOADING,
     UNLOAD,
+}
+
+impl ToString for DataBaseState {
+    fn to_string(&self) -> String {
+        match &self {
+            DataBaseState::NORMAL => "Normal".to_string(),
+            DataBaseState::LOCKED => "Locked".to_string(),
+            DataBaseState::LOADING => "Loading".to_string(),
+            DataBaseState::UNLOAD => "Unload".to_string(),
+        }
+    }
 }
 
 pub const CASTAGNOLI: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_ISCSI);
