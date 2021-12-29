@@ -962,6 +962,7 @@ impl CommandManager {
                             serde_json::json!({
                                 "state": state.to_string(),
                                 "weight": elis.get(name),
+                                "index_num": db.size(),
                             }),
                         );
                     }
@@ -972,6 +973,15 @@ impl CommandManager {
                     serde_json::to_string(&result).unwrap_or("{}".into()).as_bytes().to_vec(),
                 );
             }
+
+        }
+
+        // 暂时不支持具体内容查询（这玩意我确实无法进行设计qwq）
+        if command == CommandList::SEARCH {
+            
+            let expression: &str = slice.get(0).unwrap();
+
+            
 
         }
 
