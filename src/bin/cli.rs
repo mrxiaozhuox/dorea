@@ -57,7 +57,7 @@ pub async fn main() {
         )
         .subcommand(
         SubCommand::with_name("run").about("Try to run a command with dorea-cli")
-                .arg(Arg::with_name("COMMAND").required(true))
+                .arg(Arg::with_name("COMMAND").required(true).index(1))
                 .arg(
                     Arg::with_name("HOSTNAME").short("h").long("hostname")
                         .takes_value(true)

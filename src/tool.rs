@@ -12,3 +12,11 @@ pub fn rand_str() -> String {
     .collect();
     chars
 }
+
+// 模糊匹配单条匹配函数
+pub fn fuzzy_search(exp: &str, value: &str) -> bool {
+
+    
+
+    todo!();
+}
