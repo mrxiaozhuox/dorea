@@ -981,7 +981,27 @@ impl CommandManager {
             
             let expression: &str = slice.get(0).unwrap();
 
-            
+            let mut limit = 0;
+
+            if slice.len() >= 2 {
+                limit = slice.get(1).unwrap().parse::<u16>().unwrap_or(0);
+            }
+
+            let keys = database_manager.lock().await.db_list.get(current).unwrap().keys().await;
+
+            let mut result = vec![];
+
+            for item in keys {
+                if crate::tool::fuzzy_search(expression, &item) {
+                    result.push(item.clone());
+                    if (result.len() as u16) >= limit && limit != 0 { break; }
+                }
+            }
+
+            return (
+                NetPacketState::OK,
+                format!("{:?}", result).as_bytes().to_vec(),
+            )
 
         }
 

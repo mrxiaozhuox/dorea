@@ -28,8 +28,6 @@ pub fn fuzzy_search(exp: &str, value: &str) -> bool {
 
     for letter in value.iter_elements() {
 
-        // println!("{:?}, {:?}: {:?}", letter, match_curr_char, wildcard_state);
-
         if match_curr_char.is_some() && match_curr_char.unwrap() == '*' {
             wildcard_state = u16::MAX;
             match_curr_char = exp_chars.next();
@@ -55,6 +53,10 @@ pub fn fuzzy_search(exp: &str, value: &str) -> bool {
         return false;
     }
 
+    if match_curr_char.is_some() && match_curr_char.unwrap() !=  '*' {
+        return false;
+    }
+
     exp_chars.next().is_none()
 }
 
@@ -70,5 +72,7 @@ fn test_fuzzy_search() {
     assert!(!fuzzy_search("?.com", "baidu.com"));
     assert!(!fuzzy_search("dorea-server", "dorea-ser"));
     assert!(!fuzzy_search("dorea-ser", "dorea-server"));
+    assert!(!fuzzy_search("dorea?", "dorea"));
+    assert!(fuzzy_search("dorea*", "dorea"));
 
 }
