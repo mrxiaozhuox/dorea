@@ -10,7 +10,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut db = DoreaClient::connect(("127.0.0.1", 3450), "").await?;
 
-    db.select("bulk").await;
+    // db.select("bulk").await;
 
     // 循环 1024 次：
     for i in 1..100721  {

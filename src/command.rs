@@ -974,6 +974,10 @@ impl CommandManager {
                 );
             }
 
+            return (
+                NetPacketState::ERR,
+                "Unknown subcommand.".as_bytes().to_vec(),
+            );
         }
 
         // 暂时不支持具体内容查询（这玩意我确实无法进行设计qwq）
