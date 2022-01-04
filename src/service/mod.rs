@@ -1,10 +1,12 @@
 //! web server 启动器程序
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::path::PathBuf;
 use axum::{route, AddExtensionLayer};
 use axum::prelude::*;
 use axum::http::StatusCode;
+use doson::DataValue;
 use std::convert::Infallible;
 use std::borrow::Cow;
 
@@ -16,6 +18,7 @@ use std::time::Duration;
 pub mod routes;
 pub mod secret;
 pub mod tools;
+pub mod db;
 
 pub struct ShareState {
     pub(crate) config: (crate::configure::DoreaFileConfig, crate::configure::RestConfig),
@@ -38,7 +41,6 @@ pub async fn startup(
     }
 
     // 全局共享状态数据
-
     let share_state = Arc::new(
         ShareState {
             config: (
@@ -48,6 +50,19 @@ pub async fn startup(
             client_addr: (hostname, dorea_port)
         }
     );
+
+    // 测试数据库连接，并初始化必须数据：
+    match crate::client::DoreaClient::connect(
+        (hostname, dorea_port),
+        &share_state.config.0.connection.connection_password,
+    ).await {
+        Ok(mut c) => { init_service_system_db(
+            &mut c,
+        ).await.unwrap(); },
+        Err(err) => {
+            panic!("{}", err);
+        },
+    };
 
     let rest_port = rest_config.foundation.port;
     tokio::task::spawn(async move {
@@ -107,3 +122,16 @@ pub async fn startup(
     Ok(())
 }
 
+// this function will init the system data.
+pub async fn init_service_system_db (
+    client: &mut crate::client::DoreaClient,
+) -> crate::Result<()> {
+    
+    client.select("system").await?;
+
+    if client.get("service@accounts").await.is_none() {
+        client.setex("service@accounts", DataValue::Dict(HashMap::new()), 0).await;
+    }
+
+    Ok(())
+}

@@ -8,7 +8,6 @@ use crate::configure::DoreaFileConfig;
 use crate::database::DataBaseManager;
 use crate::network::{Frame, NetPacket, NetPacketState};
 use crate::Result;
-use crate::plugin::PluginManager;
 
 // connection process
 pub(crate) async fn process(
@@ -16,7 +15,6 @@ pub(crate) async fn process(
     config: DoreaFileConfig,
     current: String,
     database_manager: Arc<Mutex<DataBaseManager>>,
-    plugin_manager: Arc<Mutex<PluginManager>>,
     startup_time: i64,
     value_ser_style: String,
     connect_id: uuid::Uuid,
@@ -63,7 +61,6 @@ pub(crate) async fn process(
                 &mut value_ser_style,
                 &config,
                 &database_manager,
-                &plugin_manager,
                 &connect_id,
             )
             .await;

@@ -34,7 +34,7 @@ pub async fn main() {
     // ).get_matches();
 
     let matches = App::new("Dorea Cli")
-        .version("0.3.1")
+        .version("0.4.0")
         .author("YuKun Liu <mrxzx.info@gmail.com>")
         .about("DoreaDB Cli Tool")
         .arg(

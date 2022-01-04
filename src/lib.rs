@@ -4,7 +4,7 @@
 use once_cell::sync::Lazy;
 
 // Dorea db version (current)
-pub const DOREA_VERSION: &'static str = "0.3.1";
+pub const DOREA_VERSION: &'static str = "0.4.0";
 
 // current version support load-storage version list.
 #[allow(dead_code)]
@@ -50,7 +50,6 @@ mod handle;
 mod event;
 mod logger;
 mod service;
-mod plugin;
 mod tool;
 
 type Result<T> = std::result::Result<T, anyhow::Error>;

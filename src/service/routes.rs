@@ -26,6 +26,8 @@ use axum::http::{StatusCode, Response};
 use crate::client::{DoreaClient, InfoType};
 use crate::value::DataValue;
 
+use super::db;
+
 // Dorea Web 主页
 pub async fn index() -> Api {
     Api::json(StatusCode::OK, json!(format!("dorea: V{}",crate::DOREA_VERSION)))
@@ -37,19 +39,50 @@ pub async fn auth(
     state: extract::Extension<Arc<ShareState>>,
 ) -> Api {
 
+    let account = form.account.clone();
     let password = form.password.clone();
 
-    let v = &state.config.1.account;
-    let mut account: String = String::new();
-    for i in v {
-        if i.1.to_string() == password {
-            account = i.0.to_string();
-            break;
-        }
-    }
+    let mut account_info = db::ServiceAccountInfo {
+        usable: false,
+        username: account.clone(),
+        password: password.clone(),
+        usa_database: None,
+        cls_command: vec![],
+    };
 
-    if account == String::new() {
-        return Api::error(StatusCode::INTERNAL_SERVER_ERROR, "account info not found.");
+    let db_info = (
+        state.client_addr,
+        state.config.0.connection.connection_password.clone()
+    );
+
+    if account == String::from("master") {
+        
+        if password != state.config.1.master_password {
+            return Api::error(StatusCode::BAD_REQUEST, "account password error.");
+        }
+        account_info.usable = true;
+
+    } else {
+        
+        // 通过数据库读取相关用户账号信息
+        let accounts = db::accounts(
+            db_info
+        ).await;
+        
+        if !accounts.contains_key(&account) {
+            return Api::error(StatusCode::BAD_REQUEST, "unknown account.");
+        }
+
+        let info = accounts.get(&account).unwrap().clone();
+        if !info.usable {
+            return Api::error(StatusCode::BAD_REQUEST, "account disable.");
+        }
+
+        if info.password != password {
+            return Api::error(StatusCode::BAD_REQUEST, "account password error.");
+        }
+    
+        account_info = info;
     }
 
     let jwt = secret::Secret {
@@ -57,7 +90,7 @@ pub async fn auth(
     };
 
     let v = match jwt.apply(
-        account.clone(),
+        account_info.clone(),
         60 * 60 * 12
     ) {
         Ok(v) => v,
@@ -91,7 +124,7 @@ pub async fn ping(
         token: state.config.1.foundation.token.clone()
     };
 
-    let _v = match jwt.validation(token) {
+    let _ = match jwt.validation(token) {
         Ok(v) => v,
         Err(e) => {
             return Api::error(
@@ -169,9 +202,9 @@ pub async fn controller (
 
     let group = group[1..].to_string();
 
-    let login_level = v.claims.level.clone();
-
-    if login_level != group && login_level != "master".to_string() {
+    let accinfo = v.claims.account.clone();
+    let usals = accinfo.usa_database.clone();
+    if usals.is_some() && !usals.unwrap().contains(&group) {
         return Api::error(
             StatusCode::UNAUTHORIZED,
             "token do not have access to this database."

@@ -11,7 +11,6 @@ use crate::configure::DoreaFileConfig;
 use crate::database::DataBaseManager;
 use crate::event::EventManager;
 use crate::handle;
-use crate::plugin::PluginManager;
 
 use once_cell::sync::Lazy;
 
@@ -27,7 +26,6 @@ pub struct DoreaServer {
     server_listener: TcpListener,
     server_config: DoreaFileConfig,
     startup_time: i64,
-    plugin_manager: Arc<Mutex<PluginManager>>,
     connection_number: Arc<Mutex<ConnectNumber>>,
     db_manager: Arc<Mutex<DataBaseManager>>,
 }
@@ -85,13 +83,10 @@ impl DoreaServer {
         };
 
 
-        let plugin_manager = PluginManager::init(&document_path).await.unwrap();
-
         let object = Self {
             _server_options: options,
             server_listener: listener,
             server_config: config.clone(),
-            plugin_manager: Arc::new(Mutex::new(plugin_manager)),
             connection_number: Arc::new(Mutex::new(ConnectNumber { num: 0 })),
             db_manager: Arc::new(Mutex::new(DataBaseManager::new(document_path.clone()).await)),
             startup_time: chrono::Local::now().timestamp() + 100,
@@ -102,7 +97,6 @@ impl DoreaServer {
         // 事件驱动器加载
         let event_manager = EventManager::init(
             object.db_manager.clone(),
-            object.plugin_manager.clone()
         ).await;
 
         tokio::task::spawn(async move {
@@ -124,11 +118,6 @@ impl DoreaServer {
             (self._server_options.hostname.clone(), self._server_options.port),
             &doc_path
         ).await;
-
-        self.plugin_manager.lock().await.loading(
-            self.db_manager.clone(),
-            self.server_config.database.default_group.clone()
-        ).await.unwrap();
 
         loop {
 
@@ -166,7 +155,6 @@ impl DoreaServer {
             let current = current_db.clone();
 
             let db_manager = Arc::clone(&self.db_manager);
-            let plugin_manager = Arc::clone(&self.plugin_manager);
 
             let connect_num = Arc::clone(&self.connection_number);
 
@@ -184,7 +172,6 @@ impl DoreaServer {
                     config,
                     current,
                     db_manager,
-                    plugin_manager,
                     startup_time,
                     value_ser_style.clone(),
                     connid.clone(),

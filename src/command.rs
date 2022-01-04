@@ -14,7 +14,6 @@ use crate::{
     configure::DoreaFileConfig, 
     database::{DataBase, DataBaseManager}, 
     network::NetPacketState, 
-    plugin::PluginManager, 
     value::DataValue,
 };
 
@@ -82,7 +81,6 @@ impl CommandManager {
         value_ser_style: &mut String,
         config: &DoreaFileConfig,
         database_manager: &Arc<Mutex<DataBaseManager>>,
-        plugin_manager: &Arc<Mutex<PluginManager>>,
         connect_id: &uuid::Uuid,
     ) -> (NetPacketState, Vec<u8>) {
 
@@ -123,23 +121,6 @@ impl CommandManager {
 
             if command_str == "" {
                 return (NetPacketState::EMPTY, vec![]);
-            }
-
-
-            let mut lua_arg = Vec::new();
-            for i in slice { lua_arg.push(i.to_string()); }
-
-            let crs = plugin_manager.lock().await.custom_command(
-                command_str,
-                lua_arg,
-                current.clone(),
-            );
-
-            if crs.is_ok() {
-                return (
-                    NetPacketState::OK,
-                    crs.unwrap().as_bytes().to_vec(),
-                );
             }
 
             return (

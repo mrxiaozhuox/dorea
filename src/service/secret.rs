@@ -1,12 +1,14 @@
 use serde::{Serialize, Deserialize};
 use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, TokenData};
 
+use super::db::ServiceAccountInfo;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     iat: usize,
     exp: usize,
     sub: String,
-    pub level: String,
+    pub account: ServiceAccountInfo,
 }
 
 pub struct Secret {
@@ -17,7 +19,7 @@ impl Secret {
 
     // Secret.apply
     // this function will apply a JWT Token for the Dorea-Service
-    pub fn apply(&self ,level: String ,expire: usize) -> crate::Result<String> {
+    pub fn apply(&self ,account: ServiceAccountInfo ,expire: usize) -> crate::Result<String> {
 
         let now = chrono::Local::now().timestamp() as usize;
 
@@ -25,7 +27,7 @@ impl Secret {
             iat: now,
             exp: now + expire,
             sub: "DOREA@SERVICE".to_string(),
-            level
+            account
         };
 
         let token = encode(
@@ -54,5 +56,6 @@ impl Secret {
 // 验证参数结构体
 #[derive(Deserialize)]
 pub struct SecretForm {
+    pub account: String,
     pub password: String,
 }

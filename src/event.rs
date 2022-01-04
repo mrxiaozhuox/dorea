@@ -2,13 +2,12 @@ use std::{collections::HashMap, sync::Arc};
 
 use tokio::{sync::Mutex, time};
 
-use crate::{database::DataBaseManager, plugin::PluginManager};
+use crate::database::DataBaseManager;
 
 
 #[derive(Debug)]
 pub struct EventManager {
     db_manager: Arc<Mutex<DataBaseManager>>,
-    plugin_manager: Arc<Mutex<PluginManager>>
 }
 
 #[allow(dead_code)]
@@ -16,9 +15,8 @@ impl EventManager {
 
     pub(crate) async fn init(
         db_manager: Arc<Mutex<DataBaseManager>>,
-        plugin_manager: Arc<Mutex<PluginManager>>
     ) -> Self {
-        EventManager { db_manager, plugin_manager }
+        EventManager { db_manager }
     }
 
     pub async fn loop_events (&self) {
@@ -54,10 +52,6 @@ impl EventManager {
         }
 
         *tick = 0;
-    }
-
-    pub async fn _c_plugin_event(&self) {
-        let _ = self.plugin_manager.lock().await.call("MANAGER.call_interval()");
     }
 
     pub async fn _c_save_all(&self, tick: &mut u32) {
