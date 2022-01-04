@@ -36,7 +36,7 @@ pub enum CommandList {
     VALUE,
 
     DB,
-    DOC,
+    DOCS,
 
     UNKNOWN,
 }
@@ -63,7 +63,7 @@ impl CommandList {
             "AUTH" => Self::AUTH,
             "VALUE" => Self::VALUE,
             "DB" => Self::DB,
-            "DOC" => Self::DOC,
+            "DOCS" => Self::DOCS,
 
             _ => Self::UNKNOWN,
         }
@@ -108,7 +108,7 @@ impl CommandManager {
         command_argument_info.insert(CommandList::AUTH, (1, 1));
         command_argument_info.insert(CommandList::VALUE, (1, 2));
         command_argument_info.insert(CommandList::DB, (1, 3));
-        command_argument_info.insert(CommandList::DOC, (1, 1));
+        command_argument_info.insert(CommandList::DOCS, (0, 1));
 
         let mut slice: Vec<&str> = message.split(" ").collect();
 
@@ -984,20 +984,42 @@ impl CommandManager {
             );
         }
 
-        if command == CommandList::DOC {
+        if command == CommandList::DOCS {
+            
+            if slice.len() == 0 {
+                return (
+                    NetPacketState::OK,
+                    format!("{}", crate::docs::SUBCOMMAND_DOCS_HELP).as_bytes().to_vec(),
+                )
+            }
+
             let target: &str = slice.get(0).unwrap();
+
+            if target.to_uppercase() == "DOCS" {
+                return (
+                    NetPacketState::OK,
+                    format!("{}", crate::docs::SUBCOMMAND_INFO_HELP).as_bytes().to_vec(),
+                )
+            }
             if target.to_uppercase() == "INFO" {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::constant::SUBCOMMAND_INFO_HELP).as_bytes().to_vec(),
+                    format!("{}", crate::docs::SUBCOMMAND_INFO_HELP).as_bytes().to_vec(),
                 )
             }
             if target.to_uppercase() == "EDIT" {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::constant::SUBCOMMAND_EDIT_HELP).as_bytes().to_vec(),
+                    format!("{}", crate::docs::SUBCOMMAND_EDIT_HELP).as_bytes().to_vec(),
                 )
             }
+            if target.to_uppercase() == "DB" {
+                return (
+                    NetPacketState::OK,
+                    format!("{}", crate::docs::SUBCOMMAND_DB_HELP).as_bytes().to_vec(),
+                )
+            }
+
         }
 
         // 暂时不支持具体内容查询（这玩意我确实无法进行设计qwq）

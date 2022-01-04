@@ -41,7 +41,7 @@ pub mod network;
 pub mod macros;
 
 #[cfg(feature = "processor")]
-pub mod constant;
+pub mod docs;
 
 mod command;
 mod configure;

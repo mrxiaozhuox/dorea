@@ -156,7 +156,7 @@ pub async fn main() {
 
                 let res = execute(&cmd, &mut c).await;
 
-                if cmd.split(" ").collect::<Vec<&str>>()[0].to_uppercase() == "DOC" {
+                if cmd.split(" ").collect::<Vec<&str>>()[0].to_uppercase() == "DOCS" {
                     if res.0 == NetPacketState::OK {
                         println!("{}", res.1);
                     } else {
