@@ -40,6 +40,9 @@ pub mod network;
 #[cfg(feature = "processor")]
 pub mod macros;
 
+#[cfg(feature = "processor")]
+pub mod constant;
+
 mod command;
 mod configure;
 mod database;

@@ -36,6 +36,7 @@ pub enum CommandList {
     VALUE,
 
     DB,
+    DOC,
 
     UNKNOWN,
 }
@@ -62,6 +63,7 @@ impl CommandList {
             "AUTH" => Self::AUTH,
             "VALUE" => Self::VALUE,
             "DB" => Self::DB,
+            "DOC" => Self::DOC,
 
             _ => Self::UNKNOWN,
         }
@@ -106,6 +108,7 @@ impl CommandManager {
         command_argument_info.insert(CommandList::AUTH, (1, 1));
         command_argument_info.insert(CommandList::VALUE, (1, 2));
         command_argument_info.insert(CommandList::DB, (1, 3));
+        command_argument_info.insert(CommandList::DOC, (1, 1));
 
         let mut slice: Vec<&str> = message.split(" ").collect();
 
@@ -524,6 +527,7 @@ impl CommandManager {
         // sort 对数组进行排序（仅支持 list ）
         // reverse 对数组进行反转（仅支持 list ）
         if command == CommandList::EDIT {
+            
             let key: &str = slice.get(0).unwrap();
             let operation: &str = slice.get(1).unwrap();
 
@@ -978,6 +982,22 @@ impl CommandManager {
                 NetPacketState::ERR,
                 "Unknown subcommand.".as_bytes().to_vec(),
             );
+        }
+
+        if command == CommandList::DOC {
+            let target: &str = slice.get(0).unwrap();
+            if target.to_uppercase() == "INFO" {
+                return (
+                    NetPacketState::OK,
+                    format!("{}", crate::constant::SUBCOMMAND_INFO_HELP).as_bytes().to_vec(),
+                )
+            }
+            if target.to_uppercase() == "EDIT" {
+                return (
+                    NetPacketState::OK,
+                    format!("{}", crate::constant::SUBCOMMAND_EDIT_HELP).as_bytes().to_vec(),
+                )
+            }
         }
 
         // 暂时不支持具体内容查询（这玩意我确实无法进行设计qwq）

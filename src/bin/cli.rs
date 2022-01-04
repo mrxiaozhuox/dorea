@@ -155,7 +155,16 @@ pub async fn main() {
                 if cmd == "" { continue }
 
                 let res = execute(&cmd, &mut c).await;
-                println!("[{:?}]: {}",res.0, res.1);
+
+                if cmd.split(" ").collect::<Vec<&str>>()[0].to_uppercase() == "DOC" {
+                    if res.0 == NetPacketState::OK {
+                        println!("{}", res.1);
+                    } else {
+                        println!("[ERR]: Document load failed.")
+                    }
+                } else {
+                    println!("[{:?}]: {}",res.0, res.1);
+                }
             }
             Err(_) => { std::process::exit(0); } /* exit cli system */
         }
