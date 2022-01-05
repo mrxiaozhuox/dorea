@@ -1,8 +1,7 @@
 use crate::Result;
 
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 use serde::{Serialize, Deserialize};
-use toml::value::Table;
 
 /// Dorea File Config Struct
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -29,15 +28,10 @@ pub struct DataBaseConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RestConfig {
-    pub(crate) foundation: RestFoundation,
-    pub(crate) master_password: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RestFoundation {
     pub(crate) switch: bool,
     pub(crate) port: u16,
     pub(crate) token: String,
+    pub(crate) master_password: String,
 }
 
 #[allow(dead_code)]
@@ -46,7 +40,7 @@ pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
     let config = path.join("config.toml");
 
     if ! config.is_file() {
-        init_config(config.clone())?;
+        init_config(config.clone()).unwrap();
     }
 
     let value = fs::read_to_string(config)?;
@@ -74,6 +68,7 @@ pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
 }
 
 pub(crate) fn load_rest_config(path: &PathBuf) -> Result<RestConfig> {
+
     let config = path.join("service.toml");
 
     if ! config.is_file() {
@@ -106,19 +101,17 @@ fn init_config (path: PathBuf) -> Result<()> {
         },
     };
 
-    let str = toml::to_string(&config)?;
+    let dorea = toml::to_string(&config)?;
 
-    fs::write(&path, str)?;
+    fs::write(&path, dorea)?;
 
 
     // Rest Service Config
     let rest = RestConfig {
-        foundation: RestFoundation {
-            switch: true,
-            port: 3451,
-            token: crate::tool::rand_str(),
-        },
         master_password: String::from("DOREA@SERVICE"),
+        switch: true,
+        port: 3451,
+        token: crate::tool::rand_str(),
     };
 
     let rest = toml::to_string(&rest)?;

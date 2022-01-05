@@ -36,7 +36,7 @@ pub async fn startup(
     // 读取 rest-service path
     let rest_config = crate::configure::load_rest_config(&document_path)?;
 
-    if ! rest_config.foundation.switch {
+    if ! rest_config.switch {
         return Ok(());
     }
 
@@ -52,19 +52,22 @@ pub async fn startup(
     );
 
     // 测试数据库连接，并初始化必须数据：
-    match crate::client::DoreaClient::connect(
-        (hostname, dorea_port),
-        &share_state.config.0.connection.connection_password,
-    ).await {
-        Ok(mut c) => { init_service_system_db(
-            &mut c,
-        ).await.unwrap(); },
-        Err(err) => {
-            panic!("{}", err);
-        },
-    };
+    // match crate::client::DoreaClient::connect(
+    //     (hostname, dorea_port),
+    //     &share_state.config.0.connection.connection_password,
+    // ).await {
+    //     Ok(mut c) => { 
+    //         // init_service_system_db(
+    //         //     &mut c,
+    //         // ).await.unwrap(); 
+    //         println!("SB");
+    //     },
+    //     Err(err) => {
+    //         panic!("{}", err);
+    //     },
+    // };
 
-    let rest_port = rest_config.foundation.port;
+    let rest_port = rest_config.port;
     tokio::task::spawn(async move {
 
         let app = route(
@@ -130,7 +133,7 @@ pub async fn init_service_system_db (
     client.select("system").await?;
 
     if client.get("service@accounts").await.is_none() {
-        client.setex("service@accounts", DataValue::Dict(HashMap::new()), 0).await;
+        client.setex("service@accounts", DataValue::Dict(HashMap::new()), 0).await?;
     }
 
     Ok(())

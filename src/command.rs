@@ -36,6 +36,7 @@ pub enum CommandList {
 
     DB,
     DOCS,
+    SERVICE,
 
     UNKNOWN,
 }
@@ -63,6 +64,7 @@ impl CommandList {
             "VALUE" => Self::VALUE,
             "DB" => Self::DB,
             "DOCS" => Self::DOCS,
+            "SERVICE" => Self::SERVICE,
 
             _ => Self::UNKNOWN,
         }
@@ -107,6 +109,7 @@ impl CommandManager {
         command_argument_info.insert(CommandList::VALUE, (1, 2));
         command_argument_info.insert(CommandList::DB, (1, 3));
         command_argument_info.insert(CommandList::DOCS, (0, 1));
+        command_argument_info.insert(CommandList::SERVICE, (1, -1));
 
         let mut slice: Vec<&str> = message.split(" ").collect();
 
@@ -999,6 +1002,36 @@ impl CommandManager {
                     NetPacketState::OK,
                     format!("{}", crate::docs::SUBCOMMAND_DB_HELP).as_bytes().to_vec(),
                 )
+            }
+
+        }
+
+        if command == CommandList::SERVICE {
+            
+            let operation: &str = slice.get(0).unwrap();
+
+            if operation == "account" || operation == "acc" {
+
+                if !database_manager.lock().await.db_list.contains_key("system") {
+                    if database_manager.lock().await.select_to("system").await.is_err() {
+                        return (
+                            NetPacketState::ERR,
+                            format!("Load system db failed.").as_bytes().to_vec(),
+                        );
+                    }
+                }
+
+                let v = database_manager.lock().await
+                    .db_list.get("system").unwrap()
+                    .get("service@dorea").await.unwrap_or(DataValue::Dict(HashMap::new()))
+                ;
+
+                if slice.len() == 1 {
+                    return (
+                        NetPacketState::OK,
+                        format!("{:?}", v).as_bytes().to_vec(),
+                    );
+                }
             }
 
         }

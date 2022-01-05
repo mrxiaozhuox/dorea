@@ -86,7 +86,7 @@ pub async fn auth(
     }
 
     let jwt = secret::Secret {
-        token: state.config.1.foundation.token.clone()
+        token: state.config.1.token.clone()
     };
 
     let v = match jwt.apply(
@@ -121,7 +121,7 @@ pub async fn ping(
     let token = String::from(auth.0.token());
 
     let jwt = secret::Secret {
-        token: state.config.1.foundation.token.clone()
+        token: state.config.1.token.clone()
     };
 
     let _ = match jwt.validation(token) {
@@ -180,7 +180,7 @@ pub async fn controller (
     let token = String::from(auth.0.token());
 
     let jwt = secret::Secret {
-        token: state.config.1.foundation.token.clone()
+        token: state.config.1.token.clone()
     };
 
     let v = match jwt.validation(token) {
