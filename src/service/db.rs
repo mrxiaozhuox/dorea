@@ -12,6 +12,7 @@ pub struct ServiceAccountInfo {
     pub(crate) password: String,
     pub(crate) usa_database: Option<Vec<String>>,
     pub(crate) cls_command: Vec<String>,
+    pub(crate) checker: String,
 }
 
 type DatabaseInfo = ((&'static str, u16), String);
@@ -62,12 +63,18 @@ pub async fn accounts(db_info: DatabaseInfo) -> HashMap<String, ServiceAccountIn
                 cls_command.push(usa.as_string().unwrap_or(String::new()))
             }
             
+            let checker = v.get("checker")
+                .unwrap_or(&doson::DataValue::None)
+                .as_string().unwrap_or(String::new())
+            ;
+
             result.insert(item.0.clone(), ServiceAccountInfo {
                 usable,
                 username,
                 password,
                 usa_database: Some(usa_database),
                 cls_command,
+                checker,
             });
 
         }

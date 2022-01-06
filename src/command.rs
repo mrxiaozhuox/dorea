@@ -979,29 +979,35 @@ impl CommandManager {
 
             let target: &str = slice.get(0).unwrap();
 
+            if target.to_uppercase() == "SERVICE" {
+                return (
+                    NetPacketState::OK,
+                    format!("{}", crate::docs::SUBCOMMAND_SERVICE_HELP).as_bytes().to_vec(),
+                );
+            }
             if target.to_uppercase() == "DOCS" {
                 return (
                     NetPacketState::OK,
                     format!("{}", crate::docs::SUBCOMMAND_INFO_HELP).as_bytes().to_vec(),
-                )
+                );
             }
             if target.to_uppercase() == "INFO" {
                 return (
                     NetPacketState::OK,
                     format!("{}", crate::docs::SUBCOMMAND_INFO_HELP).as_bytes().to_vec(),
-                )
+                );
             }
             if target.to_uppercase() == "EDIT" {
                 return (
                     NetPacketState::OK,
                     format!("{}", crate::docs::SUBCOMMAND_EDIT_HELP).as_bytes().to_vec(),
-                )
+                );
             }
             if target.to_uppercase() == "DB" {
                 return (
                     NetPacketState::OK,
                     format!("{}", crate::docs::SUBCOMMAND_DB_HELP).as_bytes().to_vec(),
-                )
+                );
             }
 
         }
@@ -1021,17 +1027,80 @@ impl CommandManager {
                     }
                 }
 
-                let v = database_manager.lock().await
+                let acc_val = database_manager.lock().await
                     .db_list.get("system").unwrap()
-                    .get("service@dorea").await.unwrap_or(DataValue::Dict(HashMap::new()))
+                    .get("service@accounts").await.unwrap_or(DataValue::Dict(HashMap::new()))
                 ;
 
+                // 当只有一个参数时，只输出列表
                 if slice.len() == 1 {
                     return (
                         NetPacketState::OK,
-                        format!("{:?}", v).as_bytes().to_vec(),
+                        format!(
+                            "{}", 
+                            acc_val.to_string()
+                        ).as_bytes().to_vec(),
                     );
                 }
+
+                // slice.len 2
+                let sub: &str = slice.get(1).unwrap();
+
+                if sub == "set" {
+
+                    if slice.len() < 4 || slice.len() > 6 {
+                        return (
+                            NetPacketState::ERR,
+                            format!("Parameter non-specification").as_bytes().to_vec(),
+                        );
+                    }
+
+
+                    let username: &str = slice.get(2).unwrap();
+                    let password: &str = slice.get(3).unwrap();
+
+                    let de_usa_db: &str = &format!("[\"{}\"]", username);
+                    let de_cls_cmd: &str = &format!("[\"service\", \"db\"]");
+
+                    let usa_db: &str = slice.get(4).unwrap_or(&de_usa_db);
+                    let cls_cmd: &str = slice.get(5).unwrap_or(&de_cls_cmd);
+
+                    let usa_db = DataValue::from(usa_db);
+                    let cls_cmd = DataValue::from(cls_cmd);
+
+                    let mut acc_dict = acc_val.as_dict().unwrap();
+
+                    let mut temp_dict = HashMap::new();
+                    temp_dict.insert("username".into(), DataValue::String(username.into()));
+                    temp_dict.insert("password".into(), DataValue::String(password.into()));
+                    temp_dict.insert("usable".into(), DataValue::Boolean(true));
+                    temp_dict.insert("usa_database".into(), usa_db);
+                    temp_dict.insert("cls_command".into(), cls_cmd);
+
+                    acc_dict.insert(username.to_string(), DataValue::Dict(temp_dict.clone()));
+
+                    let res = database_manager.lock().await.db_list
+                        .get_mut("system").unwrap()
+                        .set("service@accounts", DataValue::Dict(acc_dict), 0)
+                    .await;
+
+                    if res.is_ok() {
+                        return (
+                            NetPacketState::OK,
+                            vec![]
+                        );
+                    } else {
+                        return (
+                            NetPacketState::ERR,
+                            format!(
+                                "{}", 
+                                res.err().unwrap().to_string()
+                            ).as_bytes().to_vec(),
+                        );
+                    }
+
+                }
+
             }
 
         }

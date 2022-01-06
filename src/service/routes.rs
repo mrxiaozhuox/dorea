@@ -48,6 +48,7 @@ pub async fn auth(
         password: password.clone(),
         usa_database: None,
         cls_command: vec![],
+        checker: String::from("@MASTER:ACCOUNT"),
     };
 
     let db_info = (
