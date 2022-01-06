@@ -1,9 +1,10 @@
 //! 本文件为 Web-Service 向 @system 下写入数据时使用
 
 use std::collections::HashMap;
+use doson::DataValue;
 use serde::{Serialize, Deserialize};
 
-use crate::{client::DoreaClient, value::DataValue};
+use crate::client::DoreaClient;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServiceAccountInfo {
@@ -26,8 +27,15 @@ pub async fn accounts(db_info: DatabaseInfo) -> HashMap<String, ServiceAccountIn
     let temp = client.get("service@accounts").await.unwrap();
     let temp = temp.as_dict().unwrap_or(HashMap::new());
 
+    return parse_to_accounts(temp);
+
+}
+
+pub fn parse_to_accounts(map: HashMap<String, DataValue>)  -> HashMap<String, ServiceAccountInfo> {
+
     let mut result = HashMap::new();
-    for item in temp {
+
+    for item in map {
         if let DataValue::Dict(v) = item.1 {
 
             let usable = v.get("usable")
@@ -82,6 +90,30 @@ pub async fn accounts(db_info: DatabaseInfo) -> HashMap<String, ServiceAccountIn
     result
 }
 
+pub async fn account_to_value (account: ServiceAccountInfo) -> DataValue {
+
+    let mut dict = HashMap::new();
+
+    dict.insert("usable".into(), DataValue::Boolean(account.usable));
+    dict.insert("username".into(), DataValue::String(account.username));
+    dict.insert("password".into(), DataValue::String(account.password));
+    if account.usa_database.is_none() {
+        dict.insert("usa_database".into(), DataValue::None);
+    } else {
+        let mut usa_db = vec![];
+        for item in account.usa_database.unwrap() {
+            usa_db.push(DataValue::String(item));
+        }
+        dict.insert("usa_database".into(), DataValue::List(usa_db));
+    }
+    let mut cls_cmd = vec![];
+    for item in account.cls_command {
+        cls_cmd.push(DataValue::String(item));
+    }
+    dict.insert("cls_command".into(), DataValue::List(cls_cmd));
+
+    DataValue::Dict(dict)
+}
 
 async fn get_client(db_info: DatabaseInfo) -> DoreaClient {
     DoreaClient::connect(db_info.0, &db_info.1).await.unwrap()

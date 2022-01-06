@@ -8,6 +8,7 @@ you can use this command to get the manual for other command.
 - db:       `docs db`
 - info      `docs info`
 - edit      `docs edit`
+- service   `docs service`
 
 ";
 
@@ -19,7 +20,9 @@ pub const SUBCOMMAND_SERVICE_HELP: &'static str = "
         : <password>:                   account login password
         : <usa_db>:                     the list for you can use database.
         : <cls_cmd>:                    the list for you cannot use command.
+    - list :                        print account list.
     - num :                         print account number.
+    - repwd <username> <pwd> :      change user password.
     - lock <name> :                 lock(disable) a account.
     - unlock <name> :               unlock(usable) a account.
     - killall :                     kill all using account.

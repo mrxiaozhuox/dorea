@@ -1032,14 +1032,10 @@ impl CommandManager {
                     .get("service@accounts").await.unwrap_or(DataValue::Dict(HashMap::new()))
                 ;
 
-                // 当只有一个参数时，只输出列表
-                if slice.len() == 1 {
+                if slice.len() <= 1 {
                     return (
-                        NetPacketState::OK,
-                        format!(
-                            "{}", 
-                            acc_val.to_string()
-                        ).as_bytes().to_vec(),
+                        NetPacketState::ERR,
+                        format!("Parameter non-specification").as_bytes().to_vec(),
                     );
                 }
 
@@ -1071,11 +1067,25 @@ impl CommandManager {
                     let mut acc_dict = acc_val.as_dict().unwrap();
 
                     let mut temp_dict = HashMap::new();
+
                     temp_dict.insert("username".into(), DataValue::String(username.into()));
                     temp_dict.insert("password".into(), DataValue::String(password.into()));
                     temp_dict.insert("usable".into(), DataValue::Boolean(true));
                     temp_dict.insert("usa_database".into(), usa_db);
                     temp_dict.insert("cls_command".into(), cls_cmd);
+
+                    let checker = database_manager.lock().await.db_list.get("system")
+                        .unwrap().get("service@acc-checker")
+                    .await.unwrap_or(DataValue::None);
+
+                    if checker == DataValue::None {
+                        database_manager.lock().await.db_list.get_mut("system")
+                        .unwrap().set("service@acc-checker", DataValue::String(
+                            crate::tool::rand_str()
+                        ), 0).await.unwrap();
+                    }
+
+                    temp_dict.insert("checker".into(), checker);
 
                     acc_dict.insert(username.to_string(), DataValue::Dict(temp_dict.clone()));
 
@@ -1098,6 +1108,95 @@ impl CommandManager {
                             ).as_bytes().to_vec(),
                         );
                     }
+
+                } else if sub == "list" {
+
+                    let accs = crate::service::db::parse_to_accounts(
+                        acc_val.as_dict().unwrap_or(HashMap::new())
+                    );
+                    let mut result = HashMap::new();
+
+                    for (key, mut val) in accs {
+                        val.password = "******".into();
+                        result.insert(key, val);
+                    }
+
+                    return (
+                        NetPacketState::OK,
+                        format!(
+                            "{}", 
+                            serde_json::to_string(&result).unwrap_or(String::from("{}"))
+                        ).as_bytes().to_vec(),
+                    );
+
+                } else if sub == "num" {
+
+                    let temp = acc_val.as_dict().unwrap_or(HashMap::new());
+                    return (
+                        NetPacketState::OK,
+                        format!(
+                            "{}", 
+                            temp.len()
+                        ).as_bytes().to_vec(),
+                    );
+
+                } else if sub == "repwd" {
+
+                    if slice.len() < 4 {
+                        return (
+                            NetPacketState::ERR,
+                            format!("Parameter non-specification").as_bytes().to_vec(),
+                        );
+                    }
+
+
+                    let username: &str = slice.get(2).unwrap();
+                    let password: &str = slice.get(3).unwrap();
+
+                    let mut accs = crate::service::db::parse_to_accounts(
+                        acc_val.as_dict().unwrap_or(HashMap::new())
+                    );
+
+                    if !accs.contains_key(username) {
+                        return (
+                            NetPacketState::ERR,
+                            format!("Account info not found.").as_bytes().to_vec(),
+                        );
+                    }
+
+                    let mut ori_acc = accs.get("username").unwrap().clone();
+
+                    ori_acc.password = password.to_string();
+                    
+                    accs.insert(username.to_string(), ori_acc);
+
+                    let mut v_accs = HashMap::new();
+                    for i in accs {
+                        v_accs.insert(i.0, crate::service::db::account_to_value(i.1).await);
+                    }
+
+                    let res = database_manager.lock().await.db_list
+                        .get_mut("system").unwrap()
+                        .set("service@accounts", DataValue::Dict(
+                            v_accs
+                        ), 0)
+                    .await;
+
+                    if res.is_ok() {
+                        return (
+                            NetPacketState::OK,
+                            vec![]
+                        );
+                    } else {
+                        return (
+                            NetPacketState::ERR,
+                            format!(
+                                "{}", 
+                                res.err().unwrap().to_string()
+                            ).as_bytes().to_vec(),
+                        );
+                    }
+
 
                 }
 
