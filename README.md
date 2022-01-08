@@ -25,10 +25,6 @@
 	</p>
 </p>
 
-## Features
-
-- Dorea Plugin Manager: [Github Repo](https://github.com/doreadb/dorea-plugin-loader)
-
 ### Data Sturct
 
 `Dorea` have the basic data type and some compound type.
