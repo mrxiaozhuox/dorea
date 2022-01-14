@@ -22,7 +22,6 @@ pub enum NetPacketState {
 }
 
 impl NetPacket {
-
     pub(crate) fn make(body: Vec<u8>, state: NetPacketState) -> Self {
         Self {
             body: body,
@@ -31,7 +30,6 @@ impl NetPacket {
     }
 
     pub(crate) async fn send(&self, socket: &mut TcpStream) -> crate::Result<()> {
-
         socket.write_all(self.to_string().as_bytes()).await?;
 
         Ok(())
@@ -40,13 +38,12 @@ impl NetPacket {
 
 impl std::string::ToString for NetPacket {
     fn to_string(&self) -> String {
-
         let body = base64::encode(&self.body[..]);
 
         let mut text = String::new();
 
         text.push_str(format!("$: {} | ", body.as_bytes().len() + 5).as_str());
-        
+
         if self.state != NetPacketState::IGNORE {
             text.push_str(format!("%: {:?} | ", self.state).as_str());
         }
@@ -63,7 +60,6 @@ pub struct Frame {
 }
 
 impl Frame {
-
     pub fn new() -> Self {
         Self {
             legacy_content: Vec::new(),
@@ -73,7 +69,6 @@ impl Frame {
 
     // read message from socket [std]
     pub async fn parse_frame(&mut self, socket: &mut TcpStream) -> crate::Result<Vec<u8>> {
-
         let (mut reader, _) = socket.split();
 
         let mut buf = [0_u8; 50];
@@ -91,9 +86,7 @@ impl Frame {
 
         message = message.trim().to_string();
 
-        let (remain, total_size) = match Frame::parse_size(
-            &message
-        ) {
+        let (remain, total_size) = match Frame::parse_size(&message) {
             Ok((remain, size)) => (remain.to_string(), size),
             Err(_) => {
                 return Err(anyhow::anyhow!("size parse error"));
@@ -103,7 +96,7 @@ impl Frame {
         // parse state
         let (remain, state) = match Frame::parse_state(&remain) {
             Ok(v) => v,
-            Err(_) =>{ (message.as_str(), NetPacketState::EMPTY) }
+            Err(_) => (message.as_str(), NetPacketState::EMPTY),
         };
 
         let (remain, mut data) = match Frame::parse_content(&remain) {
@@ -148,18 +141,15 @@ impl Frame {
         if &data[0..4] == "B64'" && &data[data.len() - 1..] == "'" {
             let b64 = &data[4..data.len() - 1];
             data = match base64::decode(b64) {
-                Ok(v) => {
-                    String::from_utf8_lossy(&v[..]).to_string()
-                },
-                Err(_) => { data },
+                Ok(v) => String::from_utf8_lossy(&v[..]).to_string(),
+                Err(_) => data,
             };
         }
 
         Ok(data.as_bytes().to_vec())
     }
 
-    fn parse_size (message: &str) -> IResult<&str, usize> {
-
+    fn parse_size(message: &str) -> IResult<&str, usize> {
         let (mut remain, length): (&str, usize) = delimited(
             tag("$: "),
             map(take_while1(|c: char| c.is_digit(10)), |int: &str| {
@@ -173,8 +163,7 @@ impl Frame {
         Ok((remain, length))
     }
 
-    fn parse_state (message: &str) -> IResult<&str, NetPacketState> {
-
+    fn parse_state(message: &str) -> IResult<&str, NetPacketState> {
         let info: IResult<&str, NetPacketState> = delimited(
             tag("%: "),
             map(alpha1, |val: &str| {
@@ -200,27 +189,21 @@ impl Frame {
                 remain = &remain[3..];
 
                 (remain, state)
-            },
-            Err(_) => (message, NetPacketState::EMPTY)
+            }
+            Err(_) => (message, NetPacketState::EMPTY),
         };
 
         Ok((remain, state))
     }
 
-    fn parse_content (message: &str) -> IResult<&str, &str> {
-
+    fn parse_content(message: &str) -> IResult<&str, &str> {
         let state: IResult<&str, &str> =
-            delimited(
-            tag("#: "),
-            take_while1(|c| c != ';'),
-            take_until(";")
-            )(message);
+            delimited(tag("#: "), take_while1(|c| c != ';'), take_until(";"))(message);
 
         let mut remain = "";
         let result;
 
         if state.is_err() {
-
             let (info, _) = tag("#: ")(message)?;
 
             result = info;

@@ -5,13 +5,11 @@ use crate::{
     value::DataValue,
 };
 
-
 pub struct DoreaClient {
     connection: TcpStream,
 }
 
 impl DoreaClient {
-
     /// connect dorea-server
     ///
     /// ```rust
@@ -28,7 +26,6 @@ impl DoreaClient {
     /// }
     /// ```
     pub async fn connect(addr: (&'static str, u16), password: &str) -> crate::Result<Self> {
-
         let addr = format!("{}:{}", addr.0, addr.1);
 
         let mut conn = TcpStream::connect(addr).await?;
@@ -36,13 +33,14 @@ impl DoreaClient {
         if password != "" {
             network::NetPacket::make(
                 format!("auth {}", password).as_bytes().to_vec(),
-                network::NetPacketState::IGNORE
-            ).send(&mut conn).await?;
+                network::NetPacketState::IGNORE,
+            )
+            .send(&mut conn)
+            .await?;
         } else {
-            network::NetPacket::make(
-                "ping".as_bytes().to_vec(),
-                network::NetPacketState::IGNORE
-            ).send(&mut conn).await?;
+            network::NetPacket::make("ping".as_bytes().to_vec(), network::NetPacketState::IGNORE)
+                .send(&mut conn)
+                .await?;
         }
 
         let mut frame = Frame::new();
@@ -53,19 +51,13 @@ impl DoreaClient {
             let err = String::from_utf8_lossy(&v[..]).to_string();
             return Err(anyhow::anyhow!(err));
         }
-        
+
         let obj = Self { connection: conn };
 
         Ok(obj)
     }
 
-    pub async fn setex(
-        &mut self,
-        key: &str,
-        value: DataValue,
-        expire: usize,
-    ) -> crate::Result<()> {
-        
+    pub async fn setex(&mut self, key: &str, value: DataValue, expire: usize) -> crate::Result<()> {
         let command = format!(
             "set {} b:{}: {}",
             key,
@@ -83,10 +75,7 @@ impl DoreaClient {
         Err(anyhow::anyhow!(result))
     }
 
-    pub async fn delete(
-        &mut self,
-        key: &str,
-    ) -> crate::Result<()> {
+    pub async fn delete(&mut self, key: &str) -> crate::Result<()> {
         let command = format!("delete {} ", key);
 
         let v = self.execute(&command).await?;
@@ -100,12 +89,13 @@ impl DoreaClient {
     }
 
     pub async fn get(&mut self, key: &str) -> Option<DataValue> {
-
         let command = format!("get {}", key);
 
         let v = match self.execute(&command).await {
             Ok(v) => v,
-            Err(_) => { return None; }
+            Err(_) => {
+                return None;
+            }
         };
 
         if v.0 == NetPacketState::OK {
@@ -157,7 +147,6 @@ impl DoreaClient {
     }
 
     pub async fn execute(&mut self, command: &str) -> crate::Result<(NetPacketState, Vec<u8>)> {
-
         let command_byte = command.as_bytes().to_vec();
 
         NetPacket::make(command_byte, NetPacketState::IGNORE)
@@ -177,8 +166,6 @@ impl DoreaClient {
     //
     // }
 }
-
-
 
 #[derive(Debug)]
 pub enum InfoType {
@@ -208,6 +195,7 @@ impl std::string::ToString for InfoType {
             //     format!("${} type", v).as_str()
             // },
             // _ => "", /* 预留数据 */
-        }.to_string()
+        }
+        .to_string()
     }
 }

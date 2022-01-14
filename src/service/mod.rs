@@ -50,7 +50,6 @@ pub async fn startup(addr: (&'static str, u16), document_path: &PathBuf) -> crat
 
     let rest_port = rest_config.port;
     tokio::task::spawn(async move {
-
         // 测试数据库连接，并初始化必须数据：
         match crate::client::DoreaClient::connect(
             (hostname, dorea_port),
@@ -59,9 +58,7 @@ pub async fn startup(addr: (&'static str, u16), document_path: &PathBuf) -> crat
         .await
         {
             Ok(mut c) => {
-                init_service_system_db(
-                    &mut c,
-                ).await.unwrap();
+                init_service_system_db(&mut c).await.unwrap();
             }
             Err(err) => {
                 panic!("{}", err);
@@ -113,11 +110,19 @@ pub async fn init_service_system_db(client: &mut crate::client::DoreaClient) -> 
     client.select("system").await?;
 
     if client.get("service@accounts").await.is_none() {
-        client.setex("service@accounts", DataValue::Dict(HashMap::new()), 0).await?;
+        client
+            .setex("service@accounts", DataValue::Dict(HashMap::new()), 0)
+            .await?;
     }
 
     if client.get("service@acc-checker").await.is_none() {
-        client.setex("service@acc-checker", DataValue::String(crate::tool::rand_str()), 0).await?;
+        client
+            .setex(
+                "service@acc-checker",
+                DataValue::String(crate::tool::rand_str()),
+                0,
+            )
+            .await?;
     }
 
     Ok(())

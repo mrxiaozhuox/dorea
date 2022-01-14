@@ -17,9 +17,12 @@ use once_cell::sync::Lazy;
 // 判断服务器是否已被初始化过
 static INIT_STATE: Lazy<Mutex<InitState>> = Lazy::new(|| Mutex::new(InitState { state: false }));
 
-static DB_STATISTICS: Lazy<Mutex<HashMap<uuid::Uuid, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static DB_STATISTICS: Lazy<Mutex<HashMap<uuid::Uuid, String>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
-struct InitState { state: bool }
+struct InitState {
+    state: bool,
+}
 
 pub struct DoreaServer {
     _server_options: ServerOption,
@@ -39,7 +42,6 @@ pub struct ServerOption {
 
 impl DoreaServer {
     pub async fn bind(options: ServerOption) -> Self {
-
         // 检查服务器对象在同一程序中是否被多次创建
         if INIT_STATE.lock().await.state {
             panic!("Server objects can only be created once!");
@@ -69,7 +71,8 @@ impl DoreaServer {
         let addr = format!("{}:{}", options.hostname, options.port);
 
         // try to load logger system
-        crate::logger::init_logger(&options.logger_level.to_uppercase()).expect("logger init failed");
+        crate::logger::init_logger(&options.logger_level.to_uppercase())
+            .expect("logger init failed");
 
         let config = crate::configure::load_config(&document_path).unwrap();
 
@@ -82,22 +85,21 @@ impl DoreaServer {
             }
         };
 
-
         let object = Self {
             _server_options: options,
             server_listener: listener,
             server_config: config.clone(),
             connection_number: Arc::new(Mutex::new(ConnectNumber { num: 0 })),
-            db_manager: Arc::new(Mutex::new(DataBaseManager::new(document_path.clone()).await)),
+            db_manager: Arc::new(Mutex::new(
+                DataBaseManager::new(document_path.clone()).await,
+            )),
             startup_time: chrono::Local::now().timestamp() + 100,
         };
 
         // -- 其他线程服务初始代码 --
 
         // 事件驱动器加载
-        let event_manager = EventManager::init(
-            object.db_manager.clone(),
-        ).await;
+        let event_manager = EventManager::init(object.db_manager.clone()).await;
 
         tokio::task::spawn(async move {
             event_manager.loop_events().await;
@@ -109,18 +111,20 @@ impl DoreaServer {
     }
 
     pub async fn listen(&mut self) {
-
         info!("dorea is running, ready to accept connections.");
 
         let doc_path = self._server_options.document_path.clone().unwrap();
 
         let _ = crate::service::startup(
-            (self._server_options.hostname.clone(), self._server_options.port),
-            &doc_path
-        ).await;
+            (
+                self._server_options.hostname.clone(),
+                self._server_options.port,
+            ),
+            &doc_path,
+        )
+        .await;
 
         loop {
-
             // wait for client connect.
             let (mut socket, _) = match self.server_listener.accept().await {
                 Ok(value) => value,
@@ -139,7 +143,6 @@ impl DoreaServer {
                 );
                 continue;
             }
-
 
             let connid = uuid::Uuid::new_v4();
 
@@ -162,10 +165,12 @@ impl DoreaServer {
 
             let startup_time = self.startup_time;
 
-            DB_STATISTICS.lock().await.insert(connid.clone(), current_db.clone());
+            DB_STATISTICS
+                .lock()
+                .await
+                .insert(connid.clone(), current_db.clone());
 
             task::spawn(async move {
-
                 // 开始漫长不断的数据接受
                 let _ = handle::process(
                     &mut socket,
@@ -175,19 +180,19 @@ impl DoreaServer {
                     startup_time,
                     value_ser_style.clone(),
                     connid.clone(),
-                ).await;
+                )
+                .await;
 
                 // connection number -1;
                 connect_num.lock().await.low();
                 DB_STATISTICS.lock().await.remove(&connid);
             });
-
         }
     }
 
     /// Before you close the server, you need to call this function save some mem data.
     pub async fn save_all(&mut self) -> crate::Result<()> {
-        for ( _, db) in self.db_manager.lock().await.db_list.iter() {
+        for (_, db) in self.db_manager.lock().await.db_list.iter() {
             db.save_state_json().await?;
         }
         Ok(())
@@ -215,7 +220,7 @@ pub async fn db_stat_set(connid: uuid::Uuid, db_name: String) {
 }
 
 pub async fn db_stat_exist(db_name: String) -> bool {
-    for ( _, v) in DB_STATISTICS.lock().await.iter() {
+    for (_, v) in DB_STATISTICS.lock().await.iter() {
         if v.to_string() == db_name {
             return true;
         }

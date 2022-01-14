@@ -1,5 +1,5 @@
-use serde::{Serialize, Deserialize};
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, TokenData};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
+use serde::{Deserialize, Serialize};
 
 use super::db::ServiceAccountInfo;
 
@@ -12,28 +12,26 @@ pub struct Claims {
 }
 
 pub struct Secret {
-    pub(crate) token: String
+    pub(crate) token: String,
 }
 
 impl Secret {
-
     // Secret.apply
     // this function will apply a JWT Token for the Dorea-Service
-    pub fn apply(&self ,account: ServiceAccountInfo ,expire: usize) -> crate::Result<String> {
-
+    pub fn apply(&self, account: ServiceAccountInfo, expire: usize) -> crate::Result<String> {
         let now = chrono::Local::now().timestamp() as usize;
 
         let the_claims = Claims {
             iat: now,
             exp: now + expire,
             sub: "DOREA@SERVICE".to_string(),
-            account
+            account,
         };
 
         let token = encode(
             &Header::default(),
             &the_claims,
-            &EncodingKey::from_secret(self.token.as_ref())
+            &EncodingKey::from_secret(self.token.as_ref()),
         )?;
 
         Ok(token)
@@ -45,12 +43,11 @@ impl Secret {
         let token = decode::<Claims>(
             &token,
             &DecodingKey::from_secret(self.token.as_ref()),
-            &Validation::default()
+            &Validation::default(),
         )?;
 
         Ok(token)
     }
-
 }
 
 // 验证参数结构体

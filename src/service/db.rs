@@ -1,8 +1,8 @@
 //! 本文件为 Web-Service 向 @system 下写入数据时使用
 
-use std::collections::HashMap;
 use doson::DataValue;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::client::DoreaClient;
 
@@ -19,7 +19,6 @@ pub struct ServiceAccountInfo {
 type DatabaseInfo = ((&'static str, u16), String);
 
 pub async fn accounts(db_info: DatabaseInfo) -> HashMap<String, ServiceAccountInfo> {
-
     let mut client = get_client(db_info.clone()).await;
 
     client.select("system").await.unwrap();
@@ -28,70 +27,74 @@ pub async fn accounts(db_info: DatabaseInfo) -> HashMap<String, ServiceAccountIn
     let temp = temp.as_dict().unwrap_or(HashMap::new());
 
     return parse_to_accounts(temp);
-
 }
 
-pub fn parse_to_accounts(map: HashMap<String, DataValue>)  -> HashMap<String, ServiceAccountInfo> {
-
+pub fn parse_to_accounts(map: HashMap<String, DataValue>) -> HashMap<String, ServiceAccountInfo> {
     let mut result = HashMap::new();
 
     for item in map {
         if let DataValue::Dict(v) = item.1 {
+            let usable = v
+                .get("usable")
+                .unwrap_or(&doson::DataValue::None)
+                .as_bool()
+                .unwrap_or(false);
 
-            let usable = v.get("usable")
+            let username = v
+                .get("username")
                 .unwrap_or(&doson::DataValue::None)
-                .as_bool().unwrap_or(false)
-            ;
+                .as_string()
+                .unwrap_or(String::new());
 
-            let username = v.get("username")
+            let password = v
+                .get("password")
                 .unwrap_or(&doson::DataValue::None)
-                .as_string().unwrap_or(String::new())
-            ;
+                .as_string()
+                .unwrap_or(String::new());
 
-            let password = v.get("password")
+            let usa_database_dv = v
+                .get("usa_database")
                 .unwrap_or(&doson::DataValue::None)
-                .as_string().unwrap_or(String::new())
-            ;
-            
-            let usa_database_dv = v.get("usa_database")
-                .unwrap_or(&doson::DataValue::None)
-                .as_list().unwrap_or(vec![])
-            ;
+                .as_list()
+                .unwrap_or(vec![]);
             let mut usa_database: Vec<String> = vec![];
             for usa in usa_database_dv {
                 usa_database.push(usa.as_string().unwrap_or(String::new()))
             }
 
-            let cls_command_dv = v.get("usa_database")
+            let cls_command_dv = v
+                .get("usa_database")
                 .unwrap_or(&doson::DataValue::None)
-                .as_list().unwrap_or(vec![])
-            ;
+                .as_list()
+                .unwrap_or(vec![]);
             let mut cls_command: Vec<String> = vec![];
             for usa in cls_command_dv {
                 cls_command.push(usa.as_string().unwrap_or(String::new()))
             }
-            
-            let checker = v.get("checker")
+
+            let checker = v
+                .get("checker")
                 .unwrap_or(&doson::DataValue::None)
-                .as_string().unwrap_or(String::new())
-            ;
+                .as_string()
+                .unwrap_or(String::new());
 
-            result.insert(item.0.clone(), ServiceAccountInfo {
-                usable,
-                username,
-                password,
-                usa_database: Some(usa_database),
-                cls_command,
-                checker,
-            });
-
+            result.insert(
+                item.0.clone(),
+                ServiceAccountInfo {
+                    usable,
+                    username,
+                    password,
+                    usa_database: Some(usa_database),
+                    cls_command,
+                    checker,
+                },
+            );
         }
     }
     result
 }
 
-pub async fn account_to_value (account: ServiceAccountInfo) -> DataValue {
-
+pub async fn account_to_value(account: ServiceAccountInfo) -> DataValue {
     let mut dict = HashMap::new();
 
     dict.insert("usable".into(), DataValue::Boolean(account.usable));

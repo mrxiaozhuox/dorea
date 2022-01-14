@@ -11,16 +11,15 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
 use crate::{
-    configure::DoreaFileConfig, 
-    database::{DataBase, DataBaseManager}, 
-    network::NetPacketState, 
+    configure::DoreaFileConfig,
+    database::{DataBase, DataBaseManager},
+    network::NetPacketState,
     value::DataValue,
 };
 
 #[allow(dead_code)]
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum CommandList {
-    
     GET,
     SET,
     DELETE,
@@ -85,7 +84,6 @@ impl CommandManager {
         database_manager: &Arc<Mutex<DataBaseManager>>,
         connect_id: &uuid::Uuid,
     ) -> (NetPacketState, Vec<u8>) {
-
         let message = message.trim().to_string();
 
         log::debug!("@{}: {:?}", current, message);
@@ -121,7 +119,6 @@ impl CommandManager {
         let command = CommandList::new(command_str.to_string());
 
         if command == CommandList::UNKNOWN {
-
             if command_str == "" {
                 return (NetPacketState::EMPTY, vec![]);
             }
@@ -165,7 +162,8 @@ impl CommandManager {
                 current.to_string(),
                 database_manager.lock().await.location.clone(),
                 config.database.clone(),
-            ).await;
+            )
+            .await;
 
             database_manager
                 .lock()
@@ -200,7 +198,6 @@ impl CommandManager {
         }
 
         if command == CommandList::SET {
-            
             let key = slice.get(0).unwrap();
             let value = slice.get(1).unwrap();
 
@@ -225,10 +222,22 @@ impl CommandManager {
 
             // 为 current 增加权重
             // 对数据更新提升 5 点的权重
-            database_manager.lock().await.add_weight(current.to_string(), 5).await;
-            
+            database_manager
+                .lock()
+                .await
+                .add_weight(current.to_string(), 5)
+                .await;
+
             // 检查数据是追加还是更新
-            if !database_manager.lock().await.db_list.get(current).unwrap().contains_key(key).await {
+            if !database_manager
+                .lock()
+                .await
+                .db_list
+                .get(current)
+                .unwrap()
+                .contains_key(key)
+                .await
+            {
                 // 卸载掉一个数据库（最不常用的）
                 // TODO:
                 // 这里的错误数据没有处理
@@ -251,11 +260,14 @@ impl CommandManager {
         }
 
         if command == CommandList::GET {
-
             let key = slice.get(0).unwrap().to_string();
 
             // 为读取增加 1 的权重
-            database_manager.lock().await.add_weight(current.to_string(), 1).await;
+            database_manager
+                .lock()
+                .await
+                .add_weight(current.to_string(), 1)
+                .await;
             let result = database_manager
                 .lock()
                 .await
@@ -265,10 +277,8 @@ impl CommandManager {
                 .meta_data(&key)
                 .await;
 
-
             return match result {
                 Some(v) => {
-
                     // 这个地方检查具体的是否过期
                     // 惰性删除数据
                     let exp = v.timestamp();
@@ -289,12 +299,10 @@ impl CommandManager {
                     }
 
                     (
-                        NetPacketState::OK, 
-                        crate::value::value_ser_string(
-                            v.value,
-                            &value_ser_style
-                        )
-                        .as_bytes().to_vec()
+                        NetPacketState::OK,
+                        crate::value::value_ser_string(v.value, &value_ser_style)
+                            .as_bytes()
+                            .to_vec(),
                     )
                 }
                 None => (NetPacketState::ERR, "Data Not Found".as_bytes().to_vec()),
@@ -305,7 +313,11 @@ impl CommandManager {
             let key = slice.get(0).unwrap();
 
             // 为删除数据增加 5 的权重
-            database_manager.lock().await.add_weight(current.to_string(), 5).await;
+            database_manager
+                .lock()
+                .await
+                .add_weight(current.to_string(), 5)
+                .await;
             let result = database_manager
                 .lock()
                 .await
@@ -322,11 +334,13 @@ impl CommandManager {
         }
 
         if command == CommandList::CLEAN {
-
-
             // 为清空数据增加 50 的权重（感谢您为 Index 存储节约了大量空间qwq）
             // 这里我在思考（如果直接把清空的数据库删除出缓存中是否性能会更好）- 2021/12/21 待更新（mrxiaozhuox）
-            database_manager.lock().await.add_weight(current.to_string(), 50).await;
+            database_manager
+                .lock()
+                .await
+                .add_weight(current.to_string(), 50)
+                .await;
             let result = database_manager
                 .lock()
                 .await
@@ -343,7 +357,6 @@ impl CommandManager {
         }
 
         if command == CommandList::SELECT {
-
             let db_name = slice.get(0).unwrap();
 
             // 将当前使用的库加入到 DB统计 中（防止被动态卸载）
@@ -396,9 +409,7 @@ impl CommandManager {
                 let temp = crate::database::total_index_number().await;
                 return (
                     NetPacketState::OK,
-                    format!("{}/{}", temp.0, temp.1)
-                        .as_bytes()
-                        .to_vec(),
+                    format!("{}/{}", temp.0, temp.1).as_bytes().to_vec(),
                 );
             }
 
@@ -417,7 +428,6 @@ impl CommandManager {
             }
 
             if argument == "keys" {
-
                 let list = database_manager
                     .lock()
                     .await
@@ -511,12 +521,10 @@ impl CommandManager {
         // sort 对数组进行排序（仅支持 list ）
         // reverse 对数组进行反转（仅支持 list ）
         if command == CommandList::EDIT {
-            
             let key: &str = slice.get(0).unwrap();
             let operation: &str = slice.get(1).unwrap();
 
             if &key[0..1] == "@" {
-
                 let key: &str = &key[1..];
                 println!("@{}:{}", current, key);
 
@@ -543,8 +551,9 @@ impl CommandManager {
 
                 // 计算剩余过期时间
                 let current_time = chrono::Local::now().timestamp() as u64;
-                if current_time >= (node_timestamp.0 as u64 + node_timestamp.1) as u64 && node_timestamp.1 != 0 {
-                    
+                if current_time >= (node_timestamp.0 as u64 + node_timestamp.1) as u64
+                    && node_timestamp.1 != 0
+                {
                     // 惰性删除数据
                     let _ = database_manager
                         .lock()
@@ -599,7 +608,6 @@ impl CommandManager {
 
                     _result = edit_operation::incr(origin_value, incr_num);
                 } else if operation == "expire" {
-
                     if sub_arg.len() != 1 {
                         return (
                             NetPacketState::ERR,
@@ -777,12 +785,8 @@ impl CommandManager {
             let operation: &str = slice.get(0).unwrap();
 
             if operation == "style" {
-
-                if slice.len() < 2{
-                    return (
-                        NetPacketState::OK, 
-                        value_ser_style.as_bytes().to_vec()
-                    )
+                if slice.len() < 2 {
+                    return (NetPacketState::OK, value_ser_style.as_bytes().to_vec());
                 }
 
                 let opervalue: &str = slice.get(1).unwrap();
@@ -797,7 +801,6 @@ impl CommandManager {
                 return (NetPacketState::OK, vec![]);
             }
 
-
             return (
                 NetPacketState::ERR,
                 "Unknown operation.".as_bytes().to_vec(),
@@ -805,11 +808,9 @@ impl CommandManager {
         }
 
         if command == CommandList::DB {
-            
             let operation: &str = slice.get(0).unwrap();
 
             if operation == "unload" {
-                
                 if slice.len() != 2 {
                     return (
                         NetPacketState::ERR,
@@ -826,30 +827,36 @@ impl CommandManager {
                     );
                 }
 
-                if *crate::database::DB_STATE.lock().await.get(db_name).unwrap_or(&crate::database::DataBaseState::UNLOAD) == crate::database::DataBaseState::LOCKED {
+                if *crate::database::DB_STATE
+                    .lock()
+                    .await
+                    .get(db_name)
+                    .unwrap_or(&crate::database::DataBaseState::UNLOAD)
+                    == crate::database::DataBaseState::LOCKED
+                {
                     return (
                         NetPacketState::ERR,
                         format!("This database is locked").as_bytes().to_vec(),
                     );
                 }
 
-                match database_manager.lock().await.unload_database(db_name.to_string()).await {
+                match database_manager
+                    .lock()
+                    .await
+                    .unload_database(db_name.to_string())
+                    .await
+                {
                     Ok(_) => {
-                        return (
-                            NetPacketState::OK,
-                            vec![],
-                        );
-                    },
+                        return (NetPacketState::OK, vec![]);
+                    }
                     Err(_) => {
                         return (
                             NetPacketState::ERR,
                             format!("Unload failed").as_bytes().to_vec(),
                         )
-                    },
+                    }
                 };
-
             } else if operation == "preload" {
-
                 if slice.len() != 2 {
                     return (
                         NetPacketState::ERR,
@@ -871,9 +878,8 @@ impl CommandManager {
                     format!("@[PRELOAD_DB]:{}", db_name).as_bytes().to_vec(),
                 );
             } else if operation == "list" {
-
                 let mut list = vec![];
-                for ( name, _ ) in database_manager.lock().await.db_list.iter() {
+                for (name, _) in database_manager.lock().await.db_list.iter() {
                     list.push(name.to_string());
                 }
 
@@ -882,7 +888,6 @@ impl CommandManager {
                     format!("{:?}", list).as_bytes().to_vec(),
                 );
             } else if operation == "lock" {
-
                 if slice.len() != 2 {
                     return (
                         NetPacketState::ERR,
@@ -901,14 +906,13 @@ impl CommandManager {
 
                 // 将一个数据库锁死（使得它无法被卸载，包括自动、手动卸载）
                 // 当手动卸载被执行时，程序会告知本库无法卸载（已加锁
-                crate::database::DB_STATE.lock().await.insert(
-                    db_name.to_string(), 
-                    crate::database::DataBaseState::LOCKED
-                );
+                crate::database::DB_STATE
+                    .lock()
+                    .await
+                    .insert(db_name.to_string(), crate::database::DataBaseState::LOCKED);
 
                 return (NetPacketState::OK, vec![]);
             } else if operation == "unlock" {
-
                 if slice.len() != 2 {
                     return (
                         NetPacketState::ERR,
@@ -926,24 +930,23 @@ impl CommandManager {
                 }
 
                 // 取消锁标记
-                crate::database::DB_STATE.lock().await.insert(
-                    db_name.to_string(), 
-                    crate::database::DataBaseState::NORMAL
-                );
+                crate::database::DB_STATE
+                    .lock()
+                    .await
+                    .insert(db_name.to_string(), crate::database::DataBaseState::NORMAL);
 
                 return (NetPacketState::OK, vec![]);
-
             } else if operation == "status" {
-
-
                 let mut result = HashMap::new();
                 if slice.len() == 1 {
                     let elis = database_manager.lock().await.eli_queue.clone();
                     for (name, db) in database_manager.lock().await.db_list.iter() {
-
-                        let state = crate::database::DB_STATE.lock().await
+                        let state = crate::database::DB_STATE
+                            .lock()
+                            .await
                             .get(name)
-                            .unwrap_or(&crate::database::DataBaseState::NORMAL).clone();
+                            .unwrap_or(&crate::database::DataBaseState::NORMAL)
+                            .clone();
 
                         result.insert(
                             name.to_string(),
@@ -958,7 +961,10 @@ impl CommandManager {
 
                 return (
                     NetPacketState::OK,
-                    serde_json::to_string(&result).unwrap_or("{}".into()).as_bytes().to_vec(),
+                    serde_json::to_string(&result)
+                        .unwrap_or("{}".into())
+                        .as_bytes()
+                        .to_vec(),
                 );
             }
 
@@ -969,12 +975,13 @@ impl CommandManager {
         }
 
         if command == CommandList::DOCS {
-            
             if slice.len() == 0 {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::docs::SUBCOMMAND_DOCS_HELP).as_bytes().to_vec(),
-                )
+                    format!("{}", crate::docs::SUBCOMMAND_DOCS_HELP)
+                        .as_bytes()
+                        .to_vec(),
+                );
             }
 
             let target: &str = slice.get(0).unwrap();
@@ -982,44 +989,57 @@ impl CommandManager {
             if target.to_uppercase() == "SERVICE" {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::docs::SUBCOMMAND_SERVICE_HELP).as_bytes().to_vec(),
+                    format!("{}", crate::docs::SUBCOMMAND_SERVICE_HELP)
+                        .as_bytes()
+                        .to_vec(),
                 );
             }
             if target.to_uppercase() == "DOCS" {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::docs::SUBCOMMAND_INFO_HELP).as_bytes().to_vec(),
+                    format!("{}", crate::docs::SUBCOMMAND_INFO_HELP)
+                        .as_bytes()
+                        .to_vec(),
                 );
             }
             if target.to_uppercase() == "INFO" {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::docs::SUBCOMMAND_INFO_HELP).as_bytes().to_vec(),
+                    format!("{}", crate::docs::SUBCOMMAND_INFO_HELP)
+                        .as_bytes()
+                        .to_vec(),
                 );
             }
             if target.to_uppercase() == "EDIT" {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::docs::SUBCOMMAND_EDIT_HELP).as_bytes().to_vec(),
+                    format!("{}", crate::docs::SUBCOMMAND_EDIT_HELP)
+                        .as_bytes()
+                        .to_vec(),
                 );
             }
             if target.to_uppercase() == "DB" {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::docs::SUBCOMMAND_DB_HELP).as_bytes().to_vec(),
+                    format!("{}", crate::docs::SUBCOMMAND_DB_HELP)
+                        .as_bytes()
+                        .to_vec(),
                 );
             }
-
         }
 
         if command == CommandList::SERVICE {
-            
             let operation: &str = slice.get(0).unwrap();
 
             if operation == "account" || operation == "acc" {
-
                 if !database_manager.lock().await.db_list.contains_key("system") {
-                    if database_manager.lock().await.select_to("system").await.is_err() {
+                    if database_manager
+                        .lock()
+                        .await
+                        .select_to("system")
+                        .await
+                        .is_err()
+                    {
                         return (
                             NetPacketState::ERR,
                             format!("Load system db failed.").as_bytes().to_vec(),
@@ -1027,10 +1047,15 @@ impl CommandManager {
                     }
                 }
 
-                let acc_val = database_manager.lock().await
-                    .db_list.get("system").unwrap()
-                    .get("service@accounts").await.unwrap_or(DataValue::Dict(HashMap::new()))
-                ;
+                let acc_val = database_manager
+                    .lock()
+                    .await
+                    .db_list
+                    .get("system")
+                    .unwrap()
+                    .get("service@accounts")
+                    .await
+                    .unwrap_or(DataValue::Dict(HashMap::new()));
 
                 if slice.len() <= 1 {
                     return (
@@ -1043,14 +1068,12 @@ impl CommandManager {
                 let sub: &str = slice.get(1).unwrap();
 
                 if sub == "set" {
-
                     if slice.len() < 4 || slice.len() > 6 {
                         return (
                             NetPacketState::ERR,
                             format!("Parameter non-specification").as_bytes().to_vec(),
                         );
                     }
-
 
                     let username: &str = slice.get(2).unwrap();
                     let password: &str = slice.get(3).unwrap();
@@ -1074,45 +1097,58 @@ impl CommandManager {
                     temp_dict.insert("usa_database".into(), usa_db);
                     temp_dict.insert("cls_command".into(), cls_cmd);
 
-                    let checker = database_manager.lock().await.db_list.get("system")
-                        .unwrap().get("service@acc-checker")
-                    .await.unwrap_or(DataValue::None);
+                    let checker = database_manager
+                        .lock()
+                        .await
+                        .db_list
+                        .get("system")
+                        .unwrap()
+                        .get("service@acc-checker")
+                        .await
+                        .unwrap_or(DataValue::None);
 
                     if checker == DataValue::None {
-                        database_manager.lock().await.db_list.get_mut("system")
-                        .unwrap().set("service@acc-checker", DataValue::String(
-                            crate::tool::rand_str()
-                        ), 0).await.unwrap();
+                        database_manager
+                            .lock()
+                            .await
+                            .db_list
+                            .get_mut("system")
+                            .unwrap()
+                            .set(
+                                "service@acc-checker",
+                                DataValue::String(crate::tool::rand_str()),
+                                0,
+                            )
+                            .await
+                            .unwrap();
                     }
 
                     temp_dict.insert("checker".into(), checker);
 
                     acc_dict.insert(username.to_string(), DataValue::Dict(temp_dict.clone()));
 
-                    let res = database_manager.lock().await.db_list
-                        .get_mut("system").unwrap()
+                    let res = database_manager
+                        .lock()
+                        .await
+                        .db_list
+                        .get_mut("system")
+                        .unwrap()
                         .set("service@accounts", DataValue::Dict(acc_dict), 0)
-                    .await;
+                        .await;
 
                     if res.is_ok() {
-                        return (
-                            NetPacketState::OK,
-                            vec![]
-                        );
+                        return (NetPacketState::OK, vec![]);
                     } else {
                         return (
                             NetPacketState::ERR,
-                            format!(
-                                "{}", 
-                                res.err().unwrap().to_string()
-                            ).as_bytes().to_vec(),
+                            format!("{}", res.err().unwrap().to_string())
+                                .as_bytes()
+                                .to_vec(),
                         );
                     }
-
                 } else if sub == "list" {
-
                     let accs = crate::service::db::parse_to_accounts(
-                        acc_val.as_dict().unwrap_or(HashMap::new())
+                        acc_val.as_dict().unwrap_or(HashMap::new()),
                     );
                     let mut result = HashMap::new();
 
@@ -1124,24 +1160,19 @@ impl CommandManager {
                     return (
                         NetPacketState::OK,
                         format!(
-                            "{}", 
+                            "{}",
                             serde_json::to_string(&result).unwrap_or(String::from("{}"))
-                        ).as_bytes().to_vec(),
+                        )
+                        .as_bytes()
+                        .to_vec(),
                     );
-
                 } else if sub == "num" {
-
                     let temp = acc_val.as_dict().unwrap_or(HashMap::new());
                     return (
                         NetPacketState::OK,
-                        format!(
-                            "{}", 
-                            temp.len()
-                        ).as_bytes().to_vec(),
+                        format!("{}", temp.len()).as_bytes().to_vec(),
                     );
-
                 } else if sub == "repwd" {
-
                     if slice.len() < 4 {
                         return (
                             NetPacketState::ERR,
@@ -1149,12 +1180,11 @@ impl CommandManager {
                         );
                     }
 
-
                     let username: &str = slice.get(2).unwrap();
                     let password: &str = slice.get(3).unwrap();
 
                     let mut accs = crate::service::db::parse_to_accounts(
-                        acc_val.as_dict().unwrap_or(HashMap::new())
+                        acc_val.as_dict().unwrap_or(HashMap::new()),
                     );
 
                     if !accs.contains_key(username) {
@@ -1167,7 +1197,7 @@ impl CommandManager {
                     let mut ori_acc = accs.get("username").unwrap().clone();
 
                     ori_acc.password = password.to_string();
-                    
+
                     accs.insert(username.to_string(), ori_acc);
 
                     let mut v_accs = HashMap::new();
@@ -1175,38 +1205,31 @@ impl CommandManager {
                         v_accs.insert(i.0, crate::service::db::account_to_value(i.1).await);
                     }
 
-                    let res = database_manager.lock().await.db_list
-                        .get_mut("system").unwrap()
-                        .set("service@accounts", DataValue::Dict(
-                            v_accs
-                        ), 0)
-                    .await;
+                    let res = database_manager
+                        .lock()
+                        .await
+                        .db_list
+                        .get_mut("system")
+                        .unwrap()
+                        .set("service@accounts", DataValue::Dict(v_accs), 0)
+                        .await;
 
                     if res.is_ok() {
-                        return (
-                            NetPacketState::OK,
-                            vec![]
-                        );
+                        return (NetPacketState::OK, vec![]);
                     } else {
                         return (
                             NetPacketState::ERR,
-                            format!(
-                                "{}", 
-                                res.err().unwrap().to_string()
-                            ).as_bytes().to_vec(),
+                            format!("{}", res.err().unwrap().to_string())
+                                .as_bytes()
+                                .to_vec(),
                         );
                     }
-
-
                 }
-
             }
-
         }
 
         // 暂时不支持具体内容查询（这玩意我确实无法进行设计qwq）
         if command == CommandList::SEARCH {
-            
             let expression: &str = slice.get(0).unwrap();
 
             let mut limit = 0;
@@ -1215,22 +1238,30 @@ impl CommandManager {
                 limit = slice.get(1).unwrap().parse::<u16>().unwrap_or(0);
             }
 
-            let keys = database_manager.lock().await.db_list.get(current).unwrap().keys().await;
+            let keys = database_manager
+                .lock()
+                .await
+                .db_list
+                .get(current)
+                .unwrap()
+                .keys()
+                .await;
 
             let mut result = vec![];
 
             for item in keys {
                 if crate::tool::fuzzy_search(expression, &item) {
                     result.push(item.clone());
-                    if (result.len() as u16) >= limit && limit != 0 { break; }
+                    if (result.len() as u16) >= limit && limit != 0 {
+                        break;
+                    }
                 }
             }
 
             return (
                 NetPacketState::OK,
                 format!("{:?}", result).as_bytes().to_vec(),
-            )
-
+            );
         }
 
         // unknown operation.

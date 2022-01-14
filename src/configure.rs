@@ -1,7 +1,7 @@
 use crate::Result;
 
+use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
-use serde::{Serialize, Deserialize};
 
 /// Dorea File Config Struct
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -23,7 +23,6 @@ pub struct DataBaseConfig {
     pub(crate) max_index_number: u32,
 }
 
-
 // HTTP Restful Service 配置
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -36,10 +35,9 @@ pub struct RestConfig {
 
 #[allow(dead_code)]
 pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
-
     let config = path.join("config.toml");
 
-    if ! config.is_file() {
+    if !config.is_file() {
         init_config(config.clone()).unwrap();
     }
 
@@ -57,7 +55,9 @@ pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
         let mut temp = vec![];
         let mut number = 1;
         for i in result.database.pre_load_group {
-            if number >= 4 { break }
+            if number >= 4 {
+                break;
+            }
             temp.push(i);
             number += 1;
         }
@@ -68,10 +68,9 @@ pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
 }
 
 pub(crate) fn load_rest_config(path: &PathBuf) -> Result<RestConfig> {
-
     let config = path.join("service.toml");
 
-    if ! config.is_file() {
+    if !config.is_file() {
         init_config(config.clone())?;
     }
 
@@ -85,10 +84,8 @@ pub(crate) fn load_rest_config(path: &PathBuf) -> Result<RestConfig> {
 // 初始化日志系统
 // default - console
 #[allow(dead_code)]
-fn init_config (path: PathBuf) -> Result<()> {
-
+fn init_config(path: PathBuf) -> Result<()> {
     let config = DoreaFileConfig {
-
         connection: ConnectionConfig {
             max_connect_number: 255,
             connection_password: String::from(""),
@@ -104,7 +101,6 @@ fn init_config (path: PathBuf) -> Result<()> {
     let dorea = toml::to_string(&config)?;
 
     fs::write(&path, dorea)?;
-
 
     // Rest Service Config
     let rest = RestConfig {
