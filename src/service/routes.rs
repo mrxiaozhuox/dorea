@@ -41,12 +41,12 @@ pub async fn auth(
     form: extract::Form<crate::service::secret::SecretForm>,
     state: extract::Extension<Arc<ShareState>>,
 ) -> Api {
-    let account = form.account.clone();
+    let username = form.username.clone();
     let password = form.password.clone();
 
     let mut account_info = db::ServiceAccountInfo {
         usable: false,
-        username: account.clone(),
+        username: username.clone(),
         password: password.clone(),
         usa_database: None,
         cls_command: vec![],
@@ -58,7 +58,7 @@ pub async fn auth(
         state.config.0.connection.connection_password.clone(),
     );
 
-    if account == String::from("master") {
+    if username == String::from("master") {
         if password != state.config.1.master_password {
             return Api::error(StatusCode::BAD_REQUEST, "account password error.");
         }
@@ -67,11 +67,11 @@ pub async fn auth(
         // 通过数据库读取相关用户账号信息
         let accounts = db::accounts(db_info).await;
 
-        if !accounts.contains_key(&account) {
+        if !accounts.contains_key(&username) {
             return Api::error(StatusCode::BAD_REQUEST, "unknown account.");
         }
 
-        let info = accounts.get(&account).unwrap().clone();
+        let info = accounts.get(&username).unwrap().clone();
         if !info.usable {
             return Api::error(StatusCode::BAD_REQUEST, "account disable.");
         }
@@ -100,7 +100,7 @@ pub async fn auth(
         json!({
             "type": "JsonWebToken",
             "token": v,
-            "level": account
+            "level": username
         }),
     )
 }

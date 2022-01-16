@@ -53,6 +53,6 @@ impl Secret {
 // 验证参数结构体
 #[derive(Deserialize)]
 pub struct SecretForm {
-    pub account: String,
+    pub username: String,
     pub password: String,
 }
