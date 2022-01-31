@@ -239,9 +239,9 @@ impl CommandManager {
                 .await
             {
                 // 卸载掉一个数据库（最不常用的）
-                // TODO:
-                // 这里的错误数据没有处理
-                let _ = database_manager.lock().await.check_eli_db(0).await;
+                if let Err(_) = database_manager.lock().await.check_eli_db(0).await {
+                    panic!("uninstall db failed.");
+                }
             }
 
             let result = database_manager
