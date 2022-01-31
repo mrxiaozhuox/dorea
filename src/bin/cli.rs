@@ -168,13 +168,13 @@ pub async fn main() {
                 if cmd == "exit" {
                     exit(0)
                 }
-                if cmd == "" {
+                if cmd.is_empty() {
                     continue;
                 }
 
                 let res = execute(&cmd, &mut c).await;
 
-                if cmd.split(" ").collect::<Vec<&str>>()[0].to_uppercase() == "DOCS" {
+                if cmd.split(' ').collect::<Vec<&str>>()[0].to_uppercase() == "DOCS" {
                     if res.0 == NetPacketState::OK {
                         println!("{}", res.1);
                     } else {
@@ -194,7 +194,7 @@ pub async fn main() {
 // cli 命令运行
 pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState, String) {
     // 判断操作类型
-    let mut slice: Vec<&str> = command.split(" ").collect();
+    let mut slice: Vec<&str> = command.split(' ').collect();
     let operation = slice.remove(0);
 
     if operation.to_uppercase() == "GET" {
@@ -242,7 +242,7 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
 
         let key = temp.remove(0);
 
-        let expire = temp.get(temp.len() - 1).unwrap();
+        let expire = temp.last().unwrap();
         let expire = match expire.parse::<usize>() {
             Ok(v) => {
                 temp.remove(temp.len() - 1);
@@ -278,13 +278,13 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
         let key = slice.get(1).unwrap();
 
         if sub.to_uppercase() == "STRINGIFY" {
-            return match client.get(&key).await {
+            return match client.get(key).await {
                 Some(v) => {
                     if let DataValue::Binary(bin) = v {
                         let bytes = bin.read();
                         return (
                             NetPacketState::OK,
-                            String::from_utf8(bytes).unwrap_or(String::new()),
+                            String::from_utf8(bytes).unwrap_or_default(),
                         );
                     }
                     return (NetPacketState::OK, v.to_string());
@@ -292,7 +292,7 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
                 None => (NetPacketState::ERR, "Value not found.".to_string()),
             };
         } else if sub.to_uppercase() == "TOVEC" {
-            return match client.get(&key).await {
+            return match client.get(key).await {
                 Some(v) => {
                     if let DataValue::Binary(bin) = v {
                         let bytes = bin.read();
@@ -312,7 +312,7 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
 
             let filename = slice.get(2).unwrap();
 
-            return match client.get(&key).await {
+            return match client.get(key).await {
                 Some(v) => {
                     if let DataValue::Binary(bin) = v {
                         let bytes = bin.read();
@@ -364,17 +364,17 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
         return (NetPacketState::ERR, "Unknown sub-operation.".to_string());
     }
 
-    let res = client.execute(&command).await;
-    return match res {
+    let res = client.execute(command).await;
+    match res {
         Ok(p) => {
-            let mut message = String::from_utf8(p.1).unwrap_or(String::new());
+            let mut message = String::from_utf8(p.1).unwrap_or_default();
 
-            if message == "" {
+            if message.is_empty() {
                 message = "Successful.".to_string();
             }
 
             (p.0, message)
         }
         Err(err) => (NetPacketState::ERR, err.to_string()),
-    };
+    }
 }

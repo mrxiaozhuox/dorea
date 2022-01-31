@@ -1,4 +1,4 @@
-pub const SUBCOMMAND_DOCS_HELP: &'static str = "
+pub const SUBCOMMAND_DOCS_HELP: &str = "
 
 [Dorea Command Docs]: https://dorea.mrxzx.info/#/zh-cn/cmd
 
@@ -12,7 +12,7 @@ you can use this command to get the manual for other command.
 
 ";
 
-pub const SUBCOMMAND_SERVICE_HELP: &'static str = "
+pub const SUBCOMMAND_SERVICE_HELP: &str = "
 - account :
     - set <name> <password> [usa_db] [cls_cmd] \\
         :                               edit or create a account
@@ -28,7 +28,7 @@ pub const SUBCOMMAND_SERVICE_HELP: &'static str = "
     - killall :                     kill all using account.
 ";
 
-pub const SUBCOMMAND_DB_HELP: &'static str = "
+pub const SUBCOMMAND_DB_HELP: &str = "
 - preload <name> :                  preload a database to system.
 - unload <name> :                   unload a database from system.
 - list :                            get loaded database list.
@@ -37,7 +37,7 @@ pub const SUBCOMMAND_DB_HELP: &'static str = "
 - status :                          get all database status info.
 ";
 
-pub const SUBCOMMAND_INFO_HELP: &'static str = "
+pub const SUBCOMMAND_INFO_HELP: &str = "
 - current :                         print current connect database name.
 - version :                         print doreadb system version.
 - max-connect-number | mcn :        doreadb max connection number.
@@ -51,7 +51,7 @@ pub const SUBCOMMAND_INFO_HELP: &'static str = "
     - weight :                      data weight, similar data size.
 ";
 
-pub const SUBCOMMAND_EDIT_HELP: &'static str = "
+pub const SUBCOMMAND_EDIT_HELP: &str = "
 - @{key_name} :
     - incr [number]                 add [number] to value: (Number, List) type only.
     - expire [+|-|= number]         use operation [+|-|=] to set the expire time: support all type.

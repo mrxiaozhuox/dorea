@@ -30,7 +30,7 @@ impl DoreaClient {
 
         let mut conn = TcpStream::connect(addr).await?;
 
-        if password != "" {
+        if !password.is_empty() {
             network::NetPacket::make(
                 format!("auth {}", password).as_bytes().to_vec(),
                 network::NetPacketState::IGNORE,
@@ -107,7 +107,7 @@ impl DoreaClient {
     }
 
     pub async fn clean(&mut self) -> crate::Result<()> {
-        let command = format!("clean");
+        let command = "clean".to_string();
 
         let v = self.execute(&command).await?;
         if v.0 == NetPacketState::OK {

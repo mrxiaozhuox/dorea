@@ -37,7 +37,7 @@ impl EventManager {
         // 48 小时一次
         if *tick != 60 * 60 * 48 {
             *tick += 1;
-            return ();
+            return;
         }
 
         for (_, db) in self.db_manager.lock().await.db_list.iter_mut() {
@@ -53,7 +53,7 @@ impl EventManager {
     pub async fn _c_save_all(&self, tick: &mut u32) {
         if *tick != 60 * 5 {
             *tick += 1;
-            return ();
+            return;
         }
 
         for (_, db) in self.db_manager.lock().await.db_list.iter() {

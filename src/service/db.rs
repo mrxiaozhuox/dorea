@@ -24,9 +24,9 @@ pub async fn accounts(db_info: DatabaseInfo) -> HashMap<String, ServiceAccountIn
     client.select("system").await.unwrap();
 
     let temp = client.get("service@accounts").await.unwrap();
-    let temp = temp.as_dict().unwrap_or(HashMap::new());
+    let temp = temp.as_dict().unwrap_or_default();
 
-    return parse_to_accounts(temp);
+    parse_to_accounts(temp)
 }
 
 pub fn parse_to_accounts(map: HashMap<String, DataValue>) -> HashMap<String, ServiceAccountInfo> {
@@ -44,39 +44,39 @@ pub fn parse_to_accounts(map: HashMap<String, DataValue>) -> HashMap<String, Ser
                 .get("username")
                 .unwrap_or(&doson::DataValue::None)
                 .as_string()
-                .unwrap_or(String::new());
+                .unwrap_or_default();
 
             let password = v
                 .get("password")
                 .unwrap_or(&doson::DataValue::None)
                 .as_string()
-                .unwrap_or(String::new());
+                .unwrap_or_default();
 
             let usa_database_dv = v
                 .get("usa_database")
                 .unwrap_or(&doson::DataValue::None)
                 .as_list()
-                .unwrap_or(vec![]);
+                .unwrap_or_default();
             let mut usa_database: Vec<String> = vec![];
             for usa in usa_database_dv {
-                usa_database.push(usa.as_string().unwrap_or(String::new()))
+                usa_database.push(usa.as_string().unwrap_or_default())
             }
 
             let cls_command_dv = v
                 .get("usa_database")
                 .unwrap_or(&doson::DataValue::None)
                 .as_list()
-                .unwrap_or(vec![]);
+                .unwrap_or_default();
             let mut cls_command: Vec<String> = vec![];
             for usa in cls_command_dv {
-                cls_command.push(usa.as_string().unwrap_or(String::new()))
+                cls_command.push(usa.as_string().unwrap_or_default())
             }
 
             let checker = v
                 .get("checker")
                 .unwrap_or(&doson::DataValue::None)
                 .as_string()
-                .unwrap_or(String::new());
+                .unwrap_or_default();
 
             result.insert(
                 item.0.clone(),

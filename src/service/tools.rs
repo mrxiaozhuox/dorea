@@ -25,10 +25,7 @@ pub async fn multipart(mut value: axum::extract::Multipart) -> HashMap<String, F
     while let Some(field) = value.next_field().await.unwrap() {
         let name = field.name().unwrap().to_string();
 
-        let file_name = match field.file_name().clone() {
-            None => None,
-            Some(v) => Some(String::from(v)),
-        };
+        let file_name = field.file_name().map(String::from);
 
         let data = field.bytes().await.unwrap().clone();
 

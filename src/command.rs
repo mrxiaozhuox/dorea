@@ -109,7 +109,7 @@ impl CommandManager {
         command_argument_info.insert(CommandList::DOCS, (0, 1));
         command_argument_info.insert(CommandList::SERVICE, (1, -1));
 
-        let mut slice: Vec<&str> = message.split(" ").collect();
+        let mut slice: Vec<&str> = message.split(' ').collect();
 
         let command_str = match slice.get(0) {
             Some(v) => v,
@@ -119,7 +119,7 @@ impl CommandManager {
         let command = CommandList::new(command_str.to_string());
 
         if command == CommandList::UNKNOWN {
-            if command_str == "" {
+            if command_str.is_empty() {
                 return (NetPacketState::EMPTY, vec![]);
             }
 
@@ -131,7 +131,7 @@ impl CommandManager {
             );
         }
 
-        if !auth.clone() && command != CommandList::AUTH {
+        if !*auth && command != CommandList::AUTH {
             return (
                 NetPacketState::NOAUTH,
                 "Authentication failed.".as_bytes().to_vec(),
@@ -180,7 +180,7 @@ impl CommandManager {
 
             let local_password = &config.connection.connection_password;
 
-            return if input_password == local_password || local_password == "" {
+            return if input_password == local_password || local_password.is_empty() {
                 *auth = true;
 
                 (NetPacketState::OK, vec![])
@@ -214,10 +214,7 @@ impl CommandManager {
 
             if slice.len() == 3 {
                 let temp = slice.get(2).unwrap();
-                expire = match temp.parse::<u64>() {
-                    Ok(v) => v,
-                    Err(_) => 0,
-                }
+                expire = temp.parse::<u64>().unwrap_or(0)
             }
 
             // 为 current 增加权重
@@ -300,7 +297,7 @@ impl CommandManager {
 
                     (
                         NetPacketState::OK,
-                        crate::value::value_ser_string(v.value, &value_ser_style)
+                        crate::value::value_ser_string(v.value, value_ser_style)
                             .as_bytes()
                             .to_vec(),
                     )
@@ -360,7 +357,7 @@ impl CommandManager {
             let db_name = slice.get(0).unwrap();
 
             // 将当前使用的库加入到 DB统计 中（防止被动态卸载）
-            crate::server::db_stat_set(connect_id.clone(), db_name.to_string()).await;
+            crate::server::db_stat_set(*connect_id, db_name.to_string()).await;
 
             return match database_manager.lock().await.select_to(db_name).await {
                 Ok(_) => {
@@ -636,7 +633,7 @@ impl CommandManager {
                                 Err(_) => {
                                     return (
                                         NetPacketState::ERR,
-                                        format!("Value parse error.").as_bytes().to_vec(),
+                                        "Value parse error.".to_string().as_bytes().to_vec(),
                                     );
                                 }
                             };
@@ -645,10 +642,13 @@ impl CommandManager {
                     }
                 } else if operation == "insert" {
                     // 检查参数数量
-                    if sub_arg.len() < 1 {
+                    if sub_arg.is_empty() {
                         return (
                             NetPacketState::ERR,
-                            format!("Missing command parameters.").as_bytes().to_vec(),
+                            "Missing command parameters."
+                                .to_string()
+                                .as_bytes()
+                                .to_vec(),
                         );
                     }
                     if sub_arg.len() > 2 {
@@ -671,7 +671,7 @@ impl CommandManager {
                         // 数据解析错误，抛出结束
                         return (
                             NetPacketState::ERR,
-                            format!("Data parse error.").as_bytes().to_vec(),
+                            "Data parse error.".to_string().as_bytes().to_vec(),
                         );
                     }
 
@@ -680,7 +680,10 @@ impl CommandManager {
                     if sub_arg.len() != 1 {
                         return (
                             NetPacketState::ERR,
-                            format!("Parameter non-specification").as_bytes().to_vec(),
+                            "Parameter non-specification"
+                                .to_string()
+                                .as_bytes()
+                                .to_vec(),
                         );
                     }
 
@@ -691,7 +694,10 @@ impl CommandManager {
                     if sub_arg.len() != 1 {
                         return (
                             NetPacketState::ERR,
-                            format!("Parameter non-specification").as_bytes().to_vec(),
+                            "Parameter non-specification"
+                                .to_string()
+                                .as_bytes()
+                                .to_vec(),
                         );
                     }
 
@@ -703,16 +709,19 @@ impl CommandManager {
                         // 数据解析错误，抛出结束
                         return (
                             NetPacketState::ERR,
-                            format!("Data parse error.").as_bytes().to_vec(),
+                            "Data parse error.".to_string().as_bytes().to_vec(),
                         );
                     }
 
                     _result = edit_operation::push(origin_value, data_val);
                 } else if operation == "pop" {
-                    if sub_arg.len() > 0 {
+                    if !sub_arg.is_empty() {
                         return (
                             NetPacketState::ERR,
-                            format!("Parameter non-specification").as_bytes().to_vec(),
+                            "Parameter non-specification"
+                                .to_string()
+                                .as_bytes()
+                                .to_vec(),
                         );
                     }
 
@@ -721,14 +730,17 @@ impl CommandManager {
                     if sub_arg.len() > 1 {
                         return (
                             NetPacketState::ERR,
-                            format!("Parameter non-specification").as_bytes().to_vec(),
+                            "Parameter non-specification"
+                                .to_string()
+                                .as_bytes()
+                                .to_vec(),
                         );
                     }
 
                     let asc: bool;
 
                     // 检查排序方式
-                    if sub_arg.len() > 0 {
+                    if !sub_arg.is_empty() {
                         let temp: &str = sub_arg.get(0).unwrap_or(&"asc");
                         if temp.to_uppercase() == "DESC" {
                             asc = false;
@@ -741,10 +753,13 @@ impl CommandManager {
 
                     _result = edit_operation::sort(origin_value, asc);
                 } else if operation == "reverse" {
-                    if sub_arg.len() > 0 {
+                    if !sub_arg.is_empty() {
                         return (
                             NetPacketState::ERR,
-                            format!("Parameter non-specification").as_bytes().to_vec(),
+                            "Parameter non-specification"
+                                .to_string()
+                                .as_bytes()
+                                .to_vec(),
                         );
                     }
 
@@ -814,7 +829,10 @@ impl CommandManager {
                 if slice.len() != 2 {
                     return (
                         NetPacketState::ERR,
-                        format!("Parameter non-specification").as_bytes().to_vec(),
+                        "Parameter non-specification"
+                            .to_string()
+                            .as_bytes()
+                            .to_vec(),
                     );
                 }
 
@@ -823,7 +841,7 @@ impl CommandManager {
                 if crate::server::db_stat_exist(db_name.to_string()).await {
                     return (
                         NetPacketState::ERR,
-                        format!("This database is in use").as_bytes().to_vec(),
+                        "This database is in use".to_string().as_bytes().to_vec(),
                     );
                 }
 
@@ -836,7 +854,7 @@ impl CommandManager {
                 {
                     return (
                         NetPacketState::ERR,
-                        format!("This database is locked").as_bytes().to_vec(),
+                        "This database is locked".to_string().as_bytes().to_vec(),
                     );
                 }
 
@@ -852,7 +870,7 @@ impl CommandManager {
                     Err(_) => {
                         return (
                             NetPacketState::ERR,
-                            format!("Unload failed").as_bytes().to_vec(),
+                            "Unload failed".to_string().as_bytes().to_vec(),
                         )
                     }
                 };
@@ -860,16 +878,22 @@ impl CommandManager {
                 if slice.len() != 2 {
                     return (
                         NetPacketState::ERR,
-                        format!("Parameter non-specification").as_bytes().to_vec(),
+                        "Parameter non-specification"
+                            .to_string()
+                            .as_bytes()
+                            .to_vec(),
                     );
                 }
 
                 let db_name: &str = slice.get(1).unwrap();
 
-                if db_name == "" {
+                if db_name.is_empty() {
                     return (
                         NetPacketState::ERR,
-                        format!("Parameter non-specification").as_bytes().to_vec(),
+                        "Parameter non-specification"
+                            .to_string()
+                            .as_bytes()
+                            .to_vec(),
                     );
                 }
 
@@ -891,16 +915,22 @@ impl CommandManager {
                 if slice.len() != 2 {
                     return (
                         NetPacketState::ERR,
-                        format!("Parameter non-specification").as_bytes().to_vec(),
+                        "Parameter non-specification"
+                            .to_string()
+                            .as_bytes()
+                            .to_vec(),
                     );
                 }
 
                 let db_name: &str = slice.get(1).unwrap();
 
-                if db_name == "" {
+                if db_name.is_empty() {
                     return (
                         NetPacketState::ERR,
-                        format!("Parameter non-specification").as_bytes().to_vec(),
+                        "Parameter non-specification"
+                            .to_string()
+                            .as_bytes()
+                            .to_vec(),
                     );
                 }
 
@@ -916,16 +946,22 @@ impl CommandManager {
                 if slice.len() != 2 {
                     return (
                         NetPacketState::ERR,
-                        format!("Parameter non-specification").as_bytes().to_vec(),
+                        "Parameter non-specification"
+                            .to_string()
+                            .as_bytes()
+                            .to_vec(),
                     );
                 }
 
                 let db_name: &str = slice.get(1).unwrap();
 
-                if db_name == "" {
+                if db_name.is_empty() {
                     return (
                         NetPacketState::ERR,
-                        format!("Parameter non-specification").as_bytes().to_vec(),
+                        "Parameter non-specification"
+                            .to_string()
+                            .as_bytes()
+                            .to_vec(),
                     );
                 }
 
@@ -975,10 +1011,11 @@ impl CommandManager {
         }
 
         if command == CommandList::DOCS {
-            if slice.len() == 0 {
+            if slice.is_empty() {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::docs::SUBCOMMAND_DOCS_HELP)
+                    crate::docs::SUBCOMMAND_DOCS_HELP
+                        .to_string()
                         .as_bytes()
                         .to_vec(),
                 );
@@ -989,7 +1026,8 @@ impl CommandManager {
             if target.to_uppercase() == "SERVICE" {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::docs::SUBCOMMAND_SERVICE_HELP)
+                    crate::docs::SUBCOMMAND_SERVICE_HELP
+                        .to_string()
                         .as_bytes()
                         .to_vec(),
                 );
@@ -997,7 +1035,8 @@ impl CommandManager {
             if target.to_uppercase() == "DOCS" {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::docs::SUBCOMMAND_INFO_HELP)
+                    crate::docs::SUBCOMMAND_INFO_HELP
+                        .to_string()
                         .as_bytes()
                         .to_vec(),
                 );
@@ -1005,7 +1044,8 @@ impl CommandManager {
             if target.to_uppercase() == "INFO" {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::docs::SUBCOMMAND_INFO_HELP)
+                    crate::docs::SUBCOMMAND_INFO_HELP
+                        .to_string()
                         .as_bytes()
                         .to_vec(),
                 );
@@ -1013,7 +1053,8 @@ impl CommandManager {
             if target.to_uppercase() == "EDIT" {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::docs::SUBCOMMAND_EDIT_HELP)
+                    crate::docs::SUBCOMMAND_EDIT_HELP
+                        .to_string()
                         .as_bytes()
                         .to_vec(),
                 );
@@ -1021,7 +1062,8 @@ impl CommandManager {
             if target.to_uppercase() == "DB" {
                 return (
                     NetPacketState::OK,
-                    format!("{}", crate::docs::SUBCOMMAND_DB_HELP)
+                    crate::docs::SUBCOMMAND_DB_HELP
+                        .to_string()
                         .as_bytes()
                         .to_vec(),
                 );
@@ -1032,19 +1074,18 @@ impl CommandManager {
             let operation: &str = slice.get(0).unwrap();
 
             if operation == "account" || operation == "acc" {
-                if !database_manager.lock().await.db_list.contains_key("system") {
-                    if database_manager
+                if !database_manager.lock().await.db_list.contains_key("system")
+                    && database_manager
                         .lock()
                         .await
                         .select_to("system")
                         .await
                         .is_err()
-                    {
-                        return (
-                            NetPacketState::ERR,
-                            format!("Load system db failed.").as_bytes().to_vec(),
-                        );
-                    }
+                {
+                    return (
+                        NetPacketState::ERR,
+                        "Load system db failed.".to_string().as_bytes().to_vec(),
+                    );
                 }
 
                 let acc_val = database_manager
@@ -1060,7 +1101,10 @@ impl CommandManager {
                 if slice.len() <= 1 {
                     return (
                         NetPacketState::ERR,
-                        format!("Parameter non-specification").as_bytes().to_vec(),
+                        "Parameter non-specification"
+                            .to_string()
+                            .as_bytes()
+                            .to_vec(),
                     );
                 }
 
@@ -1071,7 +1115,10 @@ impl CommandManager {
                     if slice.len() < 4 || slice.len() > 6 {
                         return (
                             NetPacketState::ERR,
-                            format!("Parameter non-specification").as_bytes().to_vec(),
+                            "Parameter non-specification"
+                                .to_string()
+                                .as_bytes()
+                                .to_vec(),
                         );
                     }
 
@@ -1079,7 +1126,7 @@ impl CommandManager {
                     let password: &str = slice.get(3).unwrap();
 
                     let de_usa_db: &str = &format!("[\"{}\"]", username);
-                    let de_cls_cmd: &str = &format!("[\"service\", \"db\"]");
+                    let de_cls_cmd: &str = &"[\"service\", \"db\"]".to_string();
 
                     let usa_db: &str = slice.get(4).unwrap_or(&de_usa_db);
                     let cls_cmd: &str = slice.get(5).unwrap_or(&de_cls_cmd);
@@ -1141,14 +1188,12 @@ impl CommandManager {
                     } else {
                         return (
                             NetPacketState::ERR,
-                            format!("{}", res.err().unwrap().to_string())
-                                .as_bytes()
-                                .to_vec(),
+                            res.err().unwrap().to_string().as_bytes().to_vec(),
                         );
                     }
                 } else if sub == "list" {
                     let accs = crate::service::db::parse_to_accounts(
-                        acc_val.as_dict().unwrap_or(HashMap::new()),
+                        acc_val.as_dict().unwrap_or_default(),
                     );
                     let mut result = HashMap::new();
 
@@ -1159,15 +1204,13 @@ impl CommandManager {
 
                     return (
                         NetPacketState::OK,
-                        format!(
-                            "{}",
-                            serde_json::to_string(&result).unwrap_or(String::from("{}"))
-                        )
-                        .as_bytes()
-                        .to_vec(),
+                        serde_json::to_string(&result)
+                            .unwrap_or(String::from("{}"))
+                            .as_bytes()
+                            .to_vec(),
                     );
                 } else if sub == "num" {
-                    let temp = acc_val.as_dict().unwrap_or(HashMap::new());
+                    let temp = acc_val.as_dict().unwrap_or_default();
                     return (
                         NetPacketState::OK,
                         format!("{}", temp.len()).as_bytes().to_vec(),
@@ -1176,7 +1219,10 @@ impl CommandManager {
                     if slice.len() < 4 {
                         return (
                             NetPacketState::ERR,
-                            format!("Parameter non-specification").as_bytes().to_vec(),
+                            "Parameter non-specification"
+                                .to_string()
+                                .as_bytes()
+                                .to_vec(),
                         );
                     }
 
@@ -1184,13 +1230,13 @@ impl CommandManager {
                     let password: &str = slice.get(3).unwrap();
 
                     let mut accs = crate::service::db::parse_to_accounts(
-                        acc_val.as_dict().unwrap_or(HashMap::new()),
+                        acc_val.as_dict().unwrap_or_default(),
                     );
 
                     if !accs.contains_key(username) {
                         return (
                             NetPacketState::ERR,
-                            format!("Account info not found.").as_bytes().to_vec(),
+                            "Account info not found.".to_string().as_bytes().to_vec(),
                         );
                     }
 
@@ -1219,9 +1265,7 @@ impl CommandManager {
                     } else {
                         return (
                             NetPacketState::ERR,
-                            format!("{}", res.err().unwrap().to_string())
-                                .as_bytes()
-                                .to_vec(),
+                            res.err().unwrap().to_string().as_bytes().to_vec(),
                         );
                     }
                 }
@@ -1278,7 +1322,7 @@ mod edit_operation {
     use std::collections::HashMap;
 
     pub fn incr(value: DataValue, num: i32) -> DataValue {
-        if let DataValue::Number(x) = value.clone() {
+        if let DataValue::Number(x) = value {
             return DataValue::Number(((x as i32) + num) as f64);
         }
 
@@ -1304,12 +1348,12 @@ mod edit_operation {
             return DataValue::Tuple((Box::from(incr(*x.0, num)), Box::from(incr(*x.1, num))));
         }
 
-        return value;
+        value
     }
 
     pub fn insert(origin: DataValue, info: (String, DataValue)) -> DataValue {
         if let DataValue::Dict(mut x) = origin.clone() {
-            if info.0 != String::from("") {
+            if info.0 != *"" {
                 x.insert(info.0, info.1);
             }
             return DataValue::Dict(x);
@@ -1341,7 +1385,7 @@ mod edit_operation {
             return DataValue::Tuple(x);
         }
 
-        return origin;
+        origin
     }
 
     pub fn remove(origin: DataValue, key: String) -> DataValue {
@@ -1377,7 +1421,7 @@ mod edit_operation {
             return DataValue::Tuple(x);
         }
 
-        return origin;
+        origin
     }
 
     // 列表（数组）专用方法，其他复合类型无法使用
@@ -1387,7 +1431,7 @@ mod edit_operation {
             return DataValue::List(x);
         }
 
-        return origin;
+        origin
     }
 
     // 列表（数组）专用方法，其他复合类型无法使用
@@ -1397,7 +1441,7 @@ mod edit_operation {
             return DataValue::List(x);
         }
 
-        return origin;
+        origin
     }
 
     // 列表（数组）专用方法，其他复合类型无法使用
@@ -1410,7 +1454,7 @@ mod edit_operation {
             return DataValue::List(x);
         }
 
-        return origin;
+        origin
     }
 
     // 将数组、元组进行元素反转
@@ -1421,13 +1465,11 @@ mod edit_operation {
         }
 
         if let DataValue::Tuple(mut x) = origin.clone() {
-            let temp = x.0;
-            x.0 = x.1;
-            x.1 = temp;
+            std::mem::swap(&mut x.0, &mut x.1);
             return DataValue::Tuple(x);
         }
 
-        return origin;
+        origin
     }
 
     #[test]

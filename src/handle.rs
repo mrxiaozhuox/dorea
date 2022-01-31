@@ -24,7 +24,7 @@ pub(crate) async fn process(
 
     let mut auth = false;
 
-    if config.connection.connection_password == "" {
+    if config.connection.connection_password.is_empty() {
         auth = true;
     }
 
@@ -47,7 +47,7 @@ pub(crate) async fn process(
             }
         };
 
-        if message.len() == 0 {
+        if message.is_empty() {
             return Ok(());
         }
 

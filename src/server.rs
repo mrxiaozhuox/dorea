@@ -116,10 +116,7 @@ impl DoreaServer {
         let doc_path = self._server_options.document_path.clone().unwrap();
 
         let _ = crate::service::startup(
-            (
-                self._server_options.hostname.clone(),
-                self._server_options.port,
-            ),
+            (&(*self._server_options.hostname), self._server_options.port),
             &doc_path,
         )
         .await;
@@ -168,7 +165,7 @@ impl DoreaServer {
             DB_STATISTICS
                 .lock()
                 .await
-                .insert(connid.clone(), current_db.clone());
+                .insert(connid, current_db.clone());
 
             task::spawn(async move {
                 // 开始漫长不断的数据接受
@@ -179,7 +176,7 @@ impl DoreaServer {
                     db_manager,
                     startup_time,
                     value_ser_style.clone(),
-                    connid.clone(),
+                    connid,
                 )
                 .await;
 
@@ -221,7 +218,7 @@ pub async fn db_stat_set(connid: uuid::Uuid, db_name: String) {
 
 pub async fn db_stat_exist(db_name: String) -> bool {
     for (_, v) in DB_STATISTICS.lock().await.iter() {
-        if v.to_string() == db_name {
+        if *v == db_name {
             return true;
         }
     }

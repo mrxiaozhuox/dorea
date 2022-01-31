@@ -58,7 +58,7 @@ pub async fn auth(
         state.config.0.connection.connection_password.clone(),
     );
 
-    if username == String::from("master") {
+    if username == *"master" {
         if password != state.config.1.master_password {
             return Api::error(StatusCode::BAD_REQUEST, "account password error.");
         }
@@ -135,10 +135,10 @@ pub async fn ping(
     )
     .await;
 
-    return match client {
+    match client {
         Ok(_) => Api::ok(),
         Err(e) => Api::error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
-    };
+    }
 }
 
 /// key: 数据键信息
@@ -219,7 +219,7 @@ pub async fn controller(
 
     if &operation == "info" || &operation == "information" {
         let keys = client.info(InfoType::KeyList).await.unwrap();
-        let keys = serde_json::from_str::<Vec<String>>(&keys).unwrap_or(vec![]);
+        let keys = serde_json::from_str::<Vec<String>>(&keys).unwrap_or_default();
 
         return Api::json(
             StatusCode::OK,
@@ -237,12 +237,12 @@ pub async fn controller(
             }
         };
 
-        if let None = form.key {
+        if form.key.is_none() {
             return Api::lose_param("key");
         }
 
         let style: &str;
-        if let None = form.style {
+        if form.style.is_none() {
             style = "doson";
         } else {
             let temp_style = form.style.clone().unwrap();
@@ -278,13 +278,13 @@ pub async fn controller(
             }
         };
 
-        if let None = form.key {
+        if form.key.is_none() {
             return Api::lose_param("key");
         }
 
         let key = form.key.clone().unwrap();
 
-        if let None = form.value {
+        if form.value.is_none() {
             return Api::lose_param("value");
         }
 
@@ -314,7 +314,7 @@ pub async fn controller(
             }
         };
 
-        if let None = form.key {
+        if form.key.is_none() {
             return Api::lose_param("key");
         }
 
@@ -341,7 +341,7 @@ pub async fn controller(
         };
 
         let style: &str;
-        if let None = form.style {
+        if form.style.is_none() {
             style = "doson";
         } else {
             let temp_style = form.style.clone().unwrap();
@@ -354,7 +354,7 @@ pub async fn controller(
 
         let _ = client.execute(&format!("value style {}", style)).await;
 
-        if let None = form.query {
+        if form.query.is_none() {
             return Api::lose_param("query");
         }
 
@@ -388,7 +388,7 @@ pub async fn controller(
             }
         };
 
-        if let None = form.query {
+        if form.query.is_none() {
             return Api::lose_param("query");
         }
 
@@ -410,7 +410,7 @@ pub async fn controller(
             }
         };
 
-        if let None = form.query {
+        if form.query.is_none() {
             return Api::lose_param("query");
         }
 

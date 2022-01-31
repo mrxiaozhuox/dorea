@@ -4,7 +4,7 @@ use dorea::DOREA_VERSION;
 
 use std::path::PathBuf;
 
-const TEMPLATE: &'static str = "
+const TEMPLATE: &str = "
 ⎐ {bin} - (V{version}) ⎐
 
 USAGE:

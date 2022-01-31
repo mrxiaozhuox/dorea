@@ -96,14 +96,12 @@ impl DataBaseManager {
 
         let (db_list, eli_que) = DataBaseManager::load_database(&config, location.clone()).await;
 
-        let obj = Self {
+        Self {
             db_list,
             location: location.clone(),
             config,
             eli_queue: eli_que,
-        };
-
-        obj
+        }
     }
 
     // 切换数据库
@@ -353,7 +351,7 @@ impl DataBase {
         }
 
         let mut crc_digest = CASTAGNOLI.digest();
-        crc_digest.update(&value.to_string().as_bytes());
+        crc_digest.update(value.to_string().as_bytes());
 
         let data_node = DataNode {
             crc: crc_digest.finalize(),
@@ -370,15 +368,14 @@ impl DataBase {
         match res {
             Some(d) => {
                 // 过期时间判定
-                if d.time_stamp.1 != 0 {
-                    if (d.time_stamp.0 as u64 + d.time_stamp.1)
+                if d.time_stamp.1 != 0
+                    && (d.time_stamp.0 as u64 + d.time_stamp.1)
                         < chrono::Local::now().timestamp() as u64
-                    {
-                        // 关于 2021-12-15 的更新：
-                        // 这里不再删除数据（会增加一次写入）
-                        // 过期直接返回 None 即可，不再更新为空
-                        return Some(DataValue::None);
-                    }
+                {
+                    // 关于 2021-12-15 的更新：
+                    // 这里不再删除数据（会增加一次写入）
+                    // 过期直接返回 None 即可，不再更新为空
+                    return Some(DataValue::None);
                 }
 
                 Some(d.value)
@@ -389,10 +386,7 @@ impl DataBase {
 
     pub async fn meta_data(&self, key: &str) -> Option<DataNode> {
         let res = self.file.read(key.to_string(), &self.index).await;
-        match res {
-            Some(d) => Some(d),
-            None => None,
-        }
+        res
     }
 
     pub async fn delete(&mut self, key: &str) -> Result<()> {
@@ -582,24 +576,20 @@ impl DataFile {
                                         count += 1;
                                     }
                                     index.insert(v.key.clone(), info);
-                                } else {
-                                    if index.contains_key(&v.key) {
-                                        index.remove(&v.key);
-                                        count -= 1;
-                                    }
+                                } else if index.contains_key(&v.key) {
+                                    index.remove(&v.key);
+                                    count -= 1;
                                 }
 
                                 slice_symbol = true;
                                 position = (position.1 + 2, position.1 + 2);
 
                                 legacy.clear();
+                            } else if slice_symbol && &bs[rec] == &b'\n' {
+                                slice_symbol = false;
                             } else {
-                                if slice_symbol && &bs[rec] == &b'\n' {
-                                    slice_symbol = false;
-                                } else {
-                                    legacy.push(bs[rec]);
-                                    position.1 += 1;
-                                }
+                                legacy.push(bs[rec]);
+                                position.1 += 1;
                             }
                         }
 
@@ -660,7 +650,7 @@ impl DataFile {
 
     // DoreaFile 系统改名：主要用于 merge 相关功能
     fn rename_dfile(&mut self, new_name: &str) -> crate::Result<()> {
-        let new_root = self.root.parent().unwrap().join(new_name).clone();
+        let new_root = self.root.parent().unwrap().join(new_name);
 
         if new_root.is_dir() {
             fs::remove_dir_all(&new_root)?;
@@ -753,9 +743,7 @@ impl DataFile {
     pub async fn read(&self, key: String, index: &HashMap<String, IndexInfo>) -> Option<DataNode> {
         match index.get(&key) {
             Some(v) => self.read_with_index_info(v).await,
-            None => {
-                return None;
-            }
+            None => None,
         }
     }
 
@@ -786,7 +774,7 @@ impl DataFile {
 
         let len = file.read(&mut buf).unwrap();
 
-        let v = match serde_json::from_slice::<DataNode>(&buf[0..len].as_bytes()) {
+        let v = match serde_json::from_slice::<DataNode>(buf[0..len].as_bytes()) {
             Ok(v) => v,
             Err(_) => {
                 return None;
@@ -885,7 +873,7 @@ impl DataFile {
             .write(true)
             .open(self.root.join("record.in"))?;
 
-        f.write((self.get_file_id() + 1).to_string().as_bytes())?;
+        f.write_all((self.get_file_id() + 1).to_string().as_bytes())?;
 
         // remake active file
         self.active()?;
@@ -902,10 +890,7 @@ impl DataFile {
 
         fp.read_to_string(&mut num).unwrap();
 
-        match num.parse::<u32>() {
-            Ok(v) => v,
-            Err(_) => 1,
-        }
+        num.parse::<u32>().unwrap_or(1)
     }
 }
 

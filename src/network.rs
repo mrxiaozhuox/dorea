@@ -23,10 +23,7 @@ pub enum NetPacketState {
 
 impl NetPacket {
     pub(crate) fn make(body: Vec<u8>, state: NetPacketState) -> Self {
-        Self {
-            body: body,
-            state: state,
-        }
+        Self { body, state }
     }
 
     pub(crate) async fn send(&self, socket: &mut TcpStream) -> crate::Result<()> {
@@ -80,7 +77,7 @@ impl Frame {
 
         let mut message = String::from_utf8(response.as_ref().to_vec()).unwrap();
 
-        if message.trim().len() == 0 {
+        if message.trim().is_empty() {
             return Ok(vec![]);
         }
 
@@ -99,14 +96,14 @@ impl Frame {
             Err(_) => (message.as_str(), NetPacketState::EMPTY),
         };
 
-        let (remain, mut data) = match Frame::parse_content(&remain) {
+        let (remain, mut data) = match Frame::parse_content(remain) {
             Ok((remain, data)) => (remain.to_string(), data.to_string()),
             Err(_) => {
                 return Err(anyhow::anyhow!("content parse error"));
             }
         };
 
-        if remain.len() > 0 {
+        if !remain.is_empty() {
             self.legacy_content = remain[1..].as_bytes().to_vec();
         }
 

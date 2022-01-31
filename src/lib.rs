@@ -4,7 +4,7 @@
 use once_cell::sync::Lazy;
 
 // Dorea db version (current)
-pub const DOREA_VERSION: &'static str = "0.4.0";
+pub const DOREA_VERSION: &str = "0.4.0";
 
 // current version support load-storage version list.
 #[allow(dead_code)]
