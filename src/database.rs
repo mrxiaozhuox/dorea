@@ -1,6 +1,7 @@
 use std::fs::{self, rename};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::path::Path;
 use std::{collections::HashMap, path::PathBuf};
 
 use log::info;
@@ -62,6 +63,7 @@ static TOTAL_INFO: Lazy<Mutex<TotalInfo>> = Lazy::new(|| {
 pub static DB_STATE: Lazy<Mutex<HashMap<String, DataBaseState>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum DataBaseState {
     NORMAL,
@@ -432,7 +434,7 @@ impl DataBase {
 
     pub async fn keys(&self) -> Vec<String> {
         let mut temp = vec![];
-        for (i, _) in &self.index {
+        for i in self.index.keys() {
             temp.push(i.to_string());
         }
 
@@ -465,9 +467,9 @@ struct DataFile {
 
 impl DataFile {
     // 初始化 数据文件系统 -> DoreaFile
-    pub fn new(root: &PathBuf, name: String) -> Self {
+    pub fn new(root: &Path, name: String) -> Self {
         let mut db = Self {
-            root: root.clone(),
+            root: root.to_path_buf(),
             name,
         };
 
@@ -534,7 +536,7 @@ impl DataFile {
                         for rec in 0..bs.len() {
                             // is slice end
 
-                            if &bs[rec] == &b'\r' {
+                            if bs[rec] == b'\r' {
                                 if rec == (bs.len() - 1) {
                                     let mut read_one = [0_u8; 1];
                                     match file.read(&mut read_one) {
@@ -552,7 +554,7 @@ impl DataFile {
                                             panic!("{}", e.to_string());
                                         }
                                     };
-                                } else if &bs[rec + 1] != &b'\n' {
+                                } else if bs[rec + 1] != b'\n' {
                                     legacy.push(bs[rec]);
                                     position.1 += 1;
                                     continue;
@@ -585,7 +587,7 @@ impl DataFile {
                                 position = (position.1 + 2, position.1 + 2);
 
                                 legacy.clear();
-                            } else if slice_symbol && &bs[rec] == &b'\n' {
+                            } else if slice_symbol && bs[rec] == b'\n' {
                                 slice_symbol = false;
                             } else {
                                 legacy.push(bs[rec]);

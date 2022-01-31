@@ -18,6 +18,7 @@ use crate::{
 };
 
 #[allow(dead_code)]
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum CommandList {
     GET,
@@ -236,7 +237,7 @@ impl CommandManager {
                 .await
             {
                 // 卸载掉一个数据库（最不常用的）
-                if let Err(_) = database_manager.lock().await.check_eli_db(0).await {
+                if database_manager.lock().await.check_eli_db(0).await.is_err() {
                     panic!("uninstall db failed.");
                 }
             }
@@ -998,7 +999,7 @@ impl CommandManager {
                 return (
                     NetPacketState::OK,
                     serde_json::to_string(&result)
-                        .unwrap_or("{}".into())
+                        .unwrap_or_else(|_| "{}".into())
                         .as_bytes()
                         .to_vec(),
                 );
@@ -1096,7 +1097,7 @@ impl CommandManager {
                     .unwrap()
                     .get("service@accounts")
                     .await
-                    .unwrap_or(DataValue::Dict(HashMap::new()));
+                    .unwrap_or_else(|| DataValue::Dict(HashMap::new()));
 
                 if slice.len() <= 1 {
                     return (
@@ -1205,7 +1206,7 @@ impl CommandManager {
                     return (
                         NetPacketState::OK,
                         serde_json::to_string(&result)
-                            .unwrap_or(String::from("{}"))
+                            .unwrap_or_else(|_| String::from("{}"))
                             .as_bytes()
                             .to_vec(),
                     );

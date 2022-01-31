@@ -1,6 +1,6 @@
 //! Dorea Storage Databasepub mod server;
 
-#[allow(dead_code)]
+#![allow(dead_code)]
 use once_cell::sync::Lazy;
 
 // Dorea db version (current)
@@ -8,7 +8,7 @@ pub const DOREA_VERSION: &str = "0.4.0";
 
 // current version support load-storage version list.
 #[allow(dead_code)]
-const COMPATIBLE_VERSION: Lazy<Vec<String>> = Lazy::new(|| {
+static COMPATIBLE_VERSION: Lazy<Vec<String>> = Lazy::new(|| {
     vec![
         format!(
             "{:x}",

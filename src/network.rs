@@ -56,12 +56,15 @@ pub struct Frame {
     pub latest_state: NetPacketState,
 }
 
+impl Default for Frame {
+    fn default() -> Self {
+        Self { legacy_content: Default::default(), latest_state: NetPacketState::EMPTY }
+    }
+}
+
 impl Frame {
     pub fn new() -> Self {
-        Self {
-            legacy_content: Vec::new(),
-            latest_state: NetPacketState::EMPTY,
-        }
+        Self::default()
     }
 
     // read message from socket [std]
@@ -200,14 +203,12 @@ impl Frame {
         let mut remain = "";
         let result;
 
-        if state.is_err() {
-            let (info, _) = tag("#: ")(message)?;
-
-            result = info;
-        } else {
-            let temp: (&str, &str) = state.unwrap();
+        if let Ok(temp) = state {
             remain = temp.0;
             result = temp.1;
+        } else {
+            let (info, _) = tag("#: ")(message)?;
+            result = info;
         }
 
         Ok((remain, result))
