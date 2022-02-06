@@ -100,7 +100,8 @@ pub async fn auth(
         json!({
             "type": "JsonWebToken",
             "token": v,
-            "level": username
+            "level": username,
+            "usa_db": account_info.usa_database.unwrap_or_default(),
         }),
     )
 }
