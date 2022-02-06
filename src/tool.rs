@@ -18,8 +18,8 @@ pub fn rand_str() -> String {
 
 // 模糊匹配单条匹配函数
 pub fn fuzzy_search(exp: &str, value: &str) -> bool {
-    if exp.len() <= 0 {
-        return value.len() <= 0;
+    if exp.is_empty() {
+        return true;
     }
 
     let mut exp_chars = exp.chars();

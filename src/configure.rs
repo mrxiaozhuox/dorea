@@ -1,7 +1,7 @@
 use crate::Result;
 
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::{fs, path::{PathBuf, Path}};
 
 /// Dorea File Config Struct
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -34,7 +34,7 @@ pub struct RestConfig {
 }
 
 #[allow(dead_code)]
-pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
+pub(crate) fn load_config(path: &Path) -> Result<DoreaFileConfig> {
     let config = path.join("config.toml");
 
     if !config.is_file() {
@@ -67,7 +67,7 @@ pub(crate) fn load_config(path: &PathBuf) -> Result<DoreaFileConfig> {
     Ok(result)
 }
 
-pub(crate) fn load_rest_config(path: &PathBuf) -> Result<RestConfig> {
+pub(crate) fn load_rest_config(path: &Path) -> Result<RestConfig> {
     let config = path.join("service.toml");
 
     if !config.is_file() {

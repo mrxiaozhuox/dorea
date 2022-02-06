@@ -749,6 +749,7 @@ impl DataFile {
         }
     }
 
+    #[allow(clippy::slow_vector_initialization)]
     pub async fn read_with_index_info(&self, index_info: &IndexInfo) -> Option<DataNode> {
         let data_file: PathBuf;
         if index_info.file_id == self.get_file_id() {

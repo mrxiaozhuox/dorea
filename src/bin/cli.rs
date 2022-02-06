@@ -139,8 +139,6 @@ pub async fn main() {
         return;
     }
 
-    let password = password.clone();
-
     // 获取数据库客户端连接
     let c = DoreaClient::connect(
         (

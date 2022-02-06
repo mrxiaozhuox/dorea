@@ -7,7 +7,7 @@ use doson::DataValue;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::Infallible;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 
 use std::time::Duration;
@@ -28,12 +28,12 @@ pub struct ShareState {
     pub(crate) client_addr: (&'static str, u16),
 }
 
-pub async fn startup(addr: (&'static str, u16), document_path: &PathBuf) -> crate::Result<()> {
+pub async fn startup(addr: (&'static str, u16), document_path: &Path) -> crate::Result<()> {
     let hostname = addr.0;
     let dorea_port = addr.1;
 
     // 读取 rest-service path
-    let rest_config = crate::configure::load_rest_config(document_path)?;
+    let rest_config = crate::configure::load_rest_config(&document_path.to_path_buf())?;
 
     if !rest_config.switch {
         return Ok(());
@@ -42,7 +42,7 @@ pub async fn startup(addr: (&'static str, u16), document_path: &PathBuf) -> crat
     // 全局共享状态数据
     let share_state = Arc::new(ShareState {
         config: (
-            crate::configure::load_config(document_path).unwrap(),
+            crate::configure::load_config(&document_path.to_path_buf()).unwrap(),
             rest_config.clone(),
         ),
         client_addr: (hostname, dorea_port),
