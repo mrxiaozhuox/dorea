@@ -912,6 +912,12 @@ impl CommandManager {
                     NetPacketState::OK,
                     format!("{:?}", list).as_bytes().to_vec(),
                 );
+            } else if operation == "num" {
+                let size = database_manager.lock().await.db_list.len();
+                return (
+                    NetPacketState::OK,
+                    format!("{}", size).as_bytes().to_vec(),
+                );
             } else if operation == "lock" {
                 if slice.len() != 2 {
                     return (
