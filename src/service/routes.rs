@@ -124,7 +124,7 @@ pub async fn ping(
         Err(e) => {
             return Api::error(
                 StatusCode::UNAUTHORIZED,
-                &format!("jwt check failed [{}].", e.to_string()),
+                &format!("jwt check failed [{}].", e),
             );
         }
     };
@@ -175,7 +175,7 @@ pub async fn controller(
         Err(e) => {
             return Api::error(
                 StatusCode::UNAUTHORIZED,
-                &format!("jwt check failed [{}].", e.to_string()),
+                &format!("jwt check failed [{}].", e),
             );
         }
     };
@@ -332,6 +332,7 @@ pub async fn controller(
             Err(e) => Api::error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
         };
     } else if &operation == "execute" {
+
         // 尝试直接运行 execute raw 数据。
 
         let form = match form {
@@ -360,6 +361,14 @@ pub async fn controller(
         }
 
         let query = form.query.clone().unwrap();
+
+        // we will check the `cls_command` list
+        // if the command is in the cls_command list, we can't execute it.
+        let command_name = query.split(' ').collect::<Vec<&str>>()[0].to_string();
+
+        if accinfo.cls_command.contains(&command_name) {
+            return Api::error(StatusCode::UNAUTHORIZED, "account can't use this command.");
+        }
 
         let v = match client.execute(&query).await {
             Ok(v) => v,
