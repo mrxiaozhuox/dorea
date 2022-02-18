@@ -1142,7 +1142,18 @@ impl CommandManager {
                     }
 
                     let de_usa_db: &str = &format!("[\"{}\"]", username);
-                    let de_cls_cmd: &str = &"[\"service\", \"db\"]".to_string();
+                    let de_cls_cmd = serde_json::json!([
+                        "service@set",
+                        "service@repwd",
+                        "service@lock",
+                        "service@unlock",
+                        "service@killall",
+                        "db@unload",
+                        "db@lock",
+                        "db@unlock",
+                        "db@preload"
+                    ]);
+                    let de_cls_cmd: &str = &de_cls_cmd.to_string();
 
                     let usa_db: &str = slice.get(4).unwrap_or(&de_usa_db);
                     let cls_cmd: &str = slice.get(5).unwrap_or(&de_cls_cmd);

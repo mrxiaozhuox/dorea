@@ -332,7 +332,6 @@ pub async fn controller(
             Err(e) => Api::error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
         };
     } else if &operation == "execute" {
-
         // 尝试直接运行 execute raw 数据。
 
         let form = match form {
@@ -364,11 +363,29 @@ pub async fn controller(
 
         // we will check the `cls_command` list
         // if the command is in the cls_command list, we can't execute it.
-        let command_name = query.split(' ').collect::<Vec<&str>>()[0].to_string();
-
-        if accinfo.cls_command.contains(&command_name) {
-            return Api::error(StatusCode::UNAUTHORIZED, "account can't use this command.");
+        let split_cmd = query.split(' ').collect::<Vec<&str>>();
+        println!("{:?} -> {:?}", split_cmd, accinfo.cls_command);
+        for patt in accinfo.cls_command.iter() {
+            let mut matched = true;
+            let patt_sec = patt.split('@');
+            if patt_sec.clone().count() > split_cmd.len() {
+                matched = false;
+            }
+            for (index, sec) in patt_sec.enumerate() {
+                if !matched {
+                    break;
+                }
+                if sec != split_cmd[index] {
+                    matched = false;
+                    break;
+                }
+            }
+            if matched {
+                return Api::error(StatusCode::UNAUTHORIZED, "account can't use this command.");
+            }
         }
+
+        // return Api::error(StatusCode::UNAUTHORIZED, "account can't use this command.");
 
         let v = match client.execute(&query).await {
             Ok(v) => v,
