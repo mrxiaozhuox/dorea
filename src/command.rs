@@ -1132,6 +1132,15 @@ impl CommandManager {
                     let username: &str = slice.get(2).unwrap();
                     let password: &str = slice.get(3).unwrap();
 
+                    // if username is `master`, we cannot register it.
+                    // because this name is a 
+                    if username == "master" {
+                        return (
+                            NetPacketState::ERR,
+                            "The name is reserved.".as_bytes().to_vec(),
+                        );
+                    }
+
                     let de_usa_db: &str = &format!("[\"{}\"]", username);
                     let de_cls_cmd: &str = &"[\"service\", \"db\"]".to_string();
 

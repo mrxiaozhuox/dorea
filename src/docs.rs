@@ -34,6 +34,7 @@ pub const SUBCOMMAND_DB_HELP: &str = "
 - list :                            get loaded database list.
 - lock <name> :                     lock a database [locked db cannot be unload].
 - unlock <name> :                   unlock a database [can be unload].
+- num :                             get loaded database number.
 - status :                          get all database status info.
 ";
 
