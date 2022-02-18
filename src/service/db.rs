@@ -63,7 +63,7 @@ pub fn parse_to_accounts(map: HashMap<String, DataValue>) -> HashMap<String, Ser
             }
 
             let cls_command_dv = v
-                .get("usa_database")
+                .get("cls_command")
                 .unwrap_or(&doson::DataValue::None)
                 .as_list()
                 .unwrap_or_default();
