@@ -364,7 +364,6 @@ pub async fn controller(
         // we will check the `cls_command` list
         // if the command is in the cls_command list, we can't execute it.
         let split_cmd = query.split(' ').collect::<Vec<&str>>();
-        println!("{:?} -> {:?}", split_cmd, accinfo.cls_command);
         for patt in accinfo.cls_command.iter() {
             let mut matched = true;
             let patt_sec = patt.split('@');
