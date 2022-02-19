@@ -4,6 +4,6 @@
 * [数据类型](zh-cn/data-value)
 * [系统命令](zh-cn/cmd)
 * [多库管理](zh-cn/dbs)
-* [Web服务](zh-cn/web-service)
+* [WEB入口](zh-cn/service/home)
 <!-- * [插件系统](zh-cn/plugin/home) -->
 * [客户端](zh-cn/client)
