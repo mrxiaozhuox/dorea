@@ -46,9 +46,15 @@ RESULT: { ... token: "JWT_TOKEN" }
         "db@lock",
         "db@unlock",
         "db@preload"
-    ]
+    ],
+    checker: "XXXX"
 }
 ```
 
 - `usa_db` 代表当前账号允许操作的数据库列表
 - `cls_command` 代表当前账号不允许被使用的命令（通过 `@` 声明子命令不允许被使用）
+- `checker` 用于对账号的状态进行检测
+
+!> 建议普通账号直接关闭上述的命令调用，这些命令都是相当危险的！
+
+## 调用原理
