@@ -102,6 +102,7 @@ pub async fn auth(
             "token": v,
             "level": username,
             "usa_db": account_info.usa_database.unwrap_or_default(),
+            "cls_command": account_info.cls_command,
         }),
     )
 }
