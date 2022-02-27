@@ -20,6 +20,10 @@ static INIT_STATE: Lazy<Mutex<InitState>> = Lazy::new(|| Mutex::new(InitState { 
 static DB_STATISTICS: Lazy<Mutex<HashMap<uuid::Uuid, String>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
+/**
+ * ❤️ 2022-02-26 ChengDu
+ */
+
 struct InitState {
     state: bool,
 }
