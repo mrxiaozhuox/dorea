@@ -13,8 +13,8 @@
 //! data    主要数据项：所有数据结果包含在里面
 //! message 错误信息（仅在错误时有内容）
 
-use axum::prelude::*;
-use axum::response::Json;
+use axum::extract;
+use axum::response::{Json, Response};
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -24,7 +24,7 @@ use crate::network::NetPacketState;
 use crate::service::secret;
 use crate::service::ShareState;
 use crate::value::DataValue;
-use axum::http::{Response, StatusCode};
+use axum::http::{StatusCode};
 
 use super::db;
 
@@ -464,7 +464,7 @@ pub struct Api {
 }
 
 impl axum::response::IntoResponse for Api {
-    fn into_response(self) -> Response<Body> {
+    fn into_response(self) -> Response {
         let mut res = self.data.into_response();
         *res.status_mut() = self.status;
         res

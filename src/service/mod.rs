@@ -1,19 +1,13 @@
 //! web server 启动器程序
 
-use axum::http::StatusCode;
-use axum::prelude::*;
-use axum::{route, AddExtensionLayer};
+use axum::extract::Extension;
+use axum::routing::{get, post};
+use axum::Router;
+
 use doson::DataValue;
-use std::borrow::Cow;
 use std::collections::HashMap;
-use std::convert::Infallible;
 use std::path::Path;
 use std::sync::Arc;
-
-use std::time::Duration;
-use tower::timeout::error::Elapsed;
-use tower::timeout::TimeoutLayer;
-use tower::BoxError;
 
 pub mod db;
 pub mod routes;
@@ -65,39 +59,19 @@ pub async fn startup(addr: (&'static str, u16), document_path: &Path) -> crate::
             }
         };
 
-        let app = route("/", get(routes::index).post(routes::index))
+        let app = Router::new()
+            .route("/", get(routes::index).post(routes::index))
             .route("/auth", post(routes::auth))
             .route("/ping", post(routes::ping))
             .route("/:group/:operation", post(routes::controller))
-            .layer(AddExtensionLayer::new(share_state))
-            .layer(TimeoutLayer::new(Duration::from_secs(30)));
-
-        let error_handle_app = app.handle_error(|error: BoxError| {
-            // Check if the actual error type is `Elapsed` which
-            // `Timeout` returns
-            if error.is::<Elapsed>() {
-                return Ok::<_, Infallible>((
-                    StatusCode::REQUEST_TIMEOUT,
-                    "Request took too long".into(),
-                ));
-            }
-
-            // If we encounter some error we don't handle return a generic
-            // error
-            // Err(error)
-            return Ok::<_, Infallible>((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                // `Cow` lets us return either `&str` or `String`
-                Cow::from(format!("Unhandled internal error: {}", error)),
-            ));
-        });
+            .layer(Extension(share_state));
 
         let addr = format!("{}:{}", hostname, rest_port);
 
         log::info!("⍹ >> Web-Service Running at: http://{}/", addr);
 
         hyper::Server::bind(&addr.parse().unwrap())
-            .serve(error_handle_app.into_make_service())
+            .serve(app.into_make_service())
             .await
             .unwrap();
     });
