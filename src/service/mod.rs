@@ -99,5 +99,13 @@ pub async fn init_service_system_db(client: &mut crate::client::DoreaClient) -> 
             .await?;
     }
 
+    client
+        .setex(
+            "service@startup-time",
+            DataValue::Number(chrono::Local::now().timestamp() as f64),
+            0,
+        )
+        .await?;
+
     Ok(())
 }

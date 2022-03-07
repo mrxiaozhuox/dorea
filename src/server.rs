@@ -147,7 +147,7 @@ impl DoreaServer {
 
             let connid = uuid::Uuid::new_v4();
 
-            info!("new connection [CID: {}]", connid);
+            // info!("new connection [CID: {}]", connid);
 
             // add connection number (+1).
             self.connection_number.lock().await.add();
