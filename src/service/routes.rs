@@ -14,7 +14,7 @@
 //! message 错误信息（仅在错误时有内容）
 
 // axum 0.4
-use axum::extract::ws::{Message, WebSocket};
+use axum::extract::ws::Message;
 use axum::extract::{self, TypedHeader, WebSocketUpgrade};
 use axum::response::{Json, Response};
 use serde::Deserialize;
@@ -28,7 +28,7 @@ use crate::service::ShareState;
 use crate::value::DataValue;
 use axum::http::StatusCode;
 
-use super::db::{self, ServiceAccountInfo};
+use super::db;
 
 // Dorea Web 主页
 pub async fn index() -> Api {
