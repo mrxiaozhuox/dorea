@@ -493,8 +493,8 @@ pub async fn socket_handler(
                         let commands = content.split(' ').collect::<Vec<&str>>();
                         let command_name: &str = commands.get(0).unwrap();
 
-                        let usable_db = account_info.usa_database.clone();
-                        let closed_command = account_info.cls_command.clone();
+                        let mut usable_db = account_info.usa_database.clone();
+                        let mut closed_command = account_info.cls_command.clone();
 
                         if account_info.usable {
                             match command_name {
@@ -504,7 +504,19 @@ pub async fn socket_handler(
                                         if usable_db.is_none()
                                             || usable_db.unwrap().contains(&target)
                                         {
-                                            client.select(&target).await.unwrap();
+                                            if client.select(&target).await.is_ok() {
+                                                socket
+                                                    .send(ws_info(serde_json::Value::String(
+                                                        target.to_string(),
+                                                    )))
+                                                    .await
+                                                    .unwrap();
+                                            } else {
+                                                socket
+                                                    .send(ws_error("Client execute failed"))
+                                                    .await
+                                                    .unwrap();
+                                            }
                                         } else {
                                             socket
                                                 .send(ws_error("Account permission denied"))
@@ -579,6 +591,25 @@ pub async fn socket_handler(
                                                 .await;
                                         } else {
                                             account_info = info;
+                                            usable_db = account_info.usa_database.clone();
+                                            // closed_command = account_info.cls_command.clone();
+
+                                            let cur = client
+                                                .info(InfoType::CurrentDataBase)
+                                                .await
+                                                .unwrap();
+                                            // println!("{:?} -> {:?}", cur, usable_db);
+                                            if usable_db.is_some()
+                                                && !usable_db.clone().unwrap().contains(&cur)
+                                            {
+                                                let nc = usable_db
+                                                    .clone()
+                                                    .unwrap()
+                                                    .get(0)
+                                                    .unwrap()
+                                                    .to_string();
+                                                client.select(&nc).await.unwrap();
+                                            }
                                         }
                                     }
                                 }
