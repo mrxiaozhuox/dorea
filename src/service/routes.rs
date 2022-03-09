@@ -13,10 +13,9 @@
 //! data    主要数据项：所有数据结果包含在里面
 //! message 错误信息（仅在错误时有内容）
 
-
-
 // axum 0.4
-use axum::extract;
+use axum::extract::ws::{Message, WebSocket};
+use axum::extract::{self, TypedHeader, WebSocketUpgrade};
 use axum::response::{Json, Response};
 use serde::Deserialize;
 use serde_json::json;
@@ -27,9 +26,9 @@ use crate::network::NetPacketState;
 use crate::service::secret;
 use crate::service::ShareState;
 use crate::value::DataValue;
-use axum::http::{StatusCode};
+use axum::http::StatusCode;
 
-use super::db;
+use super::db::{self, ServiceAccountInfo};
 
 // Dorea Web 主页
 pub async fn index() -> Api {
@@ -61,7 +60,7 @@ pub async fn auth(
         state.config.0.connection.connection_password.clone(),
     );
 
-    if username == *"master" {
+    if username == "master" {
         if password != state.config.1.master_password {
             return Api::error(StatusCode::BAD_REQUEST, "account password error.");
         }
@@ -457,6 +456,118 @@ pub async fn controller(
     }
 
     Api::error(StatusCode::BAD_REQUEST, "operation not found.")
+}
+
+pub async fn socket_handler(
+    ws: WebSocketUpgrade,
+    _user_agent: Option<TypedHeader<headers::UserAgent>>,
+    state: extract::Extension<Arc<ShareState>>,
+) -> impl axum::response::IntoResponse {
+    let db_info = (
+        state.client_addr,
+        state.config.0.connection.connection_password.clone(),
+    );
+
+    let mut client = DoreaClient::connect(
+        state.client_addr,
+        &state.config.0.connection.connection_password,
+    )
+    .await
+    .unwrap();
+
+    ws.on_upgrade(move |mut socket| async move {
+        let mut account_info = db::ServiceAccountInfo {
+            usable: false,
+            username: "ghost".to_string(),
+            password: "ghost".to_string(),
+            usa_database: None,
+            cls_command: vec![],
+            checker: String::from("@MASTER:ACCOUNT"),
+        };
+
+        loop {
+            if let Some(Ok(message)) = socket.recv().await {
+                match message {
+                    Message::Text(v) => {
+                        let commands = v.split(' ').collect::<Vec<&str>>();
+                        let command_name: &str = commands.get(0).unwrap();
+
+                        if account_info.usable {
+                            socket
+                                .send(Message::Text(format!(
+                                    "{:?}",
+                                    client.get(&v).await.unwrap_or(doson::DataValue::None)
+                                )))
+                                .await
+                                .unwrap();
+                        } else if command_name == "login" {
+                            if commands.len() == 3 {
+                                let username = commands.get(1).unwrap().to_string();
+                                let password = commands.get(2).unwrap().to_string();
+
+                                if username == "master" {
+                                    if password != state.config.1.master_password {
+                                        let _ = socket
+                                            .send(Message::Text(
+                                                "Account password error".to_string(),
+                                            ))
+                                            .await;
+                                    } else {
+                                        account_info.usable = true;
+                                    }
+                                } else {
+                                    // 通过数据库读取相关用户账号信息
+                                    let accounts = db::accounts(db_info.clone()).await;
+
+                                    if !accounts.contains_key(&username) {
+                                        let _ = socket
+                                            .send(Message::Text("Unknown account".to_string()))
+                                            .await;
+                                    } else {
+                                        let info = accounts.get(&username).unwrap().clone();
+                                        if !info.usable {
+                                            let _ = socket
+                                                .send(Message::Text("Account disable".to_string()))
+                                                .await;
+                                        } else if info.password != password {
+                                            let _ = socket
+                                                .send(Message::Text(
+                                                    "Account password error".to_string(),
+                                                ))
+                                                .await;
+                                        } else {
+                                            account_info = info;
+                                        }
+                                    }
+                                }
+
+                                // 这里说明登录是成功的
+                                if account_info.usable {
+                                    let _ = socket
+                                        .send(Message::Text(
+                                            serde_json::to_string(&account_info).unwrap_or_default()
+                                        ))
+                                        .await;
+                                }
+                            } else {
+                                let _ = socket
+                                    .send(Message::Text("Missing command parameters".to_string()))
+                                    .await;
+                            }
+                        } else {
+                            let _ = socket
+                                .send(Message::Text("Authentication failed".to_string()))
+                                .await;
+                        }
+                    }
+                    Message::Close(_) => {
+                        break;
+                    }
+                    _ => { /* empty code block */ }
+                }
+            }
+        }
+    })
 }
 
 // pub type Api = (StatusCode ,Json<serde_json::Value>);

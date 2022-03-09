@@ -9,6 +9,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
+use self::routes::socket_handler;
+
 pub mod db;
 pub mod routes;
 pub mod secret;
@@ -64,6 +66,7 @@ pub async fn startup(addr: (&'static str, u16), document_path: &Path) -> crate::
             .route("/auth", post(routes::auth))
             .route("/ping", post(routes::ping))
             .route("/:group/:operation", post(routes::controller))
+            .route("/_ws/", get(socket_handler))
             .layer(Extension(share_state));
 
         let addr = format!("{}:{}", hostname, rest_port);
