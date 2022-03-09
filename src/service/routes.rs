@@ -458,6 +458,7 @@ pub async fn controller(
     Api::error(StatusCode::BAD_REQUEST, "operation not found.")
 }
 
+#[allow(clippy::single_match)]
 pub async fn socket_handler(
     ws: WebSocketUpgrade,
     _user_agent: Option<TypedHeader<headers::UserAgent>>,
@@ -488,18 +489,53 @@ pub async fn socket_handler(
         loop {
             if let Some(Ok(message)) = socket.recv().await {
                 match message {
-                    Message::Text(v) => {
-                        let commands = v.split(' ').collect::<Vec<&str>>();
+                    Message::Text(content) => {
+                        let commands = content.split(' ').collect::<Vec<&str>>();
                         let command_name: &str = commands.get(0).unwrap();
 
+                        let usable_db = account_info.usa_database.clone();
+                        let closed_command = account_info.cls_command.clone();
+
                         if account_info.usable {
-                            socket
-                                .send(Message::Text(format!(
-                                    "{:?}",
-                                    client.get(&v).await.unwrap_or(doson::DataValue::None)
-                                )))
-                                .await
-                                .unwrap();
+                            match command_name {
+                                "select" => {
+                                    if commands.len() == 2 {
+                                        let target = commands.get(1).unwrap().to_string();
+                                        if usable_db.is_none()
+                                            || usable_db.unwrap().contains(&target)
+                                        {
+                                            client.select(&target).await.unwrap();
+                                        } else {
+                                            socket
+                                                .send(ws_error("Account permission denied"))
+                                                .await
+                                                .unwrap();
+                                        }
+                                    } else {
+                                        socket
+                                            .send(ws_error("Parameters number error"))
+                                            .await
+                                            .unwrap();
+                                    }
+                                }
+                                command_name => {
+                                    if !closed_command.contains(&command_name.to_string()) {
+                                        if let Ok(v) = client.execute(&content).await {
+                                            let d = v.0;
+                                        } else {
+                                            socket
+                                                .send(ws_error("Client execute failed"))
+                                                .await
+                                                .unwrap();
+                                        }
+                                    } else {
+                                        socket
+                                            .send(ws_error("Account permission denied"))
+                                            .await
+                                            .unwrap();
+                                    }
+                                }
+                            }
                         } else if command_name == "login" {
                             if commands.len() == 3 {
                                 let username = commands.get(1).unwrap().to_string();
@@ -507,11 +543,8 @@ pub async fn socket_handler(
 
                                 if username == "master" {
                                     if password != state.config.1.master_password {
-                                        let _ = socket
-                                            .send(Message::Text(
-                                                "Account password error".to_string(),
-                                            ))
-                                            .await;
+                                        let _ =
+                                            socket.send(ws_error("Account password error")).await;
                                     } else {
                                         account_info.usable = true;
                                     }
@@ -520,20 +553,14 @@ pub async fn socket_handler(
                                     let accounts = db::accounts(db_info.clone()).await;
 
                                     if !accounts.contains_key(&username) {
-                                        let _ = socket
-                                            .send(Message::Text("Unknown account".to_string()))
-                                            .await;
+                                        let _ = socket.send(ws_error("Unknown account")).await;
                                     } else {
                                         let info = accounts.get(&username).unwrap().clone();
                                         if !info.usable {
-                                            let _ = socket
-                                                .send(Message::Text("Account disable".to_string()))
-                                                .await;
+                                            let _ = socket.send(ws_error("Account disable")).await;
                                         } else if info.password != password {
                                             let _ = socket
-                                                .send(Message::Text(
-                                                    "Account password error".to_string(),
-                                                ))
+                                                .send(ws_error("Account password error"))
                                                 .await;
                                         } else {
                                             account_info = info;
@@ -544,20 +571,17 @@ pub async fn socket_handler(
                                 // 这里说明登录是成功的
                                 if account_info.usable {
                                     let _ = socket
-                                        .send(Message::Text(
-                                            serde_json::to_string(&account_info).unwrap_or_default()
-                                        ))
+                                        .send(ws_info(serde_json::Value::String(
+                                            serde_json::to_string(&account_info)
+                                                .unwrap_or_default(),
+                                        )))
                                         .await;
                                 }
                             } else {
-                                let _ = socket
-                                    .send(Message::Text("Missing command parameters".to_string()))
-                                    .await;
+                                let _ = socket.send(ws_error("Missing command parameters")).await;
                             }
                         } else {
-                            let _ = socket
-                                .send(Message::Text("Authentication failed".to_string()))
-                                .await;
+                            let _ = socket.send(ws_error("Authentication failed")).await;
                         }
                     }
                     Message::Close(_) => {
@@ -568,6 +592,28 @@ pub async fn socket_handler(
             }
         }
     })
+}
+
+fn ws_error(info: &str) -> Message {
+    let res = json!({
+        "alpha": "ERR",
+        "data": {},
+        "message": info,
+    })
+    .to_string();
+
+    Message::Text(res)
+}
+
+fn ws_info(info: serde_json::Value) -> Message {
+    let res = json!({
+        "alpha": "OK",
+        "data": info,
+        "message": "",
+    })
+    .to_string();
+
+    Message::Text(res)
 }
 
 // pub type Api = (StatusCode ,Json<serde_json::Value>);
