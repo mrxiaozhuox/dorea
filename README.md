@@ -1,5 +1,5 @@
 <p align="center">
-    <p align="center"><img src="./assets/DoreaDB.png"/></p>
+    <p align="center"><img src="./assets/DoreaDB.png" width="120"/></p>
 	<p align="center">
     <a href="https://github.com/mrxiaozhuox/Dorea/actions">
     	<img alt="Build" src="https://img.shields.io/github/workflow/status/mrxiaozhuox/Dorea/Rust?style=for-the-badge" />
