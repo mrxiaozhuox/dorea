@@ -521,7 +521,22 @@ pub async fn socket_handler(
                                 command_name => {
                                     if !closed_command.contains(&command_name.to_string()) {
                                         if let Ok(v) = client.execute(&content).await {
-                                            let d = v.0;
+                                            if let NetPacketState::OK = v.0 {
+                                                socket
+                                                    .send(ws_info(serde_json::Value::String(
+                                                        String::from_utf8_lossy(&v.1[..])
+                                                            .to_string(),
+                                                    )))
+                                                    .await
+                                                    .unwrap();
+                                            } else {
+                                                socket
+                                                    .send(ws_error(&String::from_utf8_lossy(
+                                                        &v.1[..],
+                                                    )))
+                                                    .await
+                                                    .unwrap();
+                                            }
                                         } else {
                                             socket
                                                 .send(ws_error("Client execute failed"))
