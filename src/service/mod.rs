@@ -29,7 +29,7 @@ pub async fn startup(addr: (&'static str, u16), document_path: &Path) -> crate::
     let dorea_port = addr.1;
 
     // 读取 rest-service path
-    let rest_config = crate::configure::load_rest_config(&document_path.to_path_buf())?;
+    let rest_config = crate::configure::load_rest_config(document_path)?;
 
     if !rest_config.switch {
         return Ok(());
@@ -38,7 +38,7 @@ pub async fn startup(addr: (&'static str, u16), document_path: &Path) -> crate::
     // 全局共享状态数据
     let share_state = Arc::new(ShareState {
         config: (
-            crate::configure::load_config(&document_path.to_path_buf()).unwrap(),
+            crate::configure::load_config(document_path).unwrap(),
             rest_config.clone(),
         ),
         client_addr: (hostname, dorea_port),

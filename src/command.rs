@@ -322,7 +322,7 @@ impl CommandManager {
                 .db_list
                 .get_mut(current)
                 .unwrap()
-                .delete(&key.to_string())
+                .delete(key.as_ref())
                 .await;
 
             return match result {

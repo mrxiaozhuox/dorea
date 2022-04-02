@@ -2,9 +2,9 @@
 name = "dorea"
 version = "0.4.0"
 description = "A key-value stroage system"
-repository = "https://github.com/mrxiaozhuox/Dorea/"
-authors = ["ZhuoEr Liu <mrxzx@qq.com>"]
-edition = "2018"
+repository = "https://github.com/mrxiaozhuox/dorea/"
+authors = ["YuKun Liu <mrxzx.info@gmail.com>"]
+edition = "2021"
 license = "MIT"
 keywords = ["database","cache","storage"]
 exclude = [

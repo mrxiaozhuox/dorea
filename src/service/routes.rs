@@ -494,7 +494,7 @@ pub async fn socket_handler(
                         let command_name: &str = commands.get(0).unwrap();
 
                         let mut usable_db = account_info.usa_database.clone();
-                        let mut closed_command = account_info.cls_command.clone();
+                        let closed_command = account_info.cls_command.clone();
 
                         if account_info.usable {
                             match command_name {
