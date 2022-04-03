@@ -43,12 +43,25 @@ pub mod macros;
 #[cfg(feature = "processor")]
 pub mod docs;
 
+#[cfg(feature = "server")]
 mod command;
+
+#[cfg(feature = "server")]
 mod configure;
+
+#[cfg(feature = "server")]
 mod database;
+
+#[cfg(feature = "server")]
 mod event;
+
+#[cfg(feature = "server")]
 mod handle;
+
+#[cfg(feature = "server")]
 mod logger;
+
+#[cfg(feature = "server")]
 mod service;
 mod tool;
 
