@@ -46,10 +46,6 @@ server = [
     "ctrlc"
 ]
 
-# embedded features: embedded database support.
-# you can embedded a dorea system into your application, and you don't need to start a server.
-embedded = []
-
 # client features: client manager tools.
 client = ["processor"]
 
