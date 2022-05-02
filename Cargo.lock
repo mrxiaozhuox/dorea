@@ -146,15 +146,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bstr"
-version = "0.2.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba3569f383e8f1598449f1a423e72e99569137b47740b1da11ef19af3d5c3223"
-dependencies = [
- "memchr",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -360,7 +351,6 @@ dependencies = [
  "log",
  "log4rs",
  "md5",
- "mlua",
  "nom",
  "once_cell",
  "rand",
@@ -401,15 +391,6 @@ name = "endian-type"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
-
-[[package]]
-name = "erased-serde"
-version = "0.3.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56047058e1ab118075ca22f9ecd737bcc961aa3566a3019cb71388afa280bd8a"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "error-code"
@@ -816,24 +797,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lua-src"
-version = "544.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7341ba039a781c4982ca20761c55f44e07bfefd496a45b1e929763d88f5fc68b"
-dependencies = [
- "cc",
-]
-
-[[package]]
-name = "luajit-src"
-version = "210.3.2+resty1085a4d"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1e27456f513225a9edd22fc0a5f526323f6adb3099c4de87a84ceb842d93ba4"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "matches"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -898,26 +861,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9f1c5b025cda876f66ef43a113f91ebc9f4ccef34843000e0adf6ebbab84e21"
 dependencies = [
  "winapi",
-]
-
-[[package]]
-name = "mlua"
-version = "0.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4235d7e740d73d7429df6f176c81b248f05c39d67264d45a7d8cecb67c227f6f"
-dependencies = [
- "bstr",
- "cc",
- "erased-serde",
- "futures-core",
- "futures-task",
- "futures-util",
- "lua-src",
- "luajit-src",
- "num-traits",
- "once_cell",
- "pkg-config",
- "serde",
 ]
 
 [[package]]
@@ -1149,12 +1092,6 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
-
-[[package]]
-name = "pkg-config"
-version = "0.3.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58893f751c9b0412871a09abd62ecd2a00298c6c83befa223ef98c52aef40cbe"
 
 [[package]]
 name = "ppv-lite86"
