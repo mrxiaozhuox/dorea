@@ -387,15 +387,14 @@ impl DataBase {
     }
 
     pub async fn meta_data(&self, key: &str) -> Option<DataNode> {
-        let res = self.file.read(key.to_string(), &self.index).await;
-        res
+        self.file.read(key.to_string(), &self.index).await
     }
 
     pub async fn delete(&mut self, key: &str) -> Result<()> {
         TOTAL_INFO.lock().await.index_reduce(1);
         return match self.set(key, DataValue::None, 0).await {
             Ok(_) => {
-                self.index.remove(&key.to_string());
+                self.index.remove(key);
                 Ok(())
             }
             Err(e) => Err(e),
