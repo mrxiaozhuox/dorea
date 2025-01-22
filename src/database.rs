@@ -72,13 +72,13 @@ pub enum DataBaseState {
     UNLOAD,
 }
 
-impl ToString for DataBaseState {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for DataBaseState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
-            DataBaseState::NORMAL => "Normal".to_string(),
-            DataBaseState::LOCKED => "Locked".to_string(),
-            DataBaseState::LOADING => "Loading".to_string(),
-            DataBaseState::UNLOAD => "Unload".to_string(),
+            DataBaseState::NORMAL => write!(f, "Normal"),
+            DataBaseState::LOCKED => write!(f, "Locked"),
+            DataBaseState::LOADING => write!(f, "Loading"),
+            DataBaseState::UNLOAD => write!(f, "Unload"),
         }
     }
 }
@@ -188,7 +188,7 @@ impl DataBaseManager {
                 }
                 Some(v) => *v,
             };
-            self.eli_queue.insert(db.to_string(), old + num as isize);
+            self.eli_queue.insert(db.to_string(), old + num);
 
             log::debug!("[{}] weight update to {}.", db, old + num);
 
@@ -498,13 +498,11 @@ impl DataFile {
                 )(file_name);
 
                 if info.is_ok() || file_name == "active.db" {
-                    let file_id: u32;
-
-                    if file_name == "active.db" {
-                        file_id = self.get_file_id();
+                    let file_id = if file_name == "active.db" {
+                        self.get_file_id()
                     } else {
-                        file_id = info.as_ref().unwrap().1.parse::<u32>().unwrap();
-                    }
+                        info.as_ref().unwrap().1.parse::<u32>().unwrap()
+                    };
 
                     // load index from db file.
                     let mut file = match OpenOptions::new().read(true).open(entry.path()) {
@@ -539,7 +537,7 @@ impl DataFile {
                                 if rec == (bs.len() - 1) {
                                     let mut read_one = [0_u8; 1];
                                     match file.read(&mut read_one) {
-                                        Ok(_) => {
+                                        Ok(_amount) => {
                                             readed_size += 1;
 
                                             if read_one[0] != b'\n' {
@@ -705,7 +703,7 @@ impl DataFile {
         data: DataNode,
         index: &mut HashMap<String, IndexInfo>,
     ) -> Result<()> {
-        let _ = self.check_file().unwrap();
+        self.check_file().unwrap();
 
         let file = self.root.join("active.db");
 
@@ -750,12 +748,11 @@ impl DataFile {
 
     #[allow(clippy::slow_vector_initialization)]
     pub async fn read_with_index_info(&self, index_info: &IndexInfo) -> Option<DataNode> {
-        let data_file: PathBuf;
-        if index_info.file_id == self.get_file_id() {
-            data_file = self.root.join("active.db");
+        let data_file = if index_info.file_id == self.get_file_id() {
+            self.root.join("active.db")
         } else {
-            data_file = self.root.join(format!("archive-{}.db", index_info.file_id));
-        }
+            self.root.join(format!("archive-{}.db", index_info.file_id))
+        };
 
         if !data_file.is_file() {
             return None;

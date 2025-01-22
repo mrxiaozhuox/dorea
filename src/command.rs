@@ -41,9 +41,9 @@ pub enum CommandList {
     UNKNOWN,
 }
 
-impl std::string::ToString for CommandList {
-    fn to_string(&self) -> String {
-        return format!("{:?}", self);
+impl std::fmt::Display for CommandList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
@@ -112,7 +112,7 @@ impl CommandManager {
 
         let mut slice: Vec<&str> = message.split(' ').collect();
 
-        let command_str = match slice.get(0) {
+        let command_str = match slice.first() {
             Some(v) => v,
             None => "unknown",
         };
@@ -177,7 +177,7 @@ impl CommandManager {
 
         // log in to dorea db [AUTH]
         if command == CommandList::AUTH {
-            let input_password = slice.get(0).unwrap();
+            let input_password = slice.first().unwrap();
 
             let local_password = &config.connection.connection_password;
 
@@ -199,7 +199,7 @@ impl CommandManager {
         }
 
         if command == CommandList::SET {
-            let key = slice.get(0).unwrap();
+            let key = slice.first().unwrap();
             let value = slice.get(1).unwrap();
 
             let data_value = DataValue::from(value);
@@ -258,7 +258,7 @@ impl CommandManager {
         }
 
         if command == CommandList::GET {
-            let key = slice.get(0).unwrap().to_string();
+            let key = slice.first().unwrap().to_string();
 
             // 为读取增加 1 的权重
             database_manager
@@ -281,7 +281,7 @@ impl CommandManager {
                     // 惰性删除数据
                     let exp = v.timestamp();
                     let current_time = chrono::Local::now().timestamp() as u64;
-                    if current_time >= (exp.0 as u64 + exp.1) as u64 && exp.1 != 0 {
+                    if current_time >= (exp.0 as u64 + exp.1) && exp.1 != 0 {
                         let _ = database_manager
                             .lock()
                             .await
@@ -308,7 +308,7 @@ impl CommandManager {
         }
 
         if command == CommandList::DELETE {
-            let key = slice.get(0).unwrap();
+            let key = slice.first().unwrap();
 
             // 为删除数据增加 5 的权重
             database_manager
@@ -355,7 +355,7 @@ impl CommandManager {
         }
 
         if command == CommandList::SELECT {
-            let db_name = slice.get(0).unwrap();
+            let db_name = slice.first().unwrap();
 
             // 将当前使用的库加入到 DB统计 中（防止被动态卸载）
             crate::server::db_stat_set(*connect_id, db_name.to_string()).await;
@@ -378,7 +378,7 @@ impl CommandManager {
         // @key 数据内部信息获取
 
         if command == CommandList::INFO {
-            let argument: &str = slice.get(0).unwrap();
+            let argument: &str = slice.first().unwrap();
 
             if argument == "current" {
                 return (NetPacketState::OK, current.as_bytes().to_vec());
@@ -489,7 +489,7 @@ impl CommandManager {
                     );
                 }
 
-                let sub_info: &str = sub_arg.get(0).unwrap_or(&"");
+                let sub_info: &str = sub_arg.first().unwrap_or(&"");
                 let mut _result: String = format!("{:?}", data);
 
                 if sub_info == "expire" {
@@ -519,7 +519,7 @@ impl CommandManager {
         // sort 对数组进行排序（仅支持 list ）
         // reverse 对数组进行反转（仅支持 list ）
         if command == CommandList::EDIT {
-            let key: &str = slice.get(0).unwrap();
+            let key: &str = slice.first().unwrap();
             let operation: &str = slice.get(1).unwrap();
 
             if &key[0..1] == "@" {
@@ -600,7 +600,7 @@ impl CommandManager {
                     let mut incr_num = 1;
 
                     if sub_arg.len() == 1 {
-                        let number: &str = sub_arg.get(0).unwrap();
+                        let number: &str = sub_arg.first().unwrap();
                         incr_num = number.parse::<i32>().unwrap_or(1);
                     }
 
@@ -613,7 +613,7 @@ impl CommandManager {
                         );
                     }
 
-                    let data: &str = sub_arg.get(0).unwrap();
+                    let data: &str = sub_arg.first().unwrap();
 
                     match &data[0..1] {
                         "+" => {
@@ -659,7 +659,7 @@ impl CommandManager {
                         );
                     }
 
-                    let data: &str = sub_arg.get(0).unwrap();
+                    let data: &str = sub_arg.first().unwrap();
                     let mut idx: &str = "";
 
                     if sub_arg.len() == 2 {
@@ -688,7 +688,7 @@ impl CommandManager {
                         );
                     }
 
-                    let key = sub_arg.get(0).unwrap();
+                    let key = sub_arg.first().unwrap();
 
                     _result = edit_operation::remove(origin_value, key.to_string());
                 } else if operation == "push" {
@@ -702,7 +702,7 @@ impl CommandManager {
                         );
                     }
 
-                    let data = sub_arg.get(0).unwrap();
+                    let data = sub_arg.first().unwrap();
 
                     let data_val = DataValue::from(data);
 
@@ -738,19 +738,13 @@ impl CommandManager {
                         );
                     }
 
-                    let asc: bool;
-
                     // 检查排序方式
-                    if !sub_arg.is_empty() {
-                        let temp: &str = sub_arg.get(0).unwrap_or(&"asc");
-                        if temp.to_uppercase() == "DESC" {
-                            asc = false;
-                        } else {
-                            asc = true;
-                        }
+                    let asc = if !sub_arg.is_empty() {
+                        let temp: &str = sub_arg.first().unwrap_or(&"asc");
+                        temp.to_uppercase() != "DESC"
                     } else {
-                        asc = true;
-                    }
+                        true
+                    };
 
                     _result = edit_operation::sort(origin_value, asc);
                 } else if operation == "reverse" {
@@ -798,7 +792,7 @@ impl CommandManager {
         }
 
         if command == CommandList::VALUE {
-            let operation: &str = slice.get(0).unwrap();
+            let operation: &str = slice.first().unwrap();
 
             if operation == "style" {
                 if slice.len() < 2 {
@@ -824,7 +818,7 @@ impl CommandManager {
         }
 
         if command == CommandList::DB {
-            let operation: &str = slice.get(0).unwrap();
+            let operation: &str = slice.first().unwrap();
 
             if operation == "unload" {
                 if slice.len() != 2 {
@@ -914,10 +908,7 @@ impl CommandManager {
                 );
             } else if operation == "num" {
                 let size = database_manager.lock().await.db_list.len();
-                return (
-                    NetPacketState::OK,
-                    format!("{}", size).as_bytes().to_vec(),
-                );
+                return (NetPacketState::OK, format!("{}", size).as_bytes().to_vec());
             } else if operation == "lock" {
                 if slice.len() != 2 {
                     return (
@@ -1028,7 +1019,7 @@ impl CommandManager {
                 );
             }
 
-            let target: &str = slice.get(0).unwrap();
+            let target: &str = slice.first().unwrap();
 
             if target.to_uppercase() == "SERVICE" {
                 return (
@@ -1078,7 +1069,7 @@ impl CommandManager {
         }
 
         if command == CommandList::SERVICE {
-            let operation: &str = slice.get(0).unwrap();
+            let operation: &str = slice.first().unwrap();
 
             if operation == "account" || operation == "acc" {
                 if !database_manager.lock().await.db_list.contains_key("system")
@@ -1133,7 +1124,7 @@ impl CommandManager {
                     let password: &str = slice.get(3).unwrap();
 
                     // if username is `master`, we cannot register it.
-                    // because this name is a 
+                    // because this name is a
                     if username == "master" {
                         return (
                             NetPacketState::ERR,
@@ -1301,7 +1292,7 @@ impl CommandManager {
 
         // 暂时不支持具体内容查询（这玩意我确实无法进行设计qwq）
         if command == CommandList::SEARCH {
-            let expression: &str = slice.get(0).unwrap();
+            let expression: &str = slice.first().unwrap();
 
             let mut limit = 0;
 
@@ -1336,10 +1327,10 @@ impl CommandManager {
         }
 
         // unknown operation.
-        return (
+        (
             NetPacketState::ERR,
             "Unknown operation.".as_bytes().to_vec(),
-        );
+        )
     }
 }
 

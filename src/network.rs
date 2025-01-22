@@ -33,21 +33,14 @@ impl NetPacket {
     }
 }
 
-impl std::string::ToString for NetPacket {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for NetPacket {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let body = base64::encode(&self.body[..]);
-
-        let mut text = String::new();
-
-        text.push_str(format!("$: {} | ", body.as_bytes().len() + 5).as_str());
-
+        write!(f, "$: {} | ", body.as_bytes().len() + 5)?;
         if self.state != NetPacketState::IGNORE {
-            text.push_str(format!("%: {:?} | ", self.state).as_str());
+            write!(f, "%: {:?} | ", self.state)?;
         }
-
-        text.push_str(format!("#: B64'{}';", body).as_str());
-
-        text
+        write!(f, "#: B64'{}';", body)
     }
 }
 
@@ -58,7 +51,10 @@ pub struct Frame {
 
 impl Default for Frame {
     fn default() -> Self {
-        Self { legacy_content: Default::default(), latest_state: NetPacketState::EMPTY }
+        Self {
+            legacy_content: Default::default(),
+            latest_state: NetPacketState::EMPTY,
+        }
     }
 }
 
@@ -115,14 +111,12 @@ impl Frame {
 
             let diff = total_size - data.as_bytes().len();
 
-            let max_buf_read: usize;
-
-            if diff > 1024 {
-                max_buf_read = 1024;
+            let max_buf_read = if diff > 1024 {
+                1024
             } else {
                 // + 1 for ;
-                max_buf_read = diff + 1;
-            }
+                diff + 1
+            };
 
             let len = reader.read(&mut append_buf[..max_buf_read]).await?;
 
@@ -152,7 +146,7 @@ impl Frame {
     fn parse_size(message: &str) -> IResult<&str, usize> {
         let (mut remain, length): (&str, usize) = delimited(
             tag("$: "),
-            map(take_while1(|c: char| c.is_digit(10)), |int: &str| {
+            map(take_while1(|c: char| c.is_ascii_digit()), |int: &str| {
                 int.parse::<usize>().unwrap()
             }),
             take_until(" | "),

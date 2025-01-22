@@ -203,7 +203,7 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
             );
         }
 
-        return match client.get(slice.get(0).unwrap()).await {
+        return match client.get(slice.first().unwrap()).await {
             Some(v) => (NetPacketState::OK, v.to_string()),
             None => (NetPacketState::ERR, "Value not found.".to_string()),
         };
@@ -272,7 +272,7 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
         }
 
         // 子命令和目标 key
-        let sub = slice.get(0).unwrap();
+        let sub = slice.first().unwrap();
         let key = slice.get(1).unwrap();
 
         if sub.to_uppercase() == "STRINGIFY" {

@@ -23,7 +23,6 @@ static DB_STATISTICS: Lazy<Mutex<HashMap<uuid::Uuid, String>>> =
 /**
  * ❤️ 2022-02-26 ChengDu
  */
-
 struct InitState {
     state: bool,
 }
@@ -120,7 +119,7 @@ impl DoreaServer {
         let doc_path = self._server_options.document_path.clone().unwrap();
 
         let _ = crate::service::startup(
-            (&(*self._server_options.hostname), self._server_options.port),
+            (self._server_options.hostname, self._server_options.port),
             &doc_path,
         )
         .await;

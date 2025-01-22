@@ -80,10 +80,11 @@ async fn main() {
         | |__| | | |__| | | | \\ \\  | |____   / ____ \\
         |_____/   \\____/  |_|  \\_\\ |______| /_/    \\_\\
 
-        「 Dorea:{} 」server address: {}
+        「 Dorea:{} 」server address: dorea://{}:{}
         ",
         crate::DOREA_VERSION,
-        format!("dorea://{}:{}", hostname, port)
+        hostname,
+        port,
     );
 
     // 生成服务器实例

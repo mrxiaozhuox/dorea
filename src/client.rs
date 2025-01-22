@@ -133,7 +133,7 @@ impl DoreaClient {
     }
 
     pub async fn info(&mut self, dtype: InfoType) -> crate::Result<String> {
-        let command = format!("info {}", dtype.to_string());
+        let command = format!("info {}", dtype);
 
         let v = self.execute(&command).await?;
         if v.0 == NetPacketState::OK {
@@ -180,22 +180,17 @@ pub enum InfoType {
     // DataType(String),
 }
 
-impl std::string::ToString for InfoType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for InfoType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            InfoType::CurrentDataBase => "current",
-            InfoType::MaxConnectionNumber => "max-connect-num",
-            InfoType::CurrentConnectionNumber => "current-connect-num",
-            InfoType::PreloadDatabaseList => "preload-db-list",
-            InfoType::ServerStartupTime => "server-startup-time",
-            InfoType::ServerVersion => "version",
-            InfoType::TotalIndexNumber => "total-index-number",
-            InfoType::KeyList => "keys",
-            // InfoType::DataType(v) => {
-            //     format!("${} type", v).as_str()
-            // },
-            // _ => "", /* 预留数据 */
+            InfoType::CurrentDataBase => write!(f, "current"),
+            InfoType::MaxConnectionNumber => write!(f, "max-connect-num"),
+            InfoType::CurrentConnectionNumber => write!(f, "current-connect-num"),
+            InfoType::PreloadDatabaseList => write!(f, "preload-db-list"),
+            InfoType::ServerStartupTime => write!(f, "server-startup-time"),
+            InfoType::ServerVersion => write!(f, "version"),
+            InfoType::TotalIndexNumber => write!(f, "total-index-number"),
+            InfoType::KeyList => write!(f, "keys"),
         }
-        .to_string()
     }
 }

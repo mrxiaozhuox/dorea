@@ -1,7 +1,10 @@
 use crate::Result;
 
 use serde::{Deserialize, Serialize};
-use std::{fs, path::{PathBuf, Path}};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 /// Dorea File Config Struct
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -114,7 +117,7 @@ fn init_config(path: PathBuf) -> Result<()> {
 
     let service_path = &path.parent().unwrap().to_path_buf();
 
-    fs::write(&service_path.join("service.toml"), rest)?;
+    fs::write(service_path.join("service.toml"), rest)?;
 
     Ok(())
 }
