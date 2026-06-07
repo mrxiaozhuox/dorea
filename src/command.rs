@@ -15,6 +15,46 @@ use crate::{
     value::DataValue,
 };
 
+/// 带引号支持的命令参数解析
+/// 规则：
+/// - 空格分隔参数
+/// - 双引号内的空格不分割：`"hello world"` → 一个参数 `hello world`
+/// - 双引号可用 `\"` 转义
+/// - 未闭合引号则到末尾视为一个参数
+fn parse_command_args(input: &str) -> Vec<String> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    let mut chars = input.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\\' && in_quotes {
+            // 转义字符：只处理 \" 和 \\
+            if let Some(&next) = chars.peek() {
+                if next == '"' || next == '\\' {
+                    current.push(chars.next().unwrap());
+                    continue;
+                }
+            }
+            current.push(ch);
+        } else if ch == '"' {
+            in_quotes = !in_quotes;
+        } else if ch == ' ' && !in_quotes {
+            if !current.is_empty() {
+                args.push(std::mem::take(&mut current));
+            }
+        } else {
+            current.push(ch);
+        }
+    }
+
+    if !current.is_empty() {
+        args.push(current);
+    }
+
+    args
+}
+
 #[allow(dead_code)]
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -108,7 +148,7 @@ impl CommandManager {
         command_argument_info.insert(CommandList::DOCS, (0, 1));
         command_argument_info.insert(CommandList::SERVICE, (1, -1));
 
-        let mut slice: Vec<&str> = message.split(' ').collect();
+        let mut slice: Vec<String> = parse_command_args(&message);
 
         let command_str = match slice.first() {
             Some(v) => v,
@@ -424,7 +464,10 @@ impl CommandManager {
                     );
                 }
 
-                let sub_info: &str = sub_arg.first().unwrap_or(&"");
+                let sub_info = match sub_arg.first() {
+                    Some(v) => v.as_str(),
+                    None => "",
+                };
                 let mut _result: String = format!("{:?}", data);
 
                 if sub_info == "expire" {
@@ -661,7 +704,10 @@ impl CommandManager {
 
                     // 检查排序方式
                     let asc = if !sub_arg.is_empty() {
-                        let temp: &str = sub_arg.first().unwrap_or(&"asc");
+                        let temp = match sub_arg.first() {
+                            Some(v) => v.as_str(),
+                            None => "asc",
+                        };
                         temp.to_uppercase() != "DESC"
                     } else {
                         true
@@ -1047,8 +1093,14 @@ impl CommandManager {
                     ]);
                     let de_cls_cmd: &str = &de_cls_cmd.to_string();
 
-                    let usa_db: &str = slice.get(4).unwrap_or(&de_usa_db);
-                    let cls_cmd: &str = slice.get(5).unwrap_or(&de_cls_cmd);
+                    let usa_db = match slice.get(4) {
+                        Some(v) => v.as_str(),
+                        None => de_usa_db,
+                    };
+                    let cls_cmd = match slice.get(5) {
+                        Some(v) => v.as_str(),
+                        None => de_cls_cmd,
+                    };
 
                     let usa_db = DataValue::from(usa_db);
                     let cls_cmd = DataValue::from(cls_cmd);

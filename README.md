@@ -51,3 +51,32 @@ key: foo | value:  none | timestamp: 1626470590043 # Remove Value (append info)
 
 When a storage file reaches a maximum capacity, it is archived and a new write file is created.
 
+## Transport Protocol
+
+Dorea uses a binary length-prefixed protocol over TCP. Each frame has the following format:
+
+```
++----------+----------+----------+----------+
+|  MAGIC   | VERSION  |  STATE   |   LEN    |
+|  2 bytes | 1 byte   | 1 byte   | 4 bytes  |
++----------+----------+----------+----------+
+|              PAYLOAD (LEN bytes)          |
++-------------------------------------------+
+```
+
+| Field | Size | Description |
+|-------|------|-------------|
+| MAGIC | 2 bytes | Fixed `0xD0 0x9A`, used for stream alignment and validation |
+| VERSION | 1 byte | Protocol version, currently `0x01` |
+| STATE | 1 byte | Status code: `0x00`=IGNORE, `0x01`=OK, `0x02`=ERR, `0x03`=EMPTY, `0x04`=NOAUTH |
+| LEN | 4 bytes | Payload length in big-endian (u32), max 16MB |
+| PAYLOAD | LEN bytes | Raw binary data (command text in UTF-8 or response bytes) |
+
+Command arguments support double-quoted strings for values containing spaces:
+
+```
+set foo "hello world"        # key=foo, value="hello world"
+set bar [1,2,3]              # key=bar, value=[1,2,3]
+set baz "escaped \"quote\""  # key=baz, value=escaped "quote"
+```
+
