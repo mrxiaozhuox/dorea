@@ -8,11 +8,9 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use tokio::sync::Mutex;
-
 use crate::{
     configure::DoreaFileConfig,
-    database::{DataBase, DataBaseManager},
+    database::DataBaseManager,
     network::NetPacketState,
     value::DataValue,
 };
@@ -82,7 +80,7 @@ impl CommandManager {
         current: &mut String,
         value_ser_style: &mut String,
         config: &DoreaFileConfig,
-        database_manager: &Arc<Mutex<DataBaseManager>>,
+        database_manager: &Arc<DataBaseManager>,
         connect_id: &uuid::Uuid,
     ) -> (NetPacketState, Vec<u8>) {
         let message = message.trim().to_string();
@@ -157,21 +155,10 @@ impl CommandManager {
             );
         }
 
-        // check database existed
-        if !database_manager.lock().await.db_list.contains_key(current) {
-            let db = DataBase::init(
-                current.to_string(),
-                database_manager.lock().await.location.clone(),
-                config.database.clone(),
-            )
+        // ensure current database is loaded
+        database_manager
+            .ensure_loaded(current, &config.database)
             .await;
-
-            database_manager
-                .lock()
-                .await
-                .db_list
-                .insert(current.to_string(), db);
-        }
 
         // start to command operation
 
@@ -219,37 +206,27 @@ impl CommandManager {
             }
 
             // 为 current 增加权重
-            // 对数据更新提升 5 点的权重
             database_manager
-                .lock()
-                .await
                 .add_weight(current.to_string(), 5)
                 .await;
 
-            // 检查数据是追加还是更新
-            if !database_manager
-                .lock()
-                .await
-                .db_list
-                .get(current)
-                .unwrap()
-                .contains_key(key)
-                .await
+            // 检查数据是追加还是更新（读锁检查）
             {
-                // 卸载掉一个数据库（最不常用的）
-                if database_manager.lock().await.check_eli_db(0).await.is_err() {
-                    panic!("uninstall db failed.");
+                let db_arc = database_manager.db_list.get(current).unwrap().clone();
+                let db = db_arc.read().await;
+                if !db.contains_key(key).await {
+                    drop(db);
+                    // 卸载掉一个数据库（最不常用的）
+                    if database_manager.check_eli_db(0).await.is_err() {
+                        panic!("uninstall db failed.");
+                    }
                 }
             }
 
-            let result = database_manager
-                .lock()
-                .await
-                .db_list
-                .get_mut(current)
-                .unwrap()
-                .set(key, data_value, expire)
-                .await;
+            // 写锁执行 SET
+            let db_arc = database_manager.db_list.get(current).unwrap().clone();
+            let mut db = db_arc.write().await;
+            let result = db.set(key, data_value, expire).await;
 
             return match result {
                 Ok(_) => (NetPacketState::OK, vec![]),
@@ -262,34 +239,21 @@ impl CommandManager {
 
             // 为读取增加 1 的权重
             database_manager
-                .lock()
-                .await
                 .add_weight(current.to_string(), 1)
                 .await;
-            let result = database_manager
-                .lock()
-                .await
-                .db_list
-                .get(current)
-                .unwrap()
-                .meta_data(&key)
-                .await;
+
+            // 读锁执行 GET
+            let db_arc = database_manager.db_list.get(current).unwrap().clone();
+            let db = db_arc.read().await;
+            let result = db.meta_data(&key).await;
 
             return match result {
                 Some(v) => {
-                    // 这个地方检查具体的是否过期
-                    // 惰性删除数据
+                    // 过期时间判定（不执行懒删除，延迟到 merge 清理）
                     let exp = v.timestamp();
                     let current_time = chrono::Local::now().timestamp() as u64;
                     if current_time >= (exp.0 as u64 + exp.1) && exp.1 != 0 {
-                        let _ = database_manager
-                            .lock()
-                            .await
-                            .db_list
-                            .get_mut(current)
-                            .unwrap()
-                            .delete(&key)
-                            .await;
+                        return (NetPacketState::ERR, "Data Not Found".as_bytes().to_vec());
                     }
 
                     if v.value.clone() == DataValue::None {
@@ -312,18 +276,13 @@ impl CommandManager {
 
             // 为删除数据增加 5 的权重
             database_manager
-                .lock()
-                .await
                 .add_weight(current.to_string(), 5)
                 .await;
-            let result = database_manager
-                .lock()
-                .await
-                .db_list
-                .get_mut(current)
-                .unwrap()
-                .delete(key.as_ref())
-                .await;
+
+            // 写锁执行 DELETE
+            let db_arc = database_manager.db_list.get(current).unwrap().clone();
+            let mut db = db_arc.write().await;
+            let result = db.delete(key.as_ref()).await;
 
             return match result {
                 Ok(_) => (NetPacketState::OK, vec![]),
@@ -332,21 +291,15 @@ impl CommandManager {
         }
 
         if command == CommandList::CLEAN {
-            // 为清空数据增加 50 的权重（感谢您为 Index 存储节约了大量空间qwq）
-            // 这里我在思考（如果直接把清空的数据库删除出缓存中是否性能会更好）- 2021/12/21 待更新（mrxiaozhuox）
+            // 为清空数据增加 50 的权重
             database_manager
-                .lock()
-                .await
                 .add_weight(current.to_string(), 50)
                 .await;
-            let result = database_manager
-                .lock()
-                .await
-                .db_list
-                .get_mut(current)
-                .unwrap()
-                .clean() /* clean all data */
-                .await;
+
+            // 写锁执行 CLEAN
+            let db_arc = database_manager.db_list.get(current).unwrap().clone();
+            let mut db = db_arc.write().await;
+            let result = db.clean().await;
 
             return match result {
                 Ok(_) => (NetPacketState::OK, vec![]),
@@ -360,7 +313,7 @@ impl CommandManager {
             // 将当前使用的库加入到 DB统计 中（防止被动态卸载）
             crate::server::db_stat_set(*connect_id, db_name.to_string()).await;
 
-            return match database_manager.lock().await.select_to(db_name).await {
+            return match database_manager.select_to(db_name).await {
                 Ok(_) => {
                     *current = db_name.to_string();
                     (NetPacketState::OK, vec![])
@@ -426,15 +379,9 @@ impl CommandManager {
             }
 
             if argument == "keys" {
-                let list = database_manager
-                    .lock()
-                    .await
-                    .db_list
-                    .get(current)
-                    .unwrap()
-                    .clone()
-                    .keys()
-                    .await;
+                let db_arc = database_manager.db_list.get(current).unwrap().clone();
+                let db = db_arc.read().await;
+                let list = db.keys().await;
 
                 return (
                     NetPacketState::OK,
@@ -442,16 +389,12 @@ impl CommandManager {
                 );
             }
 
-            if &argument[0..1] == "@" {
+            if argument.starts_with('@') {
                 let var = &argument[1..];
-                let data = database_manager
-                    .lock()
-                    .await
-                    .db_list
-                    .get(current)
-                    .unwrap()
-                    .meta_data(var)
-                    .await;
+
+                let db_arc = database_manager.db_list.get(current).unwrap().clone();
+                let db = db_arc.read().await;
+                let data = db.meta_data(var).await;
 
                 if data.is_none() {
                     return (
@@ -461,18 +404,10 @@ impl CommandManager {
                 }
                 let data = data.unwrap();
 
-                // 惰性删除数据
+                // 过期检查（不执行懒删除）
                 let exp = data.timestamp();
                 let current_time = chrono::Local::now().timestamp() as u64;
                 if current_time >= (exp.0 as u64 + exp.1) as u64 && exp.1 != 0 {
-                    let _ = database_manager
-                        .lock()
-                        .await
-                        .db_list
-                        .get_mut(current)
-                        .unwrap()
-                        .delete(var)
-                        .await;
                     return (
                         NetPacketState::ERR,
                         format!("Key '{}' not found.", var).as_bytes().to_vec(),
@@ -517,59 +452,45 @@ impl CommandManager {
         // push 在数组末尾插入元素（仅支持 list ）
         // pop 弹出数组末尾元素 （仅支持 list ）
         // sort 对数组进行排序（仅支持 list ）
-        // reverse 对数组进行反转（仅支持 list ）
+        // reverse 对数组进行反转
         if command == CommandList::EDIT {
             let key: &str = slice.first().unwrap();
             let operation: &str = slice.get(1).unwrap();
 
-            if &key[0..1] == "@" {
+            if key.starts_with('@') {
                 let key: &str = &key[1..];
                 println!("@{}:{}", current, key);
 
-                let node = database_manager
-                    .lock()
-                    .await
-                    .db_list
-                    .get(current)
-                    .unwrap()
-                    .meta_data(key)
-                    .await;
+                // 读锁获取原值
+                let db_arc = database_manager.db_list.get(current).unwrap().clone();
+                let (origin_value, node_timestamp) = {
+                    let db = db_arc.read().await;
+                    let node = db.meta_data(key).await;
 
-                if node.is_none() {
-                    return (
-                        NetPacketState::ERR,
-                        format!("Key '{}' not found.", key).as_bytes().to_vec(),
-                    );
-                }
+                    if node.is_none() {
+                        return (
+                            NetPacketState::ERR,
+                            format!("Key '{}' not found.", key).as_bytes().to_vec(),
+                        );
+                    }
 
-                let node = node.unwrap();
+                    let node = node.unwrap();
+                    let ts = node.timestamp();
 
-                let origin_value = node.value.clone();
-                let node_timestamp = node.timestamp();
+                    let current_time = chrono::Local::now().timestamp() as u64;
+                    if current_time >= (ts.0 as u64 + ts.1) as u64 && ts.1 != 0 {
+                        return (
+                            NetPacketState::ERR,
+                            format!("Key '{}' not found.", key).as_bytes().to_vec(),
+                        );
+                    }
 
-                // 计算剩余过期时间
-                let current_time = chrono::Local::now().timestamp() as u64;
-                if current_time >= (node_timestamp.0 as u64 + node_timestamp.1) as u64
-                    && node_timestamp.1 != 0
-                {
-                    // 惰性删除数据
-                    let _ = database_manager
-                        .lock()
-                        .await
-                        .db_list
-                        .get_mut(current)
-                        .unwrap()
-                        .delete(key)
-                        .await;
-
-                    return (
-                        NetPacketState::ERR,
-                        format!("Key '{}' not found.", key).as_bytes().to_vec(),
-                    );
-                }
+                    (node.value.clone(), ts)
+                }; // 读锁释放
 
                 let mut expire = 0;
                 if node_timestamp.1 != 0 {
+                    let current_time = chrono::Local::now().timestamp() as u64;
                     expire = (node_timestamp.0 as u64 + node_timestamp.1) - current_time;
                 }
 
@@ -768,18 +689,9 @@ impl CommandManager {
                     );
                 }
 
-                // dbg!("{:?}",_result);
-
-                // 将新的数据值重新并入数据库中
-                return match database_manager
-                    .lock()
-                    .await
-                    .db_list
-                    .get_mut(current)
-                    .unwrap()
-                    .set(key, _result, expire)
-                    .await
-                {
+                // 写锁执行写回
+                let mut db = db_arc.write().await;
+                return match db.set(key, _result, expire).await {
                     Ok(_) => (NetPacketState::OK, vec![]),
                     Err(err) => (NetPacketState::ERR, err.to_string().as_bytes().to_vec()),
                 };
@@ -854,8 +766,6 @@ impl CommandManager {
                 }
 
                 match database_manager
-                    .lock()
-                    .await
                     .unload_database(db_name.to_string())
                     .await
                 {
@@ -898,8 +808,8 @@ impl CommandManager {
                 );
             } else if operation == "list" {
                 let mut list = vec![];
-                for (name, _) in database_manager.lock().await.db_list.iter() {
-                    list.push(name.to_string());
+                for entry in database_manager.db_list.iter() {
+                    list.push(entry.key().to_string());
                 }
 
                 return (
@@ -907,7 +817,7 @@ impl CommandManager {
                     format!("{:?}", list).as_bytes().to_vec(),
                 );
             } else if operation == "num" {
-                let size = database_manager.lock().await.db_list.len();
+                let size = database_manager.db_list.len();
                 return (NetPacketState::OK, format!("{}", size).as_bytes().to_vec());
             } else if operation == "lock" {
                 if slice.len() != 2 {
@@ -933,7 +843,6 @@ impl CommandManager {
                 }
 
                 // 将一个数据库锁死（使得它无法被卸载，包括自动、手动卸载）
-                // 当手动卸载被执行时，程序会告知本库无法卸载（已加锁
                 crate::database::DB_STATE
                     .lock()
                     .await
@@ -973,8 +882,10 @@ impl CommandManager {
             } else if operation == "status" {
                 let mut result = HashMap::new();
                 if slice.len() == 1 {
-                    let elis = database_manager.lock().await.eli_queue.clone();
-                    for (name, db) in database_manager.lock().await.db_list.iter() {
+                    let elis = database_manager.eli_queue.lock().await.clone();
+                    for entry in database_manager.db_list.iter() {
+                        let name = entry.key();
+                        let db_guard = entry.value().read().await;
                         let state = crate::database::DB_STATE
                             .lock()
                             .await
@@ -987,7 +898,7 @@ impl CommandManager {
                             serde_json::json!({
                                 "state": state.to_string(),
                                 "weight": elis.get(name),
-                                "index_num": db.size(),
+                                "index_num": db_guard.size(),
                             }),
                         );
                     }
@@ -1072,29 +983,20 @@ impl CommandManager {
             let operation: &str = slice.first().unwrap();
 
             if operation == "account" || operation == "acc" {
-                if !database_manager.lock().await.db_list.contains_key("system")
-                    && database_manager
-                        .lock()
-                        .await
-                        .select_to("system")
-                        .await
-                        .is_err()
-                {
-                    return (
-                        NetPacketState::ERR,
-                        "Load system db failed.".to_string().as_bytes().to_vec(),
-                    );
-                }
+                // 确保 system 库已加载
+                database_manager
+                    .ensure_loaded("system", &config.database)
+                    .await;
 
-                let acc_val = database_manager
-                    .lock()
-                    .await
-                    .db_list
-                    .get("system")
-                    .unwrap()
-                    .get("service@accounts")
-                    .await
-                    .unwrap_or_else(|| DataValue::Dict(HashMap::new()));
+                let system_db = database_manager.db_list.get("system").unwrap().clone();
+
+                // 读锁获取账户数据
+                let acc_val = {
+                    let db = system_db.read().await;
+                    db.get("service@accounts")
+                        .await
+                        .unwrap_or_else(|| DataValue::Dict(HashMap::new()))
+                };
 
                 if slice.len() <= 1 {
                     return (
@@ -1124,7 +1026,6 @@ impl CommandManager {
                     let password: &str = slice.get(3).unwrap();
 
                     // if username is `master`, we cannot register it.
-                    // because this name is a
                     if username == "master" {
                         return (
                             NetPacketState::ERR,
@@ -1162,44 +1063,31 @@ impl CommandManager {
                     temp_dict.insert("usa_database".into(), usa_db);
                     temp_dict.insert("cls_command".into(), cls_cmd);
 
-                    let checker = database_manager
-                        .lock()
-                        .await
-                        .db_list
-                        .get("system")
-                        .unwrap()
-                        .get("service@acc-checker")
-                        .await
-                        .unwrap_or(DataValue::None);
+                    let checker = {
+                        let db = system_db.read().await;
+                        db.get("service@acc-checker")
+                            .await
+                            .unwrap_or(DataValue::None)
+                    };
 
                     if checker == DataValue::None {
-                        database_manager
-                            .lock()
-                            .await
-                            .db_list
-                            .get_mut("system")
-                            .unwrap()
-                            .set(
-                                "service@acc-checker",
-                                DataValue::String(crate::tool::rand_str()),
-                                0,
-                            )
-                            .await
-                            .unwrap();
+                        let mut db = system_db.write().await;
+                        db.set(
+                            "service@acc-checker",
+                            DataValue::String(crate::tool::rand_str()),
+                            0,
+                        )
+                        .await
+                        .unwrap();
                     }
 
                     temp_dict.insert("checker".into(), checker);
 
                     acc_dict.insert(username.to_string(), DataValue::Dict(temp_dict.clone()));
 
-                    let res = database_manager
-                        .lock()
-                        .await
-                        .db_list
-                        .get_mut("system")
-                        .unwrap()
-                        .set("service@accounts", DataValue::Dict(acc_dict), 0)
-                        .await;
+                    // 写锁执行写回
+                    let mut db = system_db.write().await;
+                    let res = db.set("service@accounts", DataValue::Dict(acc_dict), 0).await;
 
                     if res.is_ok() {
                         return (NetPacketState::OK, vec![]);
@@ -1258,7 +1146,7 @@ impl CommandManager {
                         );
                     }
 
-                    let mut ori_acc = accs.get("username").unwrap().clone();
+                    let mut ori_acc = accs.get(username).unwrap().clone();
 
                     ori_acc.password = password.to_string();
 
@@ -1269,14 +1157,9 @@ impl CommandManager {
                         v_accs.insert(i.0, crate::service::db::account_to_value(i.1).await);
                     }
 
-                    let res = database_manager
-                        .lock()
-                        .await
-                        .db_list
-                        .get_mut("system")
-                        .unwrap()
-                        .set("service@accounts", DataValue::Dict(v_accs), 0)
-                        .await;
+                    // 写锁执行写回
+                    let mut db = system_db.write().await;
+                    let res = db.set("service@accounts", DataValue::Dict(v_accs), 0).await;
 
                     if res.is_ok() {
                         return (NetPacketState::OK, vec![]);
@@ -1290,7 +1173,7 @@ impl CommandManager {
             }
         }
 
-        // 暂时不支持具体内容查询（这玩意我确实无法进行设计qwq）
+        // 暂时不支持具体内容查询
         if command == CommandList::SEARCH {
             let expression: &str = slice.first().unwrap();
 
@@ -1300,14 +1183,10 @@ impl CommandManager {
                 limit = slice.get(1).unwrap().parse::<u16>().unwrap_or(0);
             }
 
-            let keys = database_manager
-                .lock()
-                .await
-                .db_list
-                .get(current)
-                .unwrap()
-                .keys()
-                .await;
+            // 读锁执行搜索
+            let db_arc = database_manager.db_list.get(current).unwrap().clone();
+            let db = db_arc.read().await;
+            let keys = db.keys().await;
 
             let mut result = vec![];
 

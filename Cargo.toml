@@ -90,6 +90,9 @@ uuid = { version = "0.8", features = ["v4"] }
 # Doson Parser
 doson = "0.1.5"
 
+# Concurrent HashMap
+dashmap = "5.4"
+
 # Tools
 rand = "0.8"
 

@@ -1,7 +1,9 @@
 use std::fs::{self, rename};
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 use std::{collections::HashMap, path::PathBuf};
 
 use log::info;
@@ -10,17 +12,23 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use bytes::{BufMut, BytesMut};
+use dashmap::DashMap;
 use serde_json::json;
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+use tokio::sync::{Mutex, RwLock};
 
 use crate::configure::{self, DataBaseConfig, DoreaFileConfig};
 use crate::value::DataValue;
 use crate::Result;
 
 use anyhow::anyhow;
-use tokio::sync::Mutex;
 
 // 单个数据库占全系统可用
 const INDEX_PROPORTION_FOR_DB: u16 = 4;
+
+// 全局索引计数（原子操作，替代原来的 Mutex<TotalInfo>）
+static TOTAL_INDEX_NUMBER: AtomicU32 = AtomicU32::new(0);
+static MAX_INDEX_NUMBER: AtomicU32 = AtomicU32::new(u32::MAX);
 
 /// 数据管理结构
 /// db_list 数据库列表（当前系统已加载的所有数据）
@@ -28,10 +36,10 @@ const INDEX_PROPORTION_FOR_DB: u16 = 4;
 /// config 数据库配置
 #[derive(Debug)]
 pub struct DataBaseManager {
-    pub(crate) db_list: HashMap<String, DataBase>,
+    pub(crate) db_list: DashMap<String, Arc<RwLock<DataBase>>>,
     pub(crate) location: PathBuf,
     pub(crate) config: DoreaFileConfig,
-    pub(crate) eli_queue: HashMap<String, isize>,
+    pub(crate) eli_queue: Mutex<HashMap<String, isize>>,
 }
 
 #[allow(dead_code)]
@@ -51,14 +59,6 @@ pub struct DataNode {
     pub(crate) value: DataValue,
     time_stamp: (i64, u64),
 }
-
-// 索引数量统计
-static TOTAL_INFO: Lazy<Mutex<TotalInfo>> = Lazy::new(|| {
-    Mutex::new(TotalInfo {
-        index_number: 0,
-        max_index_number: u32::MAX,
-    })
-});
 
 pub static DB_STATE: Lazy<Mutex<HashMap<String, DataBaseState>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
@@ -86,15 +86,10 @@ impl std::fmt::Display for DataBaseState {
 pub const CASTAGNOLI: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_ISCSI);
 
 impl DataBaseManager {
-    // 加载一个数据库管理对象（一个 DoreaDB 系统只会加载一次）
     pub async fn new(location: PathBuf) -> Self {
         let config = configure::load_config(&location).unwrap();
 
-        // 更新数据库最大 key 数值
-        TOTAL_INFO
-            .lock()
-            .await
-            .maxnum_set(config.database.max_index_number);
+        MAX_INDEX_NUMBER.store(config.database.max_index_number, Ordering::Relaxed);
 
         let (db_list, eli_que) = DataBaseManager::load_database(&config, location.clone()).await;
 
@@ -102,46 +97,85 @@ impl DataBaseManager {
             db_list,
             location: location.clone(),
             config,
-            eli_queue: eli_que,
+            eli_queue: Mutex::new(eli_que),
         }
     }
 
+    /// 确保指定数据库已加载
+    pub async fn ensure_loaded(&self, name: &str, db_config: &DataBaseConfig) {
+        if self.db_list.contains_key(name) {
+            return;
+        }
+
+        let state = DataBase::state(name.to_string(), self.location.clone())
+            .await
+            .unwrap_or(StateInfo {
+                index_number: 0,
+                init_version: crate::DOREA_VERSION.to_string(),
+                update_time: chrono::Local::now().timestamp(),
+            });
+
+        if self.check_eli_db(state.index_number as u64).await.is_err() {
+            log::error!("eviction check failed when loading database '{}'", name);
+        }
+
+        let db = DataBase::init(
+            name.to_string(),
+            self.location.clone().join("storage"),
+            db_config.clone(),
+        )
+        .await;
+
+        self.db_list
+            .insert(name.to_string(), Arc::new(RwLock::new(db)));
+        self.eli_queue
+            .lock()
+            .await
+            .insert(name.to_string(), 1);
+    }
+
     // 切换数据库
-    // 当数据库不存在时，则自动初始化新数据库
-    pub async fn select_to(&mut self, name: &str) -> Result<()> {
+    pub async fn select_to(&self, name: &str) -> Result<()> {
         if self.db_list.contains_key(name) {
             return Ok(());
-        } else {
-            let state = DataBase::state(name.to_string(), self.location.clone())
-                .await
-                .unwrap_or(StateInfo {
-                    index_number: 0,
-                    init_version: crate::DOREA_VERSION.to_string(),
-                    update_time: chrono::Local::now().timestamp(),
-                });
-
-            self.check_eli_db(state.index_number as u64).await?;
-
-            self.db_list.insert(
-                name.to_string(),
-                DataBase::init(
-                    name.to_string(),
-                    self.location.clone().join("storage"),
-                    self.config.database.clone(),
-                )
-                .await,
-            );
-            self.eli_queue.insert(name.to_string(), 1);
         }
+
+        let state = DataBase::state(name.to_string(), self.location.clone())
+            .await
+            .unwrap_or(StateInfo {
+                index_number: 0,
+                init_version: crate::DOREA_VERSION.to_string(),
+                update_time: chrono::Local::now().timestamp(),
+            });
+
+        self.check_eli_db(state.index_number as u64).await?;
+
+        let db = DataBase::init(
+            name.to_string(),
+            self.location.clone().join("storage"),
+            self.config.database.clone(),
+        )
+        .await;
+
+        self.db_list
+            .insert(name.to_string(), Arc::new(RwLock::new(db)));
+        self.eli_queue
+            .lock()
+            .await
+            .insert(name.to_string(), 2);
 
         Ok(())
     }
 
-    pub async fn load_from(&mut self, name: &str, db: DataBase) -> Result<()> {
-        self.check_eli_db(db.size() as u64).await?;
+    pub async fn load_from(&self, name: &str, db: Arc<RwLock<DataBase>>) -> Result<()> {
+        let db_size = db.read().await.size() as u64;
+        self.check_eli_db(db_size).await?;
 
         self.db_list.insert(name.to_string(), db);
-        self.eli_queue.insert(name.to_string(), 1);
+        self.eli_queue
+            .lock()
+            .await
+            .insert(name.to_string(), 1);
 
         Ok(())
     }
@@ -150,10 +184,10 @@ impl DataBaseManager {
     async fn load_database(
         config: &DoreaFileConfig,
         location: PathBuf,
-    ) -> (HashMap<String, DataBase>, HashMap<String, isize>) {
+    ) -> (DashMap<String, Arc<RwLock<DataBase>>>, HashMap<String, isize>) {
         let config = config.clone();
 
-        let mut db_list = HashMap::new();
+        let db_list = DashMap::new();
         let mut eli_que = HashMap::new();
 
         let groups = &config.database.pre_load_group;
@@ -161,34 +195,33 @@ impl DataBaseManager {
         for db in groups {
             db_list.insert(
                 db.to_string(),
-                DataBase::init(
-                    db.to_string(),
-                    location.clone().join("storage"),
-                    config.database.clone(),
-                )
-                .await,
+                Arc::new(RwLock::new(
+                    DataBase::init(
+                        db.to_string(),
+                        location.clone().join("storage"),
+                        config.database.clone(),
+                    )
+                    .await,
+                )),
             );
             eli_que.insert(db.to_string(), 2);
         }
 
-        let temp_index_info = TOTAL_INFO.lock().await.get_all();
-        info!(
-            "total index loaded number: {} [MAX: {}].",
-            temp_index_info.0, temp_index_info.1
-        );
+        let total = TOTAL_INDEX_NUMBER.load(Ordering::Relaxed);
+        let max = MAX_INDEX_NUMBER.load(Ordering::Relaxed);
+        info!("total index loaded number: {} [MAX: {}].", total, max);
 
         (db_list, eli_que)
     }
 
-    pub async fn add_weight(&mut self, db: String, num: isize) -> bool {
-        if self.eli_queue.contains_key(&db) {
-            let old = match self.eli_queue.get(&db) {
-                None => {
-                    return false;
-                }
+    pub async fn add_weight(&self, db: String, num: isize) -> bool {
+        let mut eli = self.eli_queue.lock().await;
+        if eli.contains_key(&db) {
+            let old = match eli.get(&db) {
+                None => return false,
                 Some(v) => *v,
             };
-            self.eli_queue.insert(db.to_string(), old + num);
+            eli.insert(db.to_string(), old + num);
 
             log::debug!("[{}] weight update to {}.", db, old + num);
 
@@ -198,48 +231,53 @@ impl DataBaseManager {
         false
     }
 
-    pub async fn unload_database(&mut self, db: String) -> crate::Result<()> {
-        // 卸载某一个数据库
-
+    pub async fn unload_database(&self, db: String) -> crate::Result<()> {
         let db_index_size = match self.db_list.get(&db) {
             Some(v) => {
-                v.save_state_json().await?;
-                v.size() as u32
+                let db_guard = v.read().await;
+                db_guard.save_state_json().await?;
+                db_guard.size() as u32
             }
             None => 0,
         };
 
-        TOTAL_INFO.lock().await.index_reduce(db_index_size);
+        TOTAL_INDEX_NUMBER.fetch_sub(db_index_size, Ordering::Relaxed);
         self.db_list.remove(&db);
-        self.eli_queue.remove(&db);
+        self.eli_queue.lock().await.remove(&db);
 
         Ok(())
     }
 
-    pub async fn check_eli_db(&mut self, need: u64) -> crate::Result<()> {
-        let (total_index_number, max_index_number) = TOTAL_INFO.lock().await.get_all();
+    pub async fn check_eli_db(&self, need: u64) -> crate::Result<()> {
+        let total_index_number = TOTAL_INDEX_NUMBER.load(Ordering::Relaxed);
+        let max_index_number = MAX_INDEX_NUMBER.load(Ordering::Relaxed);
 
-        // 检查缓存是否已满了：
-        // println!("{} + {} >= {}",total_index_number, need, max_index_number);
         if (total_index_number + need as u32) >= max_index_number {
             let group_max_index_number = (max_index_number / 4) as usize;
 
-            // 对于 db 遍历并不会有太高的时间消耗（因为这本身就不会为一个极大的量级：O(n) 完全够用）
             let mut minimum = (String::new(), u64::MAX);
-            for (name, num) in &self.eli_queue {
-                let db_index_number = self.db_list.get(name).unwrap().size() as u64;
+
+            let eli = self.eli_queue.lock().await;
+
+            for entry in self.db_list.iter() {
+                let name = entry.key();
+                let num = match eli.get(name) {
+                    Some(v) => *v,
+                    None => continue,
+                };
+
+                let db_guard = entry.value().read().await;
+                let db_index_number = db_guard.size() as u64;
 
                 if db_index_number < need {
-                    // 小于需求数量的也不考虑卸载
                     continue;
                 }
 
                 if crate::server::db_stat_exist(name.to_string()).await {
-                    // 如果当前正被使用则不考虑卸载
                     continue;
                 }
 
-                if *crate::database::DB_STATE
+                if *DB_STATE
                     .lock()
                     .await
                     .get(name)
@@ -249,17 +287,15 @@ impl DataBaseManager {
                     continue;
                 }
 
-                let final_weight = *num as u64 * (group_max_index_number as u64 / db_index_number);
-
-                // println!("{}: 最终权重: {}", name, final_weight);
+                let final_weight = num as u64 * (group_max_index_number as u64 / db_index_number);
 
                 if minimum.1 > final_weight {
-                    // 找到更小的权重值
                     minimum = (name.to_string(), final_weight);
                 }
             }
 
-            // 这里会直接卸载掉权重最低的那个数据库，并加载新的。
+            drop(eli);
+
             if minimum.1 != u64::MAX {
                 log::info!(
                     "weight judge: @{}[:{}] will be eliminate.",
@@ -269,7 +305,7 @@ impl DataBaseManager {
                 self.unload_database(minimum.0.to_string()).await?;
             } else {
                 log::error!("no database can be eliminate.");
-                return Err(anyhow::anyhow!("no database can be eliminate."));
+                return Err(anyhow!("no database can be eliminate."));
             }
         }
         Ok(())
@@ -286,7 +322,6 @@ pub struct StateInfo {
 
 #[allow(dead_code)]
 impl DataBase {
-    // 获取 State 信息（ State 不一定完全准确 ）
     pub async fn state(name: String, location: PathBuf) -> crate::Result<StateInfo> {
         let location = location.join("storage").join(&name);
 
@@ -299,12 +334,10 @@ impl DataBase {
     pub async fn init(name: String, location: PathBuf, _config: DataBaseConfig) -> Self {
         let location = location.join(&name);
 
-        // DataFile 对象初始化
         let data_file = DataFile::new(&location, name.clone());
 
         let mut index_list = HashMap::new();
 
-        // 加载本 DataFile 中的索引数据
         let _ = data_file.load_index(&mut index_list).await;
 
         let obj = Self {
@@ -339,14 +372,12 @@ impl DataBase {
 
     pub async fn set(&mut self, key: &str, value: DataValue, expire: u64) -> Result<()> {
         if !self.contains_key(key).await && value != DataValue::None {
-            let max_index_number = TOTAL_INFO.lock().await.max_index_number;
+            let max_index_number = MAX_INDEX_NUMBER.load(Ordering::Relaxed);
 
-            // check total_index_number
-            if TOTAL_INFO.lock().await.index_get() >= max_index_number {
+            if TOTAL_INDEX_NUMBER.load(Ordering::Relaxed) >= max_index_number {
                 return Err(anyhow!("exceeded system max index number"));
             }
 
-            // check group_index_number
             if (self.index.len() as u32) >= (max_index_number / (INDEX_PROPORTION_FOR_DB as u32)) {
                 return Err(anyhow!("exceeded group max index number"));
             }
@@ -369,14 +400,10 @@ impl DataBase {
         let res = self.file.read(key.to_string(), &self.index).await;
         match res {
             Some(d) => {
-                // 过期时间判定
                 if d.time_stamp.1 != 0
                     && (d.time_stamp.0 as u64 + d.time_stamp.1)
                         < chrono::Local::now().timestamp() as u64
                 {
-                    // 关于 2021-12-15 的更新：
-                    // 这里不再删除数据（会增加一次写入）
-                    // 过期直接返回 None 即可，不再更新为空
                     return Some(DataValue::None);
                 }
 
@@ -391,9 +418,9 @@ impl DataBase {
     }
 
     pub async fn delete(&mut self, key: &str) -> Result<()> {
-        TOTAL_INFO.lock().await.index_reduce(1);
         return match self.set(key, DataValue::None, 0).await {
             Ok(_) => {
+                TOTAL_INDEX_NUMBER.fetch_sub(1, Ordering::Relaxed);
                 self.index.remove(key);
                 Ok(())
             }
@@ -406,11 +433,7 @@ impl DataBase {
     }
 
     pub async fn clean(&mut self) -> Result<()> {
-        // traverse all file and remove it
-        TOTAL_INFO
-            .lock()
-            .await
-            .index_reduce(self.index.len() as u32);
+        TOTAL_INDEX_NUMBER.fetch_sub(self.index.len() as u32, Ordering::Relaxed);
         for entry in walkdir::WalkDir::new(&self.location)
             .into_iter()
             .filter_map(|e| e.ok())
@@ -420,10 +443,8 @@ impl DataBase {
             }
         }
 
-        // clean index hashMap
         self.index = HashMap::new();
 
-        // re-init storage file struct
         self.file.init_db()?;
 
         info!("@{} group has been clean.", self.name);
@@ -438,6 +459,10 @@ impl DataBase {
         }
 
         temp
+    }
+
+    pub fn record_count(&self) -> usize {
+        self.file.record_count()
     }
 
     pub fn size(&self) -> usize {
@@ -465,7 +490,6 @@ struct DataFile {
 }
 
 impl DataFile {
-    // 初始化 数据文件系统 -> DoreaFile
     pub fn new(root: &Path, name: String) -> Self {
         let mut db = Self {
             root: root.to_path_buf(),
@@ -504,7 +528,6 @@ impl DataFile {
                         info.as_ref().unwrap().1.parse::<u32>().unwrap()
                     };
 
-                    // load index from db file.
                     let mut file = match OpenOptions::new().read(true).open(entry.path()) {
                         Ok(v) => v,
                         Err(_) => {
@@ -531,8 +554,6 @@ impl DataFile {
                         let mut slice_symbol: bool = false;
 
                         for rec in 0..bs.len() {
-                            // is slice end
-
                             if bs[rec] == b'\r' {
                                 if rec == (bs.len() - 1) {
                                     let mut read_one = [0_u8; 1];
@@ -557,7 +578,6 @@ impl DataFile {
                                     continue;
                                 }
 
-                                // 查找到一条数据（生成 DataNode 对象）
                                 let v = match serde_json::from_slice::<DataNode>(&legacy[..]) {
                                     Ok(v) => v,
                                     Err(_) => break,
@@ -603,7 +623,7 @@ impl DataFile {
             self.root.file_name().unwrap(),
             count,
         );
-        TOTAL_INFO.lock().await.index_add(count);
+        TOTAL_INDEX_NUMBER.fetch_add(count, Ordering::Relaxed);
 
         Ok(())
     }
@@ -616,19 +636,16 @@ impl DataFile {
 
             let save_file = self.root.join("active.db");
 
-            // make data storage file
             if !save_file.is_file() {
                 self.active()?;
             }
 
             let record_in = self.root.join("record.in");
 
-            // make record.in dir
             if !record_in.is_file() {
                 fs::write(record_in, b"1")?;
             }
 
-            // state 文件会在数据库加载后被更新（也就是说它并不会被实时更新也就是说）
             let state_json = self.root.join("state.json");
             if !state_json.is_file() {
                 fs::write(
@@ -647,7 +664,6 @@ impl DataFile {
         Ok(())
     }
 
-    // DoreaFile 系统改名：主要用于 merge 相关功能
     fn rename_dfile(&mut self, new_name: &str) -> crate::Result<()> {
         let new_root = self.root.parent().unwrap().join(new_name);
 
@@ -666,7 +682,6 @@ impl DataFile {
     fn check_db(&self) -> crate::Result<()> {
         let mut result: crate::Result<()> = Ok(());
 
-        // error: not found
         if !self.root.is_dir() {
             result = Err(anyhow!("root dir not found"));
         }
@@ -674,7 +689,7 @@ impl DataFile {
         let save_file = self.root.join("active.db");
         let index_dir = self.root.join("record.in");
 
-        if !save_file.is_file() || !index_dir.is_dir() {
+        if !save_file.is_file() || !index_dir.is_file() {
             result = Err(anyhow!("file not found"));
         }
 
@@ -690,7 +705,6 @@ impl DataFile {
 
         let check_code = String::from_utf8_lossy(&buf[0..buf.len() - 1]).to_string();
 
-        // the dorea data was unsupported.
         if !crate::COMPATIBLE_VERSION.contains(&check_code) {
             panic!("database storage structure unsupported.");
         }
@@ -703,21 +717,23 @@ impl DataFile {
         data: DataNode,
         index: &mut HashMap<String, IndexInfo>,
     ) -> Result<()> {
-        self.check_file().unwrap();
+        self.check_file().await?;
 
         let file = self.root.join("active.db");
 
         let mut v = serde_json::to_vec(&data).expect("serialize failed");
 
-        // add \r\n symbol
         v.push(13);
         v.push(10);
 
-        let mut f = OpenOptions::new().append(true).open(file)?;
+        let mut f = tokio::fs::OpenOptions::new()
+            .append(true)
+            .open(&file)
+            .await?;
 
-        let start_position = f.metadata()?.len();
+        let start_position = f.metadata().await?.len();
 
-        f.write_all(&v[..]).expect("write error");
+        f.write_all(&v[..]).await?;
 
         let end_position: u64 = start_position + v.len() as u64;
         let end_position: u64 = end_position - 2;
@@ -729,9 +745,8 @@ impl DataFile {
             time_stamp: data.time_stamp,
         };
 
-        // add total index number
         if !index.contains_key(&data.key) {
-            TOTAL_INFO.lock().await.index_add(1);
+            TOTAL_INDEX_NUMBER.fetch_add(1, Ordering::Relaxed);
         }
 
         index.insert(data.key.clone(), index_info);
@@ -758,10 +773,11 @@ impl DataFile {
             return None;
         }
 
-        let mut file = fs::File::open(data_file).unwrap();
+        let mut file = tokio::fs::File::open(&data_file).await.ok()?;
 
         file.seek(SeekFrom::Start(index_info.start_position))
-            .unwrap();
+            .await
+            .ok()?;
 
         let mut buf: Vec<u8> =
             Vec::with_capacity((index_info.end_position - index_info.start_position) as usize);
@@ -771,7 +787,7 @@ impl DataFile {
             0,
         );
 
-        let len = file.read(&mut buf).unwrap();
+        let len = file.read(&mut buf).await.ok()?;
 
         let v = match serde_json::from_slice::<DataNode>(buf[0..len].as_bytes()) {
             Ok(v) => v,
@@ -783,16 +799,15 @@ impl DataFile {
         Some(v)
     }
 
-    pub fn check_file(&self) -> crate::Result<()> {
+    pub async fn check_file(&self) -> crate::Result<()> {
         let file = self.root.join("active.db");
 
         if !file.is_file() {
             self.active()?;
         }
 
-        let size = file.metadata()?.len();
+        let size = tokio::fs::metadata(&file).await?.len();
 
-        // 暂定 64 MB 归档一次
         if size >= (1024 * 1024 * 64) {
             self.archive()?;
         }
@@ -800,32 +815,23 @@ impl DataFile {
         Ok(())
     }
 
-    // 合并已归档的数据
     pub async fn merge_struct(
         &mut self,
         index: &mut HashMap<String, IndexInfo>,
     ) -> crate::Result<()> {
         let root_path = self.root.clone();
 
-        let mut record_in = File::open(root_path.join("record.in"))?;
-        let mut record = String::new();
-        record_in.read_to_string(&mut record)?;
-
-        drop(record_in);
-
+        let record = tokio::fs::read_to_string(root_path.join("record.in")).await?;
         let record = record.parse::<usize>()?;
 
-        // 小于等于 3 条数据就不用考虑合并了（2个以下的归档文件有啥好合并的qwq）
         if record <= 3 {
             return Ok(());
         }
 
-        // 创建一个 暂时使用的 DoreaFile (用于在合并时不影响系统的正常运行)
         let temp_dfile = root_path.parent().unwrap().join(format!("~{}", self.name));
         let mut temp_dfile = DataFile::new(&temp_dfile, format!("~{}", self.name));
         let mut temp_index = HashMap::new();
 
-        // 接下来是具体的合并代码操作
         for (_, index_info) in index.iter() {
             let val = self.read_with_index_info(index_info).await;
             temp_dfile
@@ -874,7 +880,6 @@ impl DataFile {
 
         f.write_all((self.get_file_id() + 1).to_string().as_bytes())?;
 
-        // remake active file
         self.active()?;
 
         Ok(())
@@ -891,6 +896,14 @@ impl DataFile {
 
         num.parse::<u32>().unwrap_or(1)
     }
+
+    pub fn record_count(&self) -> usize {
+        let fp = self.root.join("record.in");
+        fs::read_to_string(fp)
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(1)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -901,45 +914,9 @@ struct IndexInfo {
     time_stamp: (i64, u64),
 }
 
-#[derive(Debug)]
-struct TotalInfo {
-    index_number: u32,
-    max_index_number: u32,
-}
-
-impl TotalInfo {
-    fn index_get(&self) -> u32 {
-        self.index_number
-    }
-    fn index_add(&mut self, num: u32) {
-        self.index_number += num;
-    }
-    fn index_reduce(&mut self, num: u32) {
-        self.index_number -= num;
-    }
-    // fn index_set(&mut self, num: u32) {
-    //     self.index_number = num;
-    // }
-    fn maxnum_set(&mut self, num: u32) {
-        self.max_index_number = num;
-    }
-    fn get_all(&self) -> (u32, u32) {
-        (self.index_number, self.max_index_number)
-    }
-    // 这个函数用于检查数据库索引数量是否溢出（超出最大限制）
-    // fn overflow(&self) -> bool {
-    //     self.index_number >= self.max_index_number
-    // }
-}
-
-// 将 total_index 数据公开到外部
 pub async fn total_index_number() -> (u32, u32) {
-    TOTAL_INFO.lock().await.get_all()
+    (
+        TOTAL_INDEX_NUMBER.load(Ordering::Relaxed),
+        MAX_INDEX_NUMBER.load(Ordering::Relaxed),
+    )
 }
-
-// pub async fn index_overflow() -> bool {
-//     TOTAL_INFO.lock().await.overflow()
-// }
-
-// 也算是个小彩蛋吧，希望在未来的某一天我能看到它qwq -YuKun Liu [2021-12-16: SC-CD-7ZWD]
-// 这是一段有特殊意义的加密字符串：8F0554F5C42D9989F04805D38DD52290

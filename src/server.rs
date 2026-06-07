@@ -33,7 +33,7 @@ pub struct DoreaServer {
     server_config: DoreaFileConfig,
     startup_time: i64,
     connection_number: Arc<Mutex<ConnectNumber>>,
-    db_manager: Arc<Mutex<DataBaseManager>>,
+    db_manager: Arc<DataBaseManager>,
 }
 
 pub struct ServerOption {
@@ -93,9 +93,7 @@ impl DoreaServer {
             server_listener: listener,
             server_config: config.clone(),
             connection_number: Arc::new(Mutex::new(ConnectNumber { num: 0 })),
-            db_manager: Arc::new(Mutex::new(
-                DataBaseManager::new(document_path.clone()).await,
-            )),
+            db_manager: Arc::new(DataBaseManager::new(document_path.clone()).await),
             startup_time: chrono::Local::now().timestamp() + 100,
         };
 
@@ -192,7 +190,8 @@ impl DoreaServer {
 
     /// Before you close the server, you need to call this function save some mem data.
     pub async fn save_all(&mut self) -> crate::Result<()> {
-        for (_, db) in self.db_manager.lock().await.db_list.iter() {
+        for entry in self.db_manager.db_list.iter() {
+            let db = entry.value().read().await;
             db.save_state_json().await?;
         }
         Ok(())

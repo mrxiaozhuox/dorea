@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use tokio::net::TcpStream;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 use crate::command::CommandManager;
 use crate::configure::DoreaFileConfig;
-use crate::database::DataBaseManager;
+use crate::database::{DataBase, DataBaseManager};
 use crate::network::{Frame, NetPacket, NetPacketState};
 use crate::Result;
 
@@ -14,7 +14,7 @@ pub(crate) async fn process(
     socket: &mut TcpStream,
     config: DoreaFileConfig,
     current: String,
-    database_manager: Arc<Mutex<DataBaseManager>>,
+    database_manager: Arc<DataBaseManager>,
     startup_time: i64,
     value_ser_style: String,
     connect_id: uuid::Uuid,
@@ -36,8 +36,10 @@ pub(crate) async fn process(
         message = match frame.parse_frame(socket).await {
             Ok(message) => message,
             Err(e) => {
-                if e.to_string() == "Connection reset by peer (os error 54)" {
-                    return Err(e);
+                if let Some(io_err) = e.downcast_ref::<std::io::Error>() {
+                    if io_err.kind() == std::io::ErrorKind::ConnectionReset {
+                        return Err(e);
+                    }
                 }
 
                 NetPacket::make(e.to_string().as_bytes().to_vec(), NetPacketState::ERR)
@@ -73,6 +75,7 @@ pub(crate) async fn process(
                     if val.len() > 14 && &val[0..14] == "@[PRELOAD_DB]:" {
                         let db_name = String::from(&val[14..]);
                         let tmp_db_manager = database_manager.clone();
+                        let db_config = config.database.clone();
                         tokio::spawn(async move {
                             crate::database::DB_STATE
                                 .lock()
@@ -80,17 +83,16 @@ pub(crate) async fn process(
                                 .insert(db_name.clone(), crate::database::DataBaseState::LOADING);
 
                             let storage_path =
-                                tmp_db_manager.lock().await.location.clone().join("storage");
-                            let db_config = tmp_db_manager.lock().await.config.database.clone();
+                                tmp_db_manager.location.clone().join("storage");
 
-                            let ndb = crate::database::DataBase::init(
+                            let ndb = DataBase::init(
                                 db_name.to_string(),
                                 storage_path,
                                 db_config,
                             )
                             .await;
 
-                            match tmp_db_manager.lock().await.load_from(&db_name, ndb).await {
+                            match tmp_db_manager.load_from(&db_name, Arc::new(RwLock::new(ndb))).await {
                                 Ok(_) => {
                                     crate::database::DB_STATE.lock().await.insert(
                                         db_name.clone(),
