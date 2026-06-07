@@ -1,24 +1,41 @@
-use bytes::{BufMut, BytesMut};
-use nom::bytes::complete::{tag, take_until, take_while1};
-use nom::character::complete::alpha1;
-use nom::combinator::map;
-use nom::sequence::delimited;
-use nom::IResult;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+
+// 协议常量
+const MAGIC: [u8; 2] = [0xD0, 0x9A];
+const PROTOCOL_VERSION: u8 = 0x01;
+const MAX_PAYLOAD_LEN: u32 = 0xFFFFFF; // 16MB
+const HEADER_SIZE: usize = 8;
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum NetPacketState {
+    IGNORE = 0x00,
+    OK = 0x01,
+    ERR = 0x02,
+    EMPTY = 0x03,
+    NOAUTH = 0x04,
+}
+
+impl NetPacketState {
+    fn from_u8(v: u8) -> Self {
+        match v {
+            0x00 => Self::IGNORE,
+            0x01 => Self::OK,
+            0x02 => Self::ERR,
+            0x03 => Self::EMPTY,
+            0x04 => Self::NOAUTH,
+            _ => Self::EMPTY,
+        }
+    }
+
+    fn to_u8(self) -> u8 {
+        self as u8
+    }
+}
 
 pub struct NetPacket {
     body: Vec<u8>,
     state: NetPacketState,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum NetPacketState {
-    OK,
-    ERR,
-    EMPTY,
-    NOAUTH,
-    IGNORE,
 }
 
 impl NetPacket {
@@ -27,32 +44,25 @@ impl NetPacket {
     }
 
     pub(crate) async fn send(&self, socket: &mut TcpStream) -> crate::Result<()> {
-        socket.write_all(self.to_string().as_bytes()).await?;
-
+        socket.write_u8(MAGIC[0]).await?;
+        socket.write_u8(MAGIC[1]).await?;
+        socket.write_u8(PROTOCOL_VERSION).await?;
+        socket.write_u8(self.state.to_u8()).await?;
+        socket.write_u32(self.body.len() as u32).await?;
+        if !self.body.is_empty() {
+            socket.write_all(&self.body).await?;
+        }
         Ok(())
     }
 }
 
-impl std::fmt::Display for NetPacket {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let body = base64::encode(&self.body[..]);
-        write!(f, "$: {} | ", body.as_bytes().len() + 5)?;
-        if self.state != NetPacketState::IGNORE {
-            write!(f, "%: {:?} | ", self.state)?;
-        }
-        write!(f, "#: B64'{}';", body)
-    }
-}
-
 pub struct Frame {
-    legacy_content: Vec<u8>,
     pub latest_state: NetPacketState,
 }
 
 impl Default for Frame {
     fn default() -> Self {
         Self {
-            legacy_content: Default::default(),
             latest_state: NetPacketState::EMPTY,
         }
     }
@@ -63,148 +73,43 @@ impl Frame {
         Self::default()
     }
 
-    // read message from socket [std]
     pub async fn parse_frame(&mut self, socket: &mut TcpStream) -> crate::Result<Vec<u8>> {
-        let (mut reader, _) = socket.split();
+        // 1. 读 8 字节头部
+        let mut header = [0u8; HEADER_SIZE];
+        socket.read_exact(&mut header).await?;
 
-        let mut buf = [0_u8; 50];
-        let mut response = BytesMut::with_capacity(50);
-
-        let size = reader.read(&mut buf).await?;
-
-        response.put(&buf[0..size]);
-
-        let mut message = String::from_utf8(response.as_ref().to_vec()).unwrap();
-
-        if message.trim().is_empty() {
-            return Ok(vec![]);
+        // 2. 校验 MAGIC
+        if header[0] != MAGIC[0] || header[1] != MAGIC[1] {
+            return Err(anyhow::anyhow!(
+                "invalid magic bytes, stream corrupted"
+            ));
         }
 
-        message = message.trim().to_string();
-
-        let (remain, total_size) = match Frame::parse_size(&message) {
-            Ok((remain, size)) => (remain.to_string(), size),
-            Err(_) => {
-                return Err(anyhow::anyhow!("size parse error"));
-            }
-        };
-
-        // parse state
-        let (remain, state) = match Frame::parse_state(&remain) {
-            Ok(v) => v,
-            Err(_) => (message.as_str(), NetPacketState::EMPTY),
-        };
-
-        let (remain, mut data) = match Frame::parse_content(remain) {
-            Ok((remain, data)) => (remain.to_string(), data.to_string()),
-            Err(_) => {
-                return Err(anyhow::anyhow!("content parse error"));
-            }
-        };
-
-        if !remain.is_empty() {
-            self.legacy_content = remain[1..].as_bytes().to_vec();
+        // 3. 校验 VERSION
+        if header[2] != PROTOCOL_VERSION {
+            return Err(anyhow::anyhow!(
+                "unsupported protocol version: {}",
+                header[2]
+            ));
         }
 
-        while data.as_bytes().len() < total_size {
-            let mut append_buf = [0_u8; 1024];
+        // 4. 解析 STATE
+        self.latest_state = NetPacketState::from_u8(header[3]);
 
-            let diff = total_size - data.as_bytes().len();
+        // 5. 解析 LEN (大端序)
+        let len = u32::from_be_bytes([header[4], header[5], header[6], header[7]]) as usize;
 
-            let max_buf_read = if diff > 1024 {
-                1024
-            } else {
-                // + 1 for ;
-                diff + 1
-            };
-
-            let len = reader.read(&mut append_buf[..max_buf_read]).await?;
-
-            data = data + &String::from_utf8_lossy(&append_buf[0..len]);
+        // 6. 校验大小限制
+        if len as u32 > MAX_PAYLOAD_LEN {
+            return Err(anyhow::anyhow!("payload too large: {} bytes", len));
         }
 
-        if &data[data.len() - 1..] == ";" {
-            data = data[..data.len() - 1].to_string();
+        // 7. 读取 payload
+        let mut buf = vec![0u8; len];
+        if len > 0 {
+            socket.read_exact(&mut buf).await?;
         }
 
-        // unuseful information
-        // println!("{:?}",state);
-        self.latest_state = state;
-
-        // if data was B64: change it.
-        if &data[0..4] == "B64'" && &data[data.len() - 1..] == "'" {
-            let b64 = &data[4..data.len() - 1];
-            data = match base64::decode(b64) {
-                Ok(v) => String::from_utf8_lossy(&v[..]).to_string(),
-                Err(_) => data,
-            };
-        }
-
-        Ok(data.as_bytes().to_vec())
-    }
-
-    fn parse_size(message: &str) -> IResult<&str, usize> {
-        let (mut remain, length): (&str, usize) = delimited(
-            tag("$: "),
-            map(take_while1(|c: char| c.is_ascii_digit()), |int: &str| {
-                int.parse::<usize>().unwrap()
-            }),
-            take_until(" | "),
-        )(message)?;
-
-        remain = &remain[3..];
-
-        Ok((remain, length))
-    }
-
-    fn parse_state(message: &str) -> IResult<&str, NetPacketState> {
-        let info: IResult<&str, NetPacketState> = delimited(
-            tag("%: "),
-            map(alpha1, |val: &str| {
-                if val.to_uppercase() == "OK" {
-                    return NetPacketState::OK;
-                } else if val.to_uppercase() == "ERR" {
-                    return NetPacketState::ERR;
-                } else if val.to_uppercase() == "NOAUTH" {
-                    return NetPacketState::NOAUTH;
-                }
-                NetPacketState::EMPTY
-            }),
-            take_until(" | "),
-        )(message);
-
-        let (remain, state) = match info {
-            Ok(v) => {
-                let v: (&str, NetPacketState) = v;
-
-                let mut remain = v.0;
-                let state = v.1;
-
-                remain = &remain[3..];
-
-                (remain, state)
-            }
-            Err(_) => (message, NetPacketState::EMPTY),
-        };
-
-        Ok((remain, state))
-    }
-
-    fn parse_content(message: &str) -> IResult<&str, &str> {
-        let state: IResult<&str, &str> =
-            delimited(tag("#: "), take_while1(|c| c != ';'), take_until(";"))(message);
-
-        let mut remain = "";
-        let result;
-
-        if let Ok(temp) = state {
-            remain = temp.0;
-            result = temp.1;
-        } else {
-            let (info, _) = tag("#: ")(message)?;
-            result = info;
-        }
-
-        Ok((remain, result))
+        Ok(buf)
     }
 }

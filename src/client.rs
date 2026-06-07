@@ -59,9 +59,9 @@ impl DoreaClient {
 
     pub async fn setex(&mut self, key: &str, value: DataValue, expire: usize) -> crate::Result<()> {
         let command = format!(
-            "set {} b:{}: {}",
+            "set {} {} {}",
             key,
-            base64::encode(value.to_string()),
+            value.to_string(),
             expire
         );
 

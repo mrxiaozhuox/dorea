@@ -36,8 +36,15 @@ pub(crate) async fn process(
         message = match frame.parse_frame(socket).await {
             Ok(message) => message,
             Err(e) => {
+                // 流损坏（MAGIC 不匹配/版本不对）无法恢复，直接断开连接
+                let err_msg = e.to_string();
+                if err_msg.contains("invalid magic") || err_msg.contains("unsupported protocol") {
+                    return Err(e);
+                }
                 if let Some(io_err) = e.downcast_ref::<std::io::Error>() {
-                    if io_err.kind() == std::io::ErrorKind::ConnectionReset {
+                    if io_err.kind() == std::io::ErrorKind::ConnectionReset
+                        || io_err.kind() == std::io::ErrorKind::UnexpectedEof
+                    {
                         return Err(e);
                     }
                 }
