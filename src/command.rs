@@ -417,7 +417,7 @@ impl CommandManager {
                 );
             }
 
-            if argument == "server-startup-time" || argument == "stt" {
+            if argument == "server-startup-time" || argument == "sst" {
                 return (
                     NetPacketState::OK,
                     "@[SERVER_STARTUP_TIME]".as_bytes().to_vec(),
