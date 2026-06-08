@@ -7,8 +7,10 @@
 /// - 使用 info() 方法获取服务器信息
 /// - InfoType 枚举的各种选项
 ///
-/// 注意：CurrentConnectionNumber 和 PreloadDatabaseList 在当前版本
-/// 的服务器端未实现，调用会返回错误。
+/// 注意：以下 InfoType 在当前版本服务器端未正确实现：
+/// - CurrentConnectionNumber ('current-connect-num') - 未处理
+/// - PreloadDatabaseList ('preload-db-list') - 未处理
+/// - ServerStartupTime ('server-startup-time') - 返回占位符而非真实时间
 use dorea::client::{DoreaClient, InfoType};
 
 #[tokio::main]
@@ -33,10 +35,6 @@ async fn main() -> anyhow::Result<()> {
     // 索引信息
     let index_info = db.info(InfoType::TotalIndexNumber).await?;
     println!("📊 索引使用: {}", index_info.trim());
-
-    // 启动时间（注意：当前版本返回占位符）
-    let startup_time = db.info(InfoType::ServerStartupTime).await?;
-    println!("⏰ 启动时间: {}", startup_time.trim());
 
     // 当前数据库的 key 列表
     let keys = db.info(InfoType::KeyList).await?;
