@@ -37,61 +37,200 @@ fn print_banner() {
     println!();
 }
 
-/// 格式化 JSON 输出（带语法高亮）
-fn format_json(json_str: &str) -> String {
-    if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(json_str) {
-        if let Ok(pretty) = serde_json::to_string_pretty(&json_value) {
-            return highlight_json(&pretty);
+/// 智能格式化输出
+fn smart_format(data: &str) {
+    if data.is_empty() {
+        println!("{} {}", "✓".green().bold(), "OK".white());
+        return;
+    }
+    
+    // 尝试解析为 JSON
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+        print_json(&json);
+        return;
+    }
+    
+    // 检测是否是键列表格式（如 info keys 返回的）
+    if data.starts_with('[') && data.contains("\",") {
+        if let Some(keys) = parse_key_list(data) {
+            print_key_table(&keys);
+            return;
         }
     }
-    json_str.to_string()
+    
+    // 检测是否是键值对格式（如 info 返回的）
+    if data.contains(':') && data.lines().count() > 1 {
+        if let Some(pairs) = parse_info_pairs(data) {
+            print_info_table(&pairs);
+            return;
+        }
+    }
+    
+    // 默认直接输出
+    println!("{} {}", "→".bright_cyan(), data.white());
 }
 
-/// JSON 语法高亮
-fn highlight_json(json: &str) -> String {
-    let mut result = String::new();
-    for line in json.lines() {
-        if line.contains(':') {
+/// 解析键列表
+fn parse_key_list(data: &str) -> Option<Vec<String>> {
+    // 尝试解析 JSON 数组
+    if let Ok(serde_json::Value::Array(arr)) = serde_json::from_str(data) {
+        return Some(arr.iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect());
+    }
+    
+    // 尝试解析 ["a","b","c"] 格式
+    let trimmed = data.trim().trim_start_matches('[').trim_end_matches(']');
+    let items: Vec<String> = trimmed
+        .split("\",")
+        .map(|s| s.trim().trim_matches('"').to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    
+    if items.is_empty() { return None; }
+    Some(items)
+}
+
+/// 解析信息键值对
+fn parse_info_pairs(data: &str) -> Option<Vec<(String, String)>> {
+    let pairs: Vec<(String, String)> = data
+        .lines()
+        .filter_map(|line| {
             let parts: Vec<&str> = line.splitn(2, ':').collect();
             if parts.len() == 2 {
-                let key = parts[0].bright_blue().to_string();
-                let value = highlight_json_value(parts[1]);
-                result.push_str(&format!("{}:{}\n", key, value));
-                continue;
+                Some((parts[0].trim().to_string(), parts[1].trim().to_string()))
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    if pairs.is_empty() { return None; }
+    Some(pairs)
+}
+
+/// 打印 JSON（带语法高亮）
+fn print_json(value: &serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            println!();
+            println!("  {}", "┌────────────────────────────────────────┐".bright_cyan());
+            for (i, (key, val)) in map.iter().enumerate() {
+                let is_last = i == map.len() - 1;
+                let prefix = if is_last { "  └─" } else { "  ├─" };
+                print_json_kv(key, val, prefix);
+            }
+            println!("  {}", "└────────────────────────────────────────┘".bright_cyan());
+        }
+        serde_json::Value::Array(arr) => {
+            println!();
+            println!("  {} {} {} items", "📋".yellow(), "Array:".white(), arr.len().to_string().cyan());
+            println!("  {}", "─".repeat(42).dimmed());
+            for (i, item) in arr.iter().enumerate() {
+                let num = format!("[{}]", i).dimmed();
+                match item {
+                    serde_json::Value::String(s) => println!("  {} {}", num, s.green()),
+                    serde_json::Value::Number(n) => println!("  {} {}", num, n.to_string().cyan()),
+                    serde_json::Value::Bool(b) => println!("  {} {}", num, b.to_string().yellow()),
+                    _ => println!("  {} {}", num, item.to_string().white()),
+                }
             }
         }
-        result.push_str(&format!("{}\n", line));
+        _ => {
+            println!("{}", highlight_value(value));
+        }
     }
-    result.trim_end().to_string()
 }
 
-/// 高亮 JSON 值
-fn highlight_json_value(value: &str) -> String {
-    let trimmed = value.trim_end_matches(',');
-    let comma = if value.ends_with(',') { "," } else { "" };
+/// 打印 JSON 键值对
+fn print_json_kv(key: &str, value: &serde_json::Value, prefix: &str) {
+    let key_colored = key.bright_blue().bold();
+    match value {
+        serde_json::Value::String(s) => {
+            println!("{} {}: {}", prefix.bright_cyan(), key_colored, s.green());
+        }
+        serde_json::Value::Number(n) => {
+            println!("{} {}: {}", prefix.bright_cyan(), key_colored, n.to_string().cyan());
+        }
+        serde_json::Value::Bool(b) => {
+            println!("{} {}: {}", prefix.bright_cyan(), key_colored, b.to_string().yellow());
+        }
+        serde_json::Value::Null => {
+            println!("{} {}: {}", prefix.bright_cyan(), key_colored, "null".dimmed());
+        }
+        serde_json::Value::Array(arr) => {
+            println!("{} {}: {} {} {}", 
+                prefix.bright_cyan(), 
+                key_colored, 
+                "[".white(),
+                arr.len().to_string().cyan(),
+                "items]".white()
+            );
+        }
+        serde_json::Value::Object(obj) => {
+            println!("{} {}: {} {} {}", 
+                prefix.bright_cyan(), 
+                key_colored, 
+                "{".white(),
+                obj.len().to_string().cyan(),
+                "fields}".white()
+            );
+        }
+    }
+}
+
+/// 高亮值
+fn highlight_value(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s.green().to_string(),
+        serde_json::Value::Number(n) => n.to_string().cyan().to_string(),
+        serde_json::Value::Bool(b) => b.to_string().yellow().to_string(),
+        serde_json::Value::Null => "null".dimmed().to_string(),
+        _ => value.to_string().white().to_string(),
+    }
+}
+
+/// 打印键列表表格
+fn print_key_table(keys: &[String]) {
+    println!();
+    println!("  {} {} {}", "🔑".yellow(), "Keys:".white(), keys.len().to_string().cyan());
+    println!("  {}", "┌─────────────────────────────────────────────┐".bright_cyan());
     
-    if trimmed.starts_with('"') && trimmed.ends_with('"') {
-        format!("{}{}", trimmed.green(), comma)
-    } else if trimmed == "true" || trimmed == "false" {
-        format!("{}{}", trimmed.yellow(), comma)
-    } else if trimmed == "null" {
-        format!("{}{}", trimmed.dimmed(), comma)
-    } else if trimmed.parse::<f64>().is_ok() {
-        format!("{}{}", trimmed.cyan(), comma)
+    if keys.is_empty() {
+        println!("  {} {:^43} {}", "│".bright_cyan(), "(empty)".dimmed(), "│".bright_cyan());
     } else {
-        format!("{}{}", trimmed, comma)
+        for (i, key) in keys.iter().enumerate() {
+            let num = format!("{:>3}.", i + 1).dimmed();
+            println!("  {} {} {:<39} {}", "│".bright_cyan(), num, key.white(), "│".bright_cyan());
+        }
     }
+    
+    println!("  {}", "└─────────────────────────────────────────────┘".bright_cyan());
 }
 
-/// 打印成功
-fn print_ok(msg: &str) {
-    if msg.is_empty() {
-        println!("{} {}", "✓".green().bold(), "OK".white());
-    } else if msg.starts_with('{') || msg.starts_with('[') {
-        println!("{}", format_json(msg));
-    } else {
-        println!("{} {}", "→".bright_cyan(), msg.white());
+/// 打印信息表格
+fn print_info_table(pairs: &[(String, String)]) {
+    println!();
+    println!("  {}", "📊 Info".yellow().bold());
+    println!("  {}", "┌──────────────────┬──────────────────────────────────────┐".bright_cyan());
+    
+    for (key, value) in pairs {
+        let key_padded = format!("{:<16}", key);
+        let value_display = if value.len() > 36 { 
+            format!("{}...", &value[..33]) 
+        } else { 
+            value.clone() 
+        };
+        println!("  {} {} {} {} {}", 
+            "│".bright_cyan(), 
+            key_padded.bright_blue(), 
+            "│".bright_cyan(),
+            value_display.white(),
+            "│".bright_cyan()
+        );
     }
+    
+    println!("  {}", "└──────────────────┴──────────────────────────────────────┘".bright_cyan());
 }
 
 /// 打印错误
@@ -199,7 +338,7 @@ pub async fn main() {
         if res.0 == NetPacketState::ERR {
             print_err(&res.1);
         } else {
-            print_ok(&res.1);
+            smart_format(&res.1);
         }
         return;
     }
@@ -249,7 +388,7 @@ pub async fn main() {
                 } else if res.0 == NetPacketState::ERR {
                     print_err(&res.1);
                 } else {
-                    print_ok(&res.1);
+                    smart_format(&res.1);
                 }
                 println!();
             }
