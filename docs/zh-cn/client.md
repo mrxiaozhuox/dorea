@@ -7,9 +7,9 @@
 这个工具是在安装 `dorea-server` 时捆绑安装的工具，它可以使用 `cli` 的方式去连接数据库。
 
 ```
-dorea 0.2.1
-ZhuoEr Liu <mrxzx@qq.com>
-Does awesome things
+dorea 0.4.0
+YuKun Liu <mrxzx.info@gmail.com>
+A Key-Value Storage System
 
 USAGE:
     dorea-cli [OPTIONS]
@@ -53,10 +53,12 @@ OPTIONS:
 - Delete 删除数据：`delete ${key}`
 - Clean 清空所有数据：`clean`
 - Select 切换数据库：`select ${db-name}`
-- Info 获取信息：`info ${key} ${operation}`
-- Edit 编辑复合数据：`edit ${key} ${operation} ${sub-value}`
+- Info 获取信息：`info ${option}`
+- Edit 编辑复合数据：`edit @${key} ${operation} ${args...}`
 - Ping 测试连接：`ping`
 - Binary 二进制专用：`binary ${operation} ${key} ${value}`
+- Db 数据库管理：`db ${operation} ${args...}`
+- Value 输出格式：`value style ${format}`
 
 > 其中部分命令来源于 `Dorea` 本身命令语句，详情可以查阅命令集页面。
 

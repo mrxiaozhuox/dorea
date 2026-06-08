@@ -7,9 +7,9 @@
 This tool is bundled when installing `dorea-server`. You can connect to the database using `cli` mode.
 
 ```
-dorea 0.2.1
-ZhuoEr Liu <mzx@qq.com>
-Does awesome things
+dorea 0.4.0
+YuKun Liu <mrxzx.info@gmail.com>
+A Key-Value Storage System
 
 USAGE:
     dorea-cli [OPTIONS]
@@ -53,10 +53,12 @@ It also has simple encapsulation for `Binary` data types, allowing quick upload 
 - Delete remove data: `delete ${key}`
 - Clear all data: `clean`
 - Select switch database: `select ${db-name}`
-- Info get information: `info ${key} ${operation}`
-- Edit modify composite data: `edit ${key} ${operation} ${sub-value}`
+- Info get information: `info ${option}`
+- Edit modify composite data: `edit @${key} ${operation} ${args...}`
 - Ping test connection: `ping`
 - Binary binary-specific: `binary ${operation} ${key} ${value}`
+- Db database management: `db ${operation} ${args...}`
+- Value output format: `value style ${format}`
 
 > Some commands are from the `Dorea` command set itself. For details, please refer to the command set page.
 
