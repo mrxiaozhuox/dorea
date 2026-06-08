@@ -19,19 +19,21 @@ const DOREA_CLI_VERSION: &str = "0.5.0";
 /// 打印启动 Banner
 fn print_banner() {
     println!();
-    println!("{}", r#"
- /$$$$$$$                                          
-| $$__  $$                                         
-| $$  \ $$  /$$$$$$   /$$$$$$   /$$$$$$   /$$$$$$ 
-| $$  | $$ /$$__  $$ /$$__  $$ /$$__  $$ |____  $$
-| $$  | $$| $$  \ $$| $$  \__/| $$$$$$$$  /$$$$$$$
-| $$  | $$| $$  | $$| $$      | $$_____/ /$$__  $$
-| $$$$$$$/|  $$$$$$/| $$      |  $$$$$$$|  $$$$$$$
-|_______/  \______/ |__/       \_______/ \_______/
-                                                  
-  A Key-Value Storage System
-                                                  
-"#.bright_cyan());
+    println!("{}", "  +---------------------------------------------------+".bright_cyan());
+    println!("{}", r#"  |                                                   |"#.bright_cyan());
+    println!("{}", r#"  |    /$$$$$$$                                       |"#.bright_cyan());
+    println!("{}", r#"  |   | $$__  $$                                      |"#.bright_cyan());
+    println!("{}", r#"  |   | $$  \ $$  /$$$$$$   /$$$$$$   /$$$$$$   /$$$$$$ |"#.bright_cyan());
+    println!("{}", r#"  |   | $$  | $$ /$$__  $$ /$$__  $$ /$$__  $$ |____  $$|"#.bright_cyan());
+    println!("{}", r#"  |   | $$  | $$| $$  \ $$| $$  \__/| $$$$$$$$  /$$$$$$$|"#.bright_cyan());
+    println!("{}", r#"  |   | $$  | $$| $$  | $$| $$      | $$_____/ /$$__  $$|"#.bright_cyan());
+    println!("{}", r#"  |   | $$$$$$$/|  $$$$$$/| $$      |  $$$$$$$|  $$$$$$$|"#.bright_cyan());
+    println!("{}", r#"  |   |_______/  \______/ |__/       \_______/ \_______/|"#.bright_cyan());
+    println!("{}", r#"  |                                                   |"#.bright_cyan());
+    println!("{}", r#"  |    A Key-Value Storage System                     |"#.bright_cyan());
+    println!("{}", r#"  |                                                   |"#.bright_cyan());
+    println!("{}", "  +---------------------------------------------------+".bright_cyan());
+    println!();
     println!("  {} {}", "Version:".dimmed(), DOREA_CLI_VERSION.green());
     println!("  {} {}", "Hint:".dimmed(), "Type 'docs' to see available commands".yellow());
     println!();
