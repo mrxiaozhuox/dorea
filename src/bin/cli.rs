@@ -133,15 +133,21 @@ fn is_doson_format(data: &str) -> bool {
 /// 打印 Doson 格式（带语法高亮）
 fn print_doson(data: &str) {
     println!();
-    println!("{}", "+----------------------------------------+".bright_cyan());
+    println!(
+        "{}",
+        "+----------------------------------------+".bright_cyan()
+    );
     print_doson_value(data, "");
-    println!("{}", "+----------------------------------------+".bright_cyan());
+    println!(
+        "{}",
+        "+----------------------------------------+".bright_cyan()
+    );
 }
 
 /// 递归打印 Doson 值
 fn print_doson_value(data: &str, indent: &str) {
     let trimmed = data.trim();
-    
+
     if trimmed.starts_with('{') && trimmed.ends_with('}') {
         // Dict
         print_doson_dict(trimmed, indent);
@@ -159,22 +165,35 @@ fn print_doson_value(data: &str, indent: &str) {
 
 /// 打印 Dict
 fn print_doson_dict(data: &str, indent: &str) {
-    let content = &data[1..data.len()-1];  // 只去掉最外层的 { }
+    let content = &data[1..data.len() - 1]; // 只去掉最外层的 { }
     let entries = parse_doson_dict_entries(content);
-    
+
     for (i, (key, value)) in entries.iter().enumerate() {
         let is_last = i == entries.len() - 1;
         let prefix = if is_last { "+--" } else { "|--" };
         let key_clean = key.trim_matches('"');
-        
+
         let child_indent = format!("{}    ", indent);
-        
+
         // 如果是嵌套结构，先打印 key，然后展开 value
-        if value.trim().starts_with('{') || value.trim().starts_with('[') || value.trim().starts_with('(') {
-            println!("{}{} {}:", indent, prefix.bright_cyan(), key_clean.bright_blue().bold());
+        if value.trim().starts_with('{')
+            || value.trim().starts_with('[')
+            || value.trim().starts_with('(')
+        {
+            println!(
+                "{}{} {}:",
+                indent,
+                prefix.bright_cyan(),
+                key_clean.bright_blue().bold()
+            );
             print_doson_value(value, &child_indent);
         } else {
-            print!("{}{} {}: ", indent, prefix.bright_cyan(), key_clean.bright_blue().bold());
+            print!(
+                "{}{} {}: ",
+                indent,
+                prefix.bright_cyan(),
+                key_clean.bright_blue().bold()
+            );
             print_doson_value(value, "");
             println!();
         }
@@ -183,17 +202,20 @@ fn print_doson_dict(data: &str, indent: &str) {
 
 /// 打印 List
 fn print_doson_list(data: &str, indent: &str) {
-    let content = &data[1..data.len()-1];  // 只去掉最外层的 [ ]
+    let content = &data[1..data.len() - 1]; // 只去掉最外层的 [ ]
     let items = parse_doson_list_items(content);
-    
+
     for (i, item) in items.iter().enumerate() {
         let is_last = i == items.len() - 1;
         let prefix = if is_last { "+--" } else { "|--" };
         let num = format!("[{}]", i);
-        
+
         let child_indent = format!("{}    ", indent);
-        
-        if item.trim().starts_with('{') || item.trim().starts_with('[') || item.trim().starts_with('(') {
+
+        if item.trim().starts_with('{')
+            || item.trim().starts_with('[')
+            || item.trim().starts_with('(')
+        {
             println!("{}{} {}:", indent, prefix.bright_cyan(), num.dimmed());
             print_doson_value(item, &child_indent);
         } else {
@@ -206,18 +228,21 @@ fn print_doson_list(data: &str, indent: &str) {
 
 /// 打印 Tuple
 fn print_doson_tuple(data: &str, indent: &str) {
-    let content = &data[1..data.len()-1];  // 只去掉最外层的 ( )
-    // tuple 只有两个元素，用 ", " 分割
+    let content = &data[1..data.len() - 1]; // 只去掉最外层的 ( )
+                                            // tuple 只有两个元素，用 ", " 分割
     let parts: Vec<&str> = content.splitn(2, ", ").collect();
-    
+
     for (i, part) in parts.iter().enumerate() {
         let is_last = i == parts.len() - 1;
         let prefix = if is_last { "+--" } else { "|--" };
         let label = format!(".{}", i);
-        
+
         let child_indent = format!("{}    ", indent);
-        
-        if part.trim().starts_with('{') || part.trim().starts_with('[') || part.trim().starts_with('(') {
+
+        if part.trim().starts_with('{')
+            || part.trim().starts_with('[')
+            || part.trim().starts_with('(')
+        {
             println!("{}{} {}:", indent, prefix.bright_cyan(), label.dimmed());
             print_doson_value(part, &child_indent);
         } else {
@@ -231,7 +256,7 @@ fn print_doson_tuple(data: &str, indent: &str) {
 /// 打印基本类型
 fn print_doson_primitive(data: &str) {
     let trimmed = data.trim();
-    
+
     if trimmed.starts_with('"') && trimmed.ends_with('"') {
         // String
         print!("{}", trimmed.trim_matches('"').green());
@@ -255,7 +280,7 @@ fn parse_doson_dict_entries(content: &str) -> Vec<(String, String)> {
     let mut in_key = false;
     let mut in_value = false;
     let mut in_string = false;
-    
+
     for ch in content.chars() {
         if ch == '"' && depth == 0 {
             in_string = !in_string;
@@ -267,7 +292,10 @@ fn parse_doson_dict_entries(content: &str) -> Vec<(String, String)> {
             in_value = true;
         } else if ch == ',' && !in_string && depth == 0 {
             if !current_key.is_empty() && !current_value.is_empty() {
-                entries.push((current_key.trim().to_string(), current_value.trim().to_string()));
+                entries.push((
+                    current_key.trim().to_string(),
+                    current_value.trim().to_string(),
+                ));
             }
             current_key.clear();
             current_value.clear();
@@ -286,11 +314,14 @@ fn parse_doson_dict_entries(content: &str) -> Vec<(String, String)> {
             }
         }
     }
-    
+
     if !current_key.is_empty() && !current_value.is_empty() {
-        entries.push((current_key.trim().to_string(), current_value.trim().to_string()));
+        entries.push((
+            current_key.trim().to_string(),
+            current_value.trim().to_string(),
+        ));
     }
-    
+
     entries
 }
 
@@ -300,7 +331,7 @@ fn parse_doson_list_items(content: &str) -> Vec<String> {
     let mut depth = 0;
     let mut current = String::new();
     let mut in_string = false;
-    
+
     for ch in content.chars() {
         if ch == '"' {
             in_string = !in_string;
@@ -319,11 +350,11 @@ fn parse_doson_list_items(content: &str) -> Vec<String> {
             current.push(ch);
         }
     }
-    
+
     if !current.trim().is_empty() {
         items.push(current.trim().to_string());
     }
-    
+
     items
 }
 
@@ -758,7 +789,7 @@ pub async fn main() {
         }
     };
 
-    let prompt = format!("{}:{}→ ", hostname.bright_cyan(), port.bright_cyan());
+    let prompt = format!("{}:{} → ", hostname.bright_cyan(), port.bright_cyan());
     let mut rl = Editor::<()>::new();
 
     loop {
@@ -829,7 +860,10 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
         }
         "SET" => {
             if parts.len() < 2 {
-                return (NetPacketState::ERR, "Usage: SET <key> <value> [expire]".into());
+                return (
+                    NetPacketState::ERR,
+                    "Usage: SET <key> <value> [expire]".into(),
+                );
             }
             let key = parts[0];
             let value = parts[1..].join(" ");

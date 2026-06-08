@@ -1,8 +1,8 @@
 /// 过期时间演示 - 观察数据自动消失
 /// dorea.examples.expire-demo
-/// 
+///
 /// 在你运行这个 Demo 之前，请确保 Dorea 服务已经正常启动！
-/// 
+///
 /// 本示例展示：
 /// - 不同过期时间的设置
 /// - 实时观察数据过期过程
@@ -17,11 +17,15 @@ async fn main() -> anyhow::Result<()> {
 
     // 设置不同过期时间的数据
     println!("📦 设置三个不同过期时间的数据...\n");
-    
-    db.setex("short", DataValue::String("2秒过期".to_string()), 2).await?;
-    db.setex("medium", DataValue::String("5秒过期".to_string()), 5).await?;
-    db.setex("long", DataValue::String("10秒过期".to_string()), 10).await?;
-    db.setex("permanent", DataValue::String("永不过期".to_string()), 0).await?;
+
+    db.setex("short", DataValue::String("2秒过期".to_string()), 2)
+        .await?;
+    db.setex("medium", DataValue::String("5秒过期".to_string()), 5)
+        .await?;
+    db.setex("long", DataValue::String("10秒过期".to_string()), 10)
+        .await?;
+    db.setex("permanent", DataValue::String("永不过期".to_string()), 0)
+        .await?;
 
     println!("   short   -> 2秒");
     println!("   medium  -> 5秒");
@@ -34,15 +38,16 @@ async fn main() -> anyhow::Result<()> {
     println!("--------|-------|--------|------|----------");
 
     for t in 0..=12 {
-        let short = check_exists(&mut db, "short");
-        let medium = check_exists(&mut db, "medium");
-        let long = check_exists(&mut db, "long");
-        let permanent = check_exists(&mut db, "permanent");
+        let short = check_exists(&mut db, "short").await;
+        let medium = check_exists(&mut db, "medium").await;
+        let long = check_exists(&mut db, "long").await;
+        let permanent = check_exists(&mut db, "permanent").await;
 
-        println!("   {:2}   |   {}   |   {}    |  {}  |    {}", 
-            t, 
-            status_icon(short), 
-            status_icon(medium), 
+        println!(
+            "   {:2}   |   {}   |   {}    |  {}  |    {}",
+            t,
+            status_icon(short),
+            status_icon(medium),
             status_icon(long),
             status_icon(permanent)
         );
@@ -57,12 +62,16 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn check_exists(db: &mut DoreaClient, key: &str) -> bool {
+async fn check_exists(db: &mut DoreaClient, key: &str) -> bool {
     // 同步检查 - 这里用 blocking 方式简化演示
     // 实际应用中应该用 async
-    matches!(db.get(key), Some(_))
+    (db.get(key).await).is_some()
 }
 
 fn status_icon(exists: bool) -> &'static str {
-    if exists { "✅" } else { "❌" }
+    if exists {
+        "✅"
+    } else {
+        "❌"
+    }
 }

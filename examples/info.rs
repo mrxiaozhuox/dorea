@@ -1,12 +1,12 @@
 /// 服务器信息示例 - 查看数据库状态
 /// dorea.examples.info
-/// 
+///
 /// 在你运行这个 Demo 之前，请确保 Dorea 服务已经正常启动！
-/// 
+///
 /// 本示例展示：
 /// - 使用 info() 方法获取服务器信息
 /// - InfoType 枚举的各种选项
-use dorea::{client::DoreaClient, InfoType};
+use dorea::client::{DoreaClient, InfoType};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

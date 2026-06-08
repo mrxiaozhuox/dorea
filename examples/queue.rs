@@ -1,12 +1,12 @@
 /// 消息队列示例 - 简单任务队列
 /// dorea.examples.queue
-/// 
+///
 /// 在你运行这个 Demo 之前，请确保 Dorea 服务已经正常启动！
-/// 
+///
 /// 本示例展示：
 /// - 使用 List 类型存储队列
 /// - LPUSH/RPOP 实现先进先出队列
-use dorea::{client::DoreaClient, value::DataValue};
+use dorea::{client::DoreaClient, network::NetPacketState, value::DataValue};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -18,7 +18,8 @@ async fn main() -> anyhow::Result<()> {
     // 初始化队列
     println!("📬 初始化任务队列 'task_queue'...");
     let initial_queue: Vec<DataValue> = vec![];
-    db.setex("task_queue", DataValue::List(initial_queue), 0).await?;
+    db.setex("task_queue", DataValue::List(initial_queue), 0)
+        .await?;
 
     // 生产者：添加任务到队列
     println!("\n📤 生产者: 添加任务到队列...");
@@ -29,7 +30,8 @@ async fn main() -> anyhow::Result<()> {
     ];
 
     for (i, task) in tasks.iter().enumerate() {
-        db.execute(&format!("lpush task_queue \"{}\"", task)).await?;
+        db.execute(&format!("lpush task_queue \"{}\"", task))
+            .await?;
         println!("   任务 #{}: {}", i + 1, task);
     }
 
@@ -40,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
     println!("\n📥 消费者: 处理任务...");
     for i in 1..=3 {
         let result = db.execute("rpop task_queue").await?;
-        if result.0.to_string() == "Ok" {
+        if result.0 == NetPacketState::OK {
             let task = String::from_utf8_lossy(&result.1);
             println!("   处理任务 #{}: {}", i, task);
         }
