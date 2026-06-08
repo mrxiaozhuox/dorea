@@ -807,9 +807,24 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
             if parts.len() != 1 {
                 return (NetPacketState::ERR, "Usage: GET <key>".into());
             }
-            match client.get(parts[0]).await {
-                Some(v) => (NetPacketState::OK, v.to_string()),
-                None => (NetPacketState::ERR, "Key not found".into()),
+            let key = parts[0];
+            // 直接发送命令给服务器
+            let command = format!("get {}", key);
+            match client.execute(&command).await {
+                Ok((state, data)) => {
+                    if state == NetPacketState::OK {
+                        let result = String::from_utf8_lossy(&data).to_string();
+                        // 如果服务器返回空字符串，可能是 key 不存在
+                        if result.is_empty() {
+                            (NetPacketState::ERR, "Key not found".into())
+                        } else {
+                            (state, result)
+                        }
+                    } else {
+                        (state, String::from_utf8_lossy(&data).to_string())
+                    }
+                }
+                Err(e) => (NetPacketState::ERR, e.to_string()),
             }
         }
         "SET" => {

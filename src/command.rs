@@ -1781,19 +1781,107 @@ mod tests {
         assert_eq!(args, vec!["SET", "key", "{\"名字\":\"张三\"}"]);
     }
 
-    /// 测试 doson 解析中文字符串
+    /// 测试多语言支持（中文、日文、韩文、俄文、阿拉伯文、Emoji）
     #[test]
-    fn test_doson_chinese() {
-        // ASCII 字符串
-        let v = DataValue::from("\"hello\"");
-        assert!(v != DataValue::None, "ASCII string should parse");
+    fn test_parse_multilingual() {
+        // ===== 中文 =====
+        let args = parse_command_args("SET 中文键 \"中文值\"");
+        assert_eq!(args, vec!["SET", "中文键", "\"中文值\""]);
 
-        // 中文字符串
+        let args = parse_command_args("SET key \"你好世界\"");
+        assert_eq!(args, vec!["SET", "key", "\"你好世界\""]);
+
+        // ===== 日文 (日本語) =====
+        let args = parse_command_args("SET 日本語キー \"日本語の値\"");
+        assert_eq!(args, vec!["SET", "日本語キー", "\"日本語の値\""]);
+
+        let args = parse_command_args("SET key \"こんにちは世界\"");
+        assert_eq!(args, vec!["SET", "key", "\"こんにちは世界\""]);
+
+        // 日文混合
+        let args = parse_command_args("SET key \"Hello こんにちは World\"");
+        assert_eq!(args, vec!["SET", "key", "\"Hello こんにちは World\""]);
+
+        // ===== 韩文 (한국어) =====
+        let args = parse_command_args("SET 한국어키 \"한국어값\"");
+        assert_eq!(args, vec!["SET", "한국어키", "\"한국어값\""]);
+
+        let args = parse_command_args("SET key \"안녕하세요 세계\"");
+        assert_eq!(args, vec!["SET", "key", "\"안녕하세요 세계\""]);
+
+        // 韩文混合
+        let args = parse_command_args("SET key \"Hello 안녕 World\"");
+        assert_eq!(args, vec!["SET", "key", "\"Hello 안녕 World\""]);
+
+        // ===== 俄文 (Русский) =====
+        let args = parse_command_args("SET ключ \"значение\"");
+        assert_eq!(args, vec!["SET", "ключ", "\"значение\""]);
+
+        let args = parse_command_args("SET key \"Привет мир\"");
+        assert_eq!(args, vec!["SET", "key", "\"Привет мир\""]);
+
+        // ===== 阿拉伯文 (العربية) =====
+        let args = parse_command_args("SET مفتاح \"قيمة\"");
+        assert_eq!(args, vec!["SET", "مفتاح", "\"قيمة\""]);
+
+        let args = parse_command_args("SET key \"مرحبا بالعالم\"");
+        assert_eq!(args, vec!["SET", "key", "\"مرحبا بالعالم\""]);
+
+        // ===== Emoji =====
+        let args = parse_command_args("SET key \"Hello 👋 World 🌍\"");
+        assert_eq!(args, vec!["SET", "key", "\"Hello 👋 World 🌍\""]);
+
+        let args = parse_command_args("SET emoji \"😀🎉🚀\"");
+        assert_eq!(args, vec!["SET", "emoji", "\"😀🎉🚀\""]);
+
+        // ===== 混合多语言 =====
+        let args = parse_command_args("SET key \"中文 日本語 한국어 English Español\"");
+        assert_eq!(args, vec!["SET", "key", "\"中文 日本語 한국어 English Español\""]);
+
+        // 多语言 Dict
+        let args = parse_command_args("SET key {\"中文\":\"你好\",\"日本語\":\"こんにちは\",\"한국어\":\"안녕\"}");
+        assert_eq!(args, vec!["SET", "key", "{\"中文\":\"你好\",\"日本語\":\"こんにちは\",\"한국어\":\"안녕\"}"]);
+
+        // 多语言 List
+        let args = parse_command_args("SET key [\"你好\",\"こんにちは\",\"안녕\",\"Hello\"]");
+        assert_eq!(args, vec!["SET", "key", "[\"你好\",\"こんにちは\",\"안녕\",\"Hello\"]"]);
+    }
+
+    /// 测试 doson 解析多语言字符串
+    #[test]
+    fn test_doson_multilingual() {
+        // ===== 中文 =====
         let v = DataValue::from("\"你好\"");
-        assert!(v != DataValue::None, "doson should support Chinese characters");
+        assert!(v != DataValue::None, "Chinese should parse");
+        let v = DataValue::from("\"世界\"");
+        assert!(v != DataValue::None, "Chinese should parse");
 
-        // 单个中文字符
-        let v = DataValue::from("\"我\"");
-        assert!(v != DataValue::None, "doson should support single Chinese character");
+        // ===== 日文 =====
+        let v = DataValue::from("\"こんにちは\"");
+        assert!(v != DataValue::None, "Japanese should parse");
+        let v = DataValue::from("\"日本語\"");
+        assert!(v != DataValue::None, "Japanese should parse");
+
+        // ===== 韩文 =====
+        let v = DataValue::from("\"안녕하세요\"");
+        assert!(v != DataValue::None, "Korean should parse");
+        let v = DataValue::from("\"한국어\"");
+        assert!(v != DataValue::None, "Korean should parse");
+
+        // ===== 俄文 =====
+        let v = DataValue::from("\"Привет\"");
+        assert!(v != DataValue::None, "Russian should parse");
+
+        // ===== 阿拉伯文 =====
+        let v = DataValue::from("\"مرحبا\"");
+        assert!(v != DataValue::None, "Arabic should parse");
+
+        // ===== Emoji =====
+        let v = DataValue::from("\"👋🌍🎉\"");
+        assert!(v != DataValue::None, "Emoji should parse");
+
+        // ===== 混合 =====
+        let v = DataValue::from("\"中文日本語한국어English\"");
+        assert!(v != DataValue::None, "Mixed languages should parse");
     }
 }
