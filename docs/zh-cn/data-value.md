@@ -99,9 +99,9 @@ binary!(
 
 ```
 ("LiuYuKun", 18)
-("SongHaoXin": 18)
-("XuGuanSen": 17)
-("ZhouQiXiang": 17)
+("SongHaoXin", 18)
+("XuGuanSen", 17)
+("ZhouQiXiang", 17)
 ```
 
 你可以在里面嵌套任何数据类型，包括嵌套一个新的元组。

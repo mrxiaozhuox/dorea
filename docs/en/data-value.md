@@ -99,9 +99,9 @@ A tuple is an `array` that can only hold two pieces of data:
 
 ```
 ("LiuYuKun", 18)
-("SongHaoXin": 18)
-("XuGuanSen": 17)
-("ZhouQiXiang": 17)
+("SongHaoXin", 18)
+("XuGuanSen", 17)
+("ZhouQiXiang", 17)
 ```
 
 You can nest any data type inside, including nesting a new tuple.
