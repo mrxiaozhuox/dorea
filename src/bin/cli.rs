@@ -19,27 +19,22 @@ const DOREA_CLI_VERSION: &str = "0.5.0";
 /// 打印启动 Banner
 fn print_banner() {
     println!();
-    println!(
-        "{}",
-        r#"
-    ╭──────────────────────────────────────╮
-    │   ____                              │
-    │  |  _ \  ___  _ __  ___  ___        │
-    │  | | | |/ _ \| '_ \/ __|/ _ \       │
-    │  | |_| | (_) | | | \__ \  __/       │
-    │  |____/ \___/|_| |_|___/\___|       │
-    │                                      │
-    │  A Key-Value Storage System          │
-    ╰──────────────────────────────────────╯
-    "#
-        .bright_cyan()
-    );
+    println!("{}", r#"
+    ╭───────────────────────────────────────╮
+    │                                        │
+    │   ██████╗  ██████╗ ███████╗██████╗     │
+    │   ██╔══██╗██╔═══██╗██╔════╝██╔══██╗    │
+    │   ██║  ██║██║   ██║█████╗  ██████╔╝    │
+    │   ██║  ██║██║   ██║██╔══╝  ██╔══██╗    │
+    │   ██████╔╝╚██████╔╝███████╗██║  ██║    │
+    │   ╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝    │
+    │                                        │
+    │   A Key-Value Storage System           │
+    │                                        │
+    ╰───────────────────────────────────────╯
+    "#.bright_cyan());
     println!("  {} {}", "Version:".dimmed(), DOREA_CLI_VERSION.green());
-    println!(
-        "  {} {}",
-        "Hint:".dimmed(),
-        "Type 'docs' to see available commands".yellow()
-    );
+    println!("  {} {}", "Hint:".dimmed(), "Type 'docs' to see available commands".yellow());
     println!();
 }
 
