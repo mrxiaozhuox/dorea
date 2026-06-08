@@ -126,7 +126,6 @@ fn smart_format(data: &str) {
 
 /// 检测是否是 doson 格式（包含 tuple 等非标准 JSON）
 fn is_doson_format(data: &str) -> bool {
-    // 检测是否以 { 开头且包含 tuple 格式 (x, y)
     let trimmed = data.trim();
     trimmed.starts_with('{') && trimmed.contains('(') && trimmed.contains(", ")
 }
@@ -135,18 +134,127 @@ fn is_doson_format(data: &str) -> bool {
 fn print_doson(data: &str) {
     println!();
     println!("{}", "+----------------------------------------+".bright_cyan());
+    print_doson_value(data, "");
+    println!("{}", "+----------------------------------------+".bright_cyan());
+}
+
+/// 递归打印 Doson 值
+fn print_doson_value(data: &str, indent: &str) {
+    let trimmed = data.trim();
     
-    // 解析顶层 dict 的键值对
-    let content = data.trim().trim_start_matches('{').trim_end_matches('}');
+    if trimmed.starts_with('{') && trimmed.ends_with('}') {
+        // Dict
+        print_doson_dict(trimmed, indent);
+    } else if trimmed.starts_with('[') && trimmed.ends_with(']') {
+        // List
+        print_doson_list(trimmed, indent);
+    } else if trimmed.starts_with('(') && trimmed.ends_with(')') {
+        // Tuple
+        print_doson_tuple(trimmed, indent);
+    } else {
+        // 基本类型
+        print_doson_primitive(trimmed);
+    }
+}
+
+/// 打印 Dict
+fn print_doson_dict(data: &str, indent: &str) {
+    let content = data.trim_start_matches('{').trim_end_matches('}');
+    let entries = parse_doson_dict_entries(content);
     
-    // 简单解析：按 key: value 模式
+    for (i, (key, value)) in entries.iter().enumerate() {
+        let is_last = i == entries.len() - 1;
+        let prefix = if is_last { "+--" } else { "|--" };
+        let key_clean = key.trim_matches('"');
+        
+        let child_indent = format!("{}    ", indent);
+        
+        // 如果是嵌套结构，先打印 key，然后展开 value
+        if value.trim().starts_with('{') || value.trim().starts_with('[') || value.trim().starts_with('(') {
+            println!("{}{} {}:", indent, prefix.bright_cyan(), key_clean.bright_blue().bold());
+            print_doson_value(value, &child_indent);
+        } else {
+            print!("{}{} {}: ", indent, prefix.bright_cyan(), key_clean.bright_blue().bold());
+            print_doson_value(value, "");
+            println!();
+        }
+    }
+}
+
+/// 打印 List
+fn print_doson_list(data: &str, indent: &str) {
+    let content = data.trim_start_matches('[').trim_end_matches(']');
+    let items = parse_doson_list_items(content);
+    
+    for (i, item) in items.iter().enumerate() {
+        let is_last = i == items.len() - 1;
+        let prefix = if is_last { "+--" } else { "|--" };
+        let num = format!("[{}]", i);
+        
+        let child_indent = format!("{}    ", indent);
+        
+        if item.trim().starts_with('{') || item.trim().starts_with('[') || item.trim().starts_with('(') {
+            println!("{}{} {}:", indent, prefix.bright_cyan(), num.dimmed());
+            print_doson_value(item, &child_indent);
+        } else {
+            print!("{}{} {}: ", indent, prefix.bright_cyan(), num.dimmed());
+            print_doson_value(item, "");
+            println!();
+        }
+    }
+}
+
+/// 打印 Tuple
+fn print_doson_tuple(data: &str, indent: &str) {
+    let content = data.trim_start_matches('(').trim_end_matches(')');
+    // tuple 只有两个元素，用 ", " 分割
+    let parts: Vec<&str> = content.splitn(2, ", ").collect();
+    
+    for (i, part) in parts.iter().enumerate() {
+        let is_last = i == parts.len() - 1;
+        let prefix = if is_last { "+--" } else { "|--" };
+        let label = format!(".{}", i);
+        
+        let child_indent = format!("{}    ", indent);
+        
+        if part.trim().starts_with('{') || part.trim().starts_with('[') || part.trim().starts_with('(') {
+            println!("{}{} {}:", indent, prefix.bright_cyan(), label.dimmed());
+            print_doson_value(part, &child_indent);
+        } else {
+            print!("{}{} {}: ", indent, prefix.bright_cyan(), label.dimmed());
+            print_doson_value(part, "");
+            println!();
+        }
+    }
+}
+
+/// 打印基本类型
+fn print_doson_primitive(data: &str) {
+    let trimmed = data.trim();
+    
+    if trimmed.starts_with('"') && trimmed.ends_with('"') {
+        // String
+        print!("{}", trimmed.trim_matches('"').green());
+    } else if trimmed == "true" || trimmed == "false" {
+        // Boolean
+        print!("{}", trimmed.yellow());
+    } else if trimmed.parse::<f64>().is_ok() {
+        // Number
+        print!("{}", trimmed.cyan());
+    } else {
+        print!("{}", trimmed.white());
+    }
+}
+
+/// 解析 Dict 的键值对
+fn parse_doson_dict_entries(content: &str) -> Vec<(String, String)> {
+    let mut entries = Vec::new();
     let mut depth = 0;
     let mut current_key = String::new();
     let mut current_value = String::new();
     let mut in_key = false;
     let mut in_value = false;
     let mut in_string = false;
-    let mut entries: Vec<(String, String)> = Vec::new();
     
     for ch in content.chars() {
         if ch == '"' && depth == 0 {
@@ -179,44 +287,44 @@ fn print_doson(data: &str) {
         }
     }
     
-    // 添加最后一个条目
     if !current_key.is_empty() && !current_value.is_empty() {
         entries.push((current_key.trim().to_string(), current_value.trim().to_string()));
     }
     
-    // 打印格式化输出
-    for (i, (key, value)) in entries.iter().enumerate() {
-        let is_last = i == entries.len() - 1;
-        let prefix = if is_last { "+--" } else { "|--" };
-        let key_clean = key.trim_matches('"');
-        
-        // 根据 value 类型高亮
-        let value_colored = if value.starts_with('(') && value.contains(", ") {
-            // Tuple
-            format!("{} {} {}", "tuple".dimmed(), value.yellow(), "tuple".dimmed())
-        } else if value.starts_with('[') {
-            // List
-            format!("{} {} {} {}", "[".white(), "list".cyan(), value.len(), "]".white())
-        } else if value.starts_with('{') {
-            // Dict
-            format!("{} {} {} {}", "{".white(), "dict".cyan(), "object".white(), "}".white())
-        } else if value.starts_with('"') {
-            // String
-            value.trim_matches('"').green().to_string()
-        } else if value == "true" || value == "false" {
-            // Boolean
-            value.yellow().to_string()
-        } else if value.parse::<f64>().is_ok() {
-            // Number
-            value.cyan().to_string()
+    entries
+}
+
+/// 解析 List 的元素
+fn parse_doson_list_items(content: &str) -> Vec<String> {
+    let mut items = Vec::new();
+    let mut depth = 0;
+    let mut current = String::new();
+    let mut in_string = false;
+    
+    for ch in content.chars() {
+        if ch == '"' {
+            in_string = !in_string;
+            current.push(ch);
+        } else if ch == ',' && !in_string && depth == 0 {
+            if !current.trim().is_empty() {
+                items.push(current.trim().to_string());
+            }
+            current.clear();
         } else {
-            value.white().to_string()
-        };
-        
-        println!("{} {}: {}", prefix.bright_cyan(), key_clean.bright_blue().bold(), value_colored);
+            match ch {
+                '{' | '[' | '(' => depth += 1,
+                '}' | ']' | ')' => depth -= 1,
+                _ => {}
+            }
+            current.push(ch);
+        }
     }
     
-    println!("{}", "+----------------------------------------+".bright_cyan());
+    if !current.trim().is_empty() {
+        items.push(current.trim().to_string());
+    }
+    
+    items
 }
 
 /// 解析键列表
