@@ -59,8 +59,9 @@ RUN chown -R dorea:dorea /app
 # Switch to non-root user
 USER dorea
 
-# expose port: 3450 (dorea-port)
+# expose port: 3450 (dorea-port) 3451 (dorea-web-service)
 EXPOSE 3450
+EXPOSE 3451
 
 # volume dorea storage dir
 VOLUME /data
