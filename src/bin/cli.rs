@@ -427,7 +427,16 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
             }
             let key = parts[0];
             let value = parts[1..].join(" ");
-            match client.setex(key, DataValue::from(&value), 0).await {
+            
+            // 先尝试 Doson 格式，失败则尝试 JSON 格式
+            let data_value = DataValue::from(&value);
+            let data_value = if matches!(data_value, DataValue::None) {
+                DataValue::from_json(&value)
+            } else {
+                data_value
+            };
+            
+            match client.setex(key, data_value, 0).await {
                 Ok(_) => (NetPacketState::OK, "".into()),
                 Err(e) => (NetPacketState::ERR, e.to_string()),
             }
@@ -439,7 +448,16 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
             let key = parts[0];
             let expire = parts.last().unwrap().parse::<usize>().unwrap_or(0);
             let value = parts[1..parts.len()-1].join(" ");
-            match client.setex(key, DataValue::from(&value), expire).await {
+            
+            // 先尝试 Doson 格式，失败则尝试 JSON 格式
+            let data_value = DataValue::from(&value);
+            let data_value = if matches!(data_value, DataValue::None) {
+                DataValue::from_json(&value)
+            } else {
+                data_value
+            };
+            
+            match client.setex(key, data_value, expire).await {
                 Ok(_) => (NetPacketState::OK, "".into()),
                 Err(e) => (NetPacketState::ERR, e.to_string()),
             }
