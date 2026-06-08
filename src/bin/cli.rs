@@ -359,8 +359,8 @@ pub async fn main() {
                     print_error("Authentication required. Use 'auth <password>' to login.");
                 } else {
                     // 成功
-                    if res.1.is_empty() || res.1 == "Successful." {
-                        print_success("Done");
+                    if res.1.is_empty() {
+                        print_success("OK");
                     } else {
                         print_data(&res.1);
                     }
