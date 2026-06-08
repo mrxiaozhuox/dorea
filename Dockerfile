@@ -9,7 +9,7 @@ FROM rust:1.82-bookworm AS builder
 
 # some information
 LABEL MAINTAINER="ZhuoEr Liu <mrxzx@qq.com>"
-ARG DOREA_VERSION="3.1"
+ARG DOREA_VERSION="0.4"
 
 # dorea-core work dir
 WORKDIR /usr/src/dorea-core
@@ -36,7 +36,7 @@ RUN touch src/bin/server.rs && \
 FROM debian:bookworm-slim
 
 LABEL MAINTAINER="ZhuoEr Liu <mrxzx@qq.com>"
-ENV DOREA_VERSION="3.1"
+ENV DOREA_VERSION="0.4"
 ENV DOREA_WEBSITE="https://dorea.mrxzx.info"
 
 # Install runtime dependencies (ca-certificates for HTTPS if needed)
