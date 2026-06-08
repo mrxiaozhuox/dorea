@@ -114,18 +114,18 @@ fn print_json(value: &serde_json::Value) {
     match value {
         serde_json::Value::Object(map) => {
             println!();
-            println!("  {}", "┌────────────────────────────────────────┐".bright_cyan());
+            println!("  {}", "+----------------------------------------+".bright_cyan());
             for (i, (key, val)) in map.iter().enumerate() {
                 let is_last = i == map.len() - 1;
-                let prefix = if is_last { "  └─" } else { "  ├─" };
+                let prefix = if is_last { "+--" } else { "|--" };
                 print_json_kv(key, val, prefix);
             }
-            println!("  {}", "└────────────────────────────────────────┘".bright_cyan());
+            println!("  {}", "+----------------------------------------+".bright_cyan());
         }
         serde_json::Value::Array(arr) => {
             println!();
             println!("  {} {} {} items", "📋".yellow(), "Array:".white(), arr.len().to_string().cyan());
-            println!("  {}", "─".repeat(42).dimmed());
+            println!("  {}", "----------------------------------------".dimmed());
             for (i, item) in arr.iter().enumerate() {
                 let num = format!("[{}]", i).dimmed();
                 match item {
@@ -147,19 +147,19 @@ fn print_json_kv(key: &str, value: &serde_json::Value, prefix: &str) {
     let key_colored = key.bright_blue().bold();
     match value {
         serde_json::Value::String(s) => {
-            println!("{} {}: {}", prefix.bright_cyan(), key_colored, s.green());
+            println!("  {}: {}: {}", prefix.bright_cyan(), key_colored, s.green());
         }
         serde_json::Value::Number(n) => {
-            println!("{} {}: {}", prefix.bright_cyan(), key_colored, n.to_string().cyan());
+            println!("  {}: {}: {}", prefix.bright_cyan(), key_colored, n.to_string().cyan());
         }
         serde_json::Value::Bool(b) => {
-            println!("{} {}: {}", prefix.bright_cyan(), key_colored, b.to_string().yellow());
+            println!("  {}: {}: {}", prefix.bright_cyan(), key_colored, b.to_string().yellow());
         }
         serde_json::Value::Null => {
-            println!("{} {}: {}", prefix.bright_cyan(), key_colored, "null".dimmed());
+            println!("  {}: {}: {}", prefix.bright_cyan(), key_colored, "null".dimmed());
         }
         serde_json::Value::Array(arr) => {
-            println!("{} {}: {} {} {}", 
+            println!("  {}: {}: {} {} {}", 
                 prefix.bright_cyan(), 
                 key_colored, 
                 "[".white(),
@@ -168,7 +168,7 @@ fn print_json_kv(key: &str, value: &serde_json::Value, prefix: &str) {
             );
         }
         serde_json::Value::Object(obj) => {
-            println!("{} {}: {} {} {}", 
+            println!("  {}: {}: {} {} {}", 
                 prefix.bright_cyan(), 
                 key_colored, 
                 "{".white(),
@@ -194,43 +194,48 @@ fn highlight_value(value: &serde_json::Value) -> String {
 fn print_key_table(keys: &[String]) {
     println!();
     println!("  {} {} {}", "🔑".yellow(), "Keys:".white(), keys.len().to_string().cyan());
-    println!("  {}", "┌─────────────────────────────────────────────┐".bright_cyan());
+    println!("  {}", "+--------------------------------------------------+".bright_cyan());
     
     if keys.is_empty() {
-        println!("  {} {:^43} {}", "│".bright_cyan(), "(empty)".dimmed(), "│".bright_cyan());
+        println!("  {} {:^46} {}", "|".bright_cyan(), "(empty)".dimmed(), "|".bright_cyan());
     } else {
         for (i, key) in keys.iter().enumerate() {
-            let num = format!("{:>3}.", i + 1).dimmed();
-            println!("  {} {} {:<39} {}", "│".bright_cyan(), num, key.white(), "│".bright_cyan());
+            let num = format!("[{:>3}]", i + 1).dimmed();
+            let key_display = if key.len() > 40 {
+                format!("{:<40}", &format!("{}...", &key[..37]))
+            } else {
+                format!("{:<40}", key)
+            };
+            println!("  {} {} {} {}", "|".bright_cyan(), num, key_display.white(), "|".bright_cyan());
         }
     }
     
-    println!("  {}", "└─────────────────────────────────────────────┘".bright_cyan());
+    println!("  {}", "+--------------------------------------------------+".bright_cyan());
 }
 
 /// 打印信息表格
 fn print_info_table(pairs: &[(String, String)]) {
     println!();
     println!("  {}", "📊 Info".yellow().bold());
-    println!("  {}", "┌──────────────────┬──────────────────────────────────────┐".bright_cyan());
+    println!("  {}", "+------------------+----------------------------------------+".bright_cyan());
     
     for (key, value) in pairs {
-        let key_padded = format!("{:<16}", key);
+        let key_display = format!("{:<16}", key);
         let value_display = if value.len() > 36 { 
-            format!("{}...", &value[..33]) 
+            format!("{:<36}", &format!("{}...", &value[..33]))
         } else { 
-            value.clone() 
+            format!("{:<36}", value)
         };
         println!("  {} {} {} {} {}", 
-            "│".bright_cyan(), 
-            key_padded.bright_blue(), 
-            "│".bright_cyan(),
+            "|".bright_cyan(), 
+            key_display.bright_blue(), 
+            "|".bright_cyan(),
             value_display.white(),
-            "│".bright_cyan()
+            "|".bright_cyan()
         );
     }
     
-    println!("  {}", "└──────────────────┴──────────────────────────────────────┘".bright_cyan());
+    println!("  {}", "+------------------+----------------------------------------+".bright_cyan());
 }
 
 /// 打印错误
