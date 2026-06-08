@@ -5,7 +5,8 @@ on:
     types: [created]
 
 jobs:
-  release:
+  # Linux 和 Windows 在 Ubuntu 上交叉编译
+  release-cross:
     name: release ${{ matrix.target }}
     runs-on: ubuntu-latest
     strategy:
@@ -16,8 +17,6 @@ jobs:
             archive: zip
           - target: x86_64-unknown-linux-musl
             archive: tar.gz tar.xz
-          - target: x86_64-apple-darwin
-            archive: zip
     steps:
       - uses: actions/checkout@master
       - name: Compile and release
@@ -27,3 +26,38 @@ jobs:
           RUSTTARGET: ${{ matrix.target }}
           ARCHIVE_TYPES: ${{ matrix.archive }}
           TOOLCHAIN_VERSION: 1.86.0
+
+  # macOS 原生编译（Intel + Apple Silicon）
+  release-macos:
+    name: release ${{ matrix.target }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            archive: zip
+          - target: aarch64-apple-darwin
+            archive: zip
+    steps:
+      - uses: actions/checkout@master
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.86.0
+          targets: ${{ matrix.target }}
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Package
+        run: |
+          mkdir -p dist
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            cd target/${{ matrix.target }}/release
+            zip -r ../../../dist/dorea-${{ matrix.target }}.zip dorea-cli
+          fi
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: dist/*
