@@ -25,7 +25,7 @@ fn parse_command_args(input: &str) -> Vec<String> {
     let mut args = Vec::new();
     let mut current = String::new();
     let mut in_quotes = false;
-    let mut bracket_depth = 0;  // 括号层级：{ } 或 [ ]
+    let mut bracket_depth = 0;  // 括号层级：{ } 或 [ ] 或 ( )
     let mut chars = input.chars().peekable();
 
     while let Some(ch) = chars.next() {
@@ -49,10 +49,10 @@ fn parse_command_args(input: &str) -> Vec<String> {
                 args.push(std::mem::take(&mut current));
             }
         } else {
-            // 跟踪括号层级
-            if ch == '{' || ch == '[' {
+            // 跟踪括号层级（包括 tuple 的圆括号）
+            if ch == '{' || ch == '[' || ch == '(' {
                 bracket_depth += 1;
-            } else if ch == '}' || ch == ']' {
+            } else if ch == '}' || ch == ']' || ch == ')' {
                 bracket_depth -= 1;
             }
             current.push(ch);
