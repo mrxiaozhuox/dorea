@@ -245,14 +245,14 @@ impl CommandManager {
             let key = slice.first().unwrap();
             let value = slice.get(1).unwrap();
 
+            // 尝试解析为 doson 格式，如果失败则当作普通字符串
             let data_value = DataValue::from(value);
-
-            if data_value == DataValue::None {
-                return (
-                    NetPacketState::ERR,
-                    "Unknown data struct.".as_bytes().to_vec(),
-                );
-            }
+            let data_value = if data_value == DataValue::None {
+                // 不是有效的 doson 格式，当作普通字符串处理
+                DataValue::String(value.clone())
+            } else {
+                data_value
+            };
 
             let mut expire = 0_u64;
 
@@ -1762,5 +1762,41 @@ mod tests {
         // INFO 命令
         let args = parse_command_args("INFO db");
         assert_eq!(args, vec!["INFO", "db"]);
+    }
+
+    /// 测试中文字符
+    #[test]
+    fn test_parse_chinese() {
+        // 中文 key
+        let args = parse_command_args("SET 你好 \"世界\"");
+        assert_eq!(args, vec!["SET", "你好", "世界"]);
+
+        // 中文 value
+        let args = parse_command_args("SET key \"你好世界\"");
+        assert_eq!(args, vec!["SET", "key", "你好世界"]);
+
+        // 中文和英文混合
+        let args = parse_command_args("SET 测试 \"hello 世界\"");
+        assert_eq!(args, vec!["SET", "测试", "hello 世界"]);
+
+        // 中文在 Dict 中
+        let args = parse_command_args("SET key {\"名字\":\"张三\"}");
+        assert_eq!(args, vec!["SET", "key", "{\"名字\":\"张三\"}"]);
+    }
+
+    /// 测试 doson 解析中文字符串
+    #[test]
+    fn test_doson_chinese() {
+        // ASCII 字符串
+        let v = DataValue::from("\"hello\"");
+        assert!(v != DataValue::None);
+
+        // 中文字符串
+        let v = DataValue::from("\"你好\"");
+        assert!(v != DataValue::None, "doson should support Chinese characters");
+
+        // 单个中文字符
+        let v = DataValue::from("\"我\"");
+        assert!(v != DataValue::None, "doson should support single Chinese character");
     }
 }
