@@ -22,8 +22,8 @@ async fn main() -> anyhow::Result<()> {
     // 模拟多次访问
     println!("👥 模拟用户访问...\n");
     for i in 1..=5 {
-        // 使用 execute 执行 INCR 命令
-        db.execute(&format!("incr article:views:hello-world 1")).await?;
+        // INCR 是 EDIT 的子命令
+        db.execute("edit @article:views:hello-world incr 1").await?;
         
         let views = match db.get("article:views:hello-world").await {
             Some(DataValue::Number(n)) => n as i32,
@@ -44,8 +44,8 @@ async fn main() -> anyhow::Result<()> {
     db.setex("stats:daily_visits", DataValue::Number(100.0), 0).await?;
     db.setex("stats:api_calls", DataValue::Number(50.0), 0).await?;
 
-    db.execute("incr stats:daily_visits 25").await?;
-    db.execute("incr stats:api_calls 100").await?;
+    db.execute("edit @stats:daily_visits incr 25").await?;
+    db.execute("edit @stats:api_calls incr 100").await?;
 
     println!("   日访问量: {:?}", db.get("stats:daily_visits").await);
     println!("   API 调用: {:?}", db.get("stats:api_calls").await);
