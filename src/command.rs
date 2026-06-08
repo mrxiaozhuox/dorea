@@ -502,7 +502,6 @@ impl CommandManager {
 
             if key.starts_with('@') {
                 let key: &str = &key[1..];
-                println!("@{}:{}", current, key);
 
                 // 读锁获取原值
                 let db_arc = database_manager.db_list.get(current).unwrap().clone();
