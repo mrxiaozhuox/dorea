@@ -39,14 +39,22 @@ get <key>
 通过 `Set` 命令插入某条数据到数据库中：
 
 ```
-set <key> <value> [exipre]
+set <key> <value> [expire]
 ```
 
 - value: 结构请严格按照 [DOSON](/zh-cn/data-value) 规范编写。
 - expire: 过期时间；留空或 `0` 代表无过期时间。[可空]
 
+如果值中包含空格，需要使用双引号包裹，引号内支持 `\"` 转义：
+
 ```
 ~> set foo "bar"
+[OK]: Successful
+
+~> set msg "hello world"
+[OK]: Successful
+
+~> set note "say \"hi\""
 [OK]: Successful
 ```
 

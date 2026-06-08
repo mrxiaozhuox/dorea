@@ -1,16 +1,33 @@
 # 通讯协议
 
-目前 `Dorea` 采用自定义的 `TCP` 通讯协议，它的结构为：
+目前 `Dorea` 采用基于 TCP 的二进制长度前缀协议，每帧格式如下：
 
 ```text
-$: {DATA_SIZE} | %: {SYS_STATE} | #: B64'{DATA_BODY}';
++----------+----------+----------+----------+
+|  MAGIC   | VERSION  |  STATE   |   LEN    |
+|  2 bytes | 1 byte   | 1 byte   | 4 bytes  |
++----------+----------+----------+----------+
+|              PAYLOAD (LEN bytes)          |
++-------------------------------------------+
 ```
 
-- **DATA_SIZE** 数据包长度
-- **SYS_STATE** 数据状态（ERR、OK、NOAUTH）
-- **DATA_BODY** 数据内容（包含在 `B64` 中则说明内容经过 Base64 处理）
+| 字段 | 大小 | 说明 |
+|------|------|------|
+| MAGIC | 2 字节 | 固定 `0xD0 0x9A`，用于流对齐和校验 |
+| VERSION | 1 字节 | 协议版本号，当前为 `0x01` |
+| STATE | 1 字节 | 状态码：`0x00`=IGNORE, `0x01`=OK, `0x02`=ERR, `0x03`=EMPTY, `0x04`=NOAUTH |
+| LEN | 4 字节 | Payload 长度，大端序 (u32)，最大 16MB |
+| PAYLOAD | LEN 字节 | 原始二进制数据（命令文本为 UTF-8，或响应字节流） |
 
-`SYS_STATE` 数据状态一般在服务器向客户端回复时才会携带，客户端发送信息会省略这个参数。
+客户端发送请求时 STATE 设为 `IGNORE (0x00)`，服务端响应时携带实际状态码。
+
+命令参数支持双引号包裹含空格的值：
+
+```text
+set foo "hello world"        # key=foo, value="hello world"
+set bar [1,2,3]              # key=bar, value=[1,2,3]
+set baz "escaped \"quote\""  # key=baz, value=escaped "quote"
+```
 
 ## 协议解析器
 
@@ -23,13 +40,14 @@ use tokio::net::TcpStream;
 #[tokio::main]
 async fn main() {
     let mut socket = TcpStream::connect(addr).await?;
-    
-    let frame = network::Frame();
-    let v: Vec<u8> = frame.parse_frame(&mut socket).await.unwarp();
+
+    let mut frame = network::Frame::new();
+    let v: Vec<u8> = frame.parse_frame(&mut socket).await.unwrap();
+    let state = frame.latest_state;  // 获取响应状态码
 }
 ```
 
-解析函数需要将 `TCP` 连接的可变引用传递进去，因为它有一套自己的读取方案（数据读少了，则自动补充）
+解析函数使用 `read_exact` 保证完整读取帧头和 Payload，天然处理 TCP 粘包/半包问题。
 
 ## 其他协议兼容
 
