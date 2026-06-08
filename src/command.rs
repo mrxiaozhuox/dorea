@@ -25,6 +25,7 @@ fn parse_command_args(input: &str) -> Vec<String> {
     let mut args = Vec::new();
     let mut current = String::new();
     let mut in_quotes = false;
+    let mut was_quoted = false;  // 标记当前参数是否在引号内
     let mut bracket_depth = 0;  // 括号层级：{ } 或 [ ] 或 ( )
     let mut chars = input.chars().peekable();
 
@@ -43,12 +44,14 @@ fn parse_command_args(input: &str) -> Vec<String> {
             if bracket_depth > 0 {
                 current.push(ch);
             }
+            was_quoted = true;  // 标记进入或退出引号
             in_quotes = !in_quotes;
         } else if ch == ' ' && !in_quotes && bracket_depth == 0 {
             // 只有在引号外且括号外才分割
-            if !current.is_empty() {
+            if !current.is_empty() || was_quoted {
                 args.push(std::mem::take(&mut current));
             }
+            was_quoted = false;
         } else {
             // 跟踪括号层级（包括 tuple 的圆括号）
             if ch == '{' || ch == '[' || ch == '(' {
@@ -60,7 +63,8 @@ fn parse_command_args(input: &str) -> Vec<String> {
         }
     }
 
-    if !current.is_empty() {
+    // 处理最后一个参数
+    if !current.is_empty() || was_quoted {
         args.push(current);
     }
 
@@ -1497,5 +1501,266 @@ mod edit_operation {
                 DataValue::String("bar".to_string()),
             ])
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 测试基本参数解析
+    #[test]
+    fn test_parse_basic_args() {
+        // 简单命令
+        let args = parse_command_args("SET key value");
+        assert_eq!(args, vec!["SET", "key", "value"]);
+
+        // 多个参数
+        let args = parse_command_args("GET key1 key2 key3");
+        assert_eq!(args, vec!["GET", "key1", "key2", "key3"]);
+
+        // 空字符串
+        let args = parse_command_args("");
+        assert!(args.is_empty());
+
+        // 只有空格
+        let args = parse_command_args("   ");
+        assert!(args.is_empty());
+    }
+
+    /// 测试引号内的空格不分割
+    #[test]
+    fn test_parse_quoted_strings() {
+        // 引号内的空格
+        let args = parse_command_args("SET key \"hello world\"");
+        assert_eq!(args, vec!["SET", "key", "hello world"]);
+
+        // 多个引号字符串
+        let args = parse_command_args("SET key \"hello world\" \"foo bar\"");
+        assert_eq!(args, vec!["SET", "key", "hello world", "foo bar"]);
+
+        // 引号和非引号混合
+        let args = parse_command_args("SET key \"hello world\" normal");
+        assert_eq!(args, vec!["SET", "key", "hello world", "normal"]);
+
+        // 空引号
+        let args = parse_command_args("SET key \"\"");
+        assert_eq!(args, vec!["SET", "key", ""]);
+    }
+
+    /// 测试转义字符
+    #[test]
+    fn test_parse_escaped_chars() {
+        // 转义引号
+        let args = parse_command_args("SET key \"say \\\"hello\\\"\"");
+        assert_eq!(args, vec!["SET", "key", "say \"hello\""]);
+
+        // 转义反斜杠
+        let args = parse_command_args("SET key \"path\\\\to\\\\file\"");
+        assert_eq!(args, vec!["SET", "key", "path\\to\\file"]);
+
+        // 混合转义
+        let args = parse_command_args("SET key \"a\\\"b\\\\c\"");
+        assert_eq!(args, vec!["SET", "key", "a\"b\\c"]);
+    }
+
+    /// 测试 Dict（字典）格式
+    #[test]
+    fn test_parse_dict() {
+        // 简单 Dict
+        let args = parse_command_args("SET key {\"name\":\"Alice\"}");
+        assert_eq!(args, vec!["SET", "key", "{\"name\":\"Alice\"}"]);
+
+        // 多键 Dict
+        let args = parse_command_args("SET key {\"name\":\"Alice\",\"age\":25}");
+        assert_eq!(args, vec!["SET", "key", "{\"name\":\"Alice\",\"age\":25}"]);
+
+        // Dict 内部有空格
+        let args = parse_command_args("SET key {\"name\": \"Alice\", \"age\": 25}");
+        assert_eq!(args, vec!["SET", "key", "{\"name\": \"Alice\", \"age\": 25}"]);
+
+        // 嵌套 Dict
+        let args = parse_command_args("SET key {\"user\":{\"name\":\"Alice\"}}");
+        assert_eq!(args, vec!["SET", "key", "{\"user\":{\"name\":\"Alice\"}}"]);
+
+        // Dict 包含 List
+        let args = parse_command_args("SET key {\"items\":[1,2,3]}");
+        assert_eq!(args, vec!["SET", "key", "{\"items\":[1,2,3]}"]);
+
+        // 复杂嵌套
+        let args = parse_command_args("SET key {\"data\":{\"users\":[{\"id\":1},{\"id\":2}]}}");
+        assert_eq!(args, vec!["SET", "key", "{\"data\":{\"users\":[{\"id\":1},{\"id\":2}]}}"]);
+    }
+
+    /// 测试 List（列表）格式
+    #[test]
+    fn test_parse_list() {
+        // 数字列表
+        let args = parse_command_args("SET key [1,2,3]");
+        assert_eq!(args, vec!["SET", "key", "[1,2,3]"]);
+
+        // 列表内部有空格
+        let args = parse_command_args("SET key [1, 2, 3]");
+        assert_eq!(args, vec!["SET", "key", "[1, 2, 3]"]);
+
+        // 字符串列表
+        let args = parse_command_args("SET key [\"a\",\"b\",\"c\"]");
+        assert_eq!(args, vec!["SET", "key", "[\"a\",\"b\",\"c\"]"]);
+
+        // 嵌套列表
+        let args = parse_command_args("SET key [[1,2],[3,4]]");
+        assert_eq!(args, vec!["SET", "key", "[[1,2],[3,4]]"]);
+
+        // 三层嵌套
+        let args = parse_command_args("SET key [[[1,2],[3,4]],[[5,6],[7,8]]]");
+        assert_eq!(args, vec!["SET", "key", "[[[1,2],[3,4]],[[5,6],[7,8]]]"]);
+
+        // List 包含 Dict
+        let args = parse_command_args("SET key [{\"id\":1},{\"id\":2}]");
+        assert_eq!(args, vec!["SET", "key", "[{\"id\":1},{\"id\":2}]"]);
+    }
+
+    /// 测试 Tuple（元组）格式
+    #[test]
+    fn test_parse_tuple() {
+        // 数字元组
+        let args = parse_command_args("SET key (1,2)");
+        assert_eq!(args, vec!["SET", "key", "(1,2)"]);
+
+        // 元组内部有空格
+        let args = parse_command_args("SET key (1, 2)");
+        assert_eq!(args, vec!["SET", "key", "(1, 2)"]);
+
+        // 字符串元组
+        let args = parse_command_args("SET key (\"hello\", \"world\")");
+        assert_eq!(args, vec!["SET", "key", "(\"hello\", \"world\")"]);
+
+        // 布尔元组
+        let args = parse_command_args("SET key (true, false)");
+        assert_eq!(args, vec!["SET", "key", "(true, false)"]);
+
+        // 混合类型元组
+        let args = parse_command_args("SET key (1, \"hello\")");
+        assert_eq!(args, vec!["SET", "key", "(1, \"hello\")"]);
+
+        // 嵌套元组
+        let args = parse_command_args("SET key ((1,2), (3,4))");
+        assert_eq!(args, vec!["SET", "key", "((1,2), (3,4))"]);
+    }
+
+    /// 测试复杂嵌套结构
+    #[test]
+    fn test_parse_complex_nested() {
+        // Dict 包含 Tuple
+        let args = parse_command_args("SET key {\"tuple\":(1,2)}");
+        assert_eq!(args, vec!["SET", "key", "{\"tuple\":(1,2)}"]);
+
+        // Dict 包含 Tuple 和 List
+        let args = parse_command_args("SET key {\"tuple\":(1,2),\"list\":[1,2,3]}");
+        assert_eq!(args, vec!["SET", "key", "{\"tuple\":(1,2),\"list\":[1,2,3]}"]);
+
+        // 三层嵌套：Dict -> List -> Dict
+        let args = parse_command_args("SET key {\"data\":[{\"id\":1},{\"id\":2}]}");
+        assert_eq!(args, vec!["SET", "key", "{\"data\":[{\"id\":1},{\"id\":2}]}"]);
+
+        // 复杂混合
+        let args = parse_command_args(
+            "SET key {\"user\":{\"name\":\"Alice\",\"tags\":[\"a\",\"b\"]},\"tuple\":(1,2)}"
+        );
+        assert_eq!(args, vec!["SET", "key", "{\"user\":{\"name\":\"Alice\",\"tags\":[\"a\",\"b\"]},\"tuple\":(1,2)}"]);
+
+        // 超复杂嵌套
+        let args = parse_command_args(
+            "SET key {\"data\":[{\"id\":1,\"items\":[1,2]},{\"id\":2,\"items\":[3,4]}],\"meta\":{\"count\":2,\"tuple\":(true,false)},\"arr\":[[1,2],[3,4]]}"
+        );
+        assert_eq!(args, vec!["SET", "key", "{\"data\":[{\"id\":1,\"items\":[1,2]},{\"id\":2,\"items\":[3,4]}],\"meta\":{\"count\":2,\"tuple\":(true,false)},\"arr\":[[1,2],[3,4]]}"]);
+    }
+
+    /// 测试未闭合引号
+    #[test]
+    fn test_parse_unclosed_quotes() {
+        // 未闭合引号：到末尾视为一个参数
+        let args = parse_command_args("SET key \"unclosed");
+        assert_eq!(args, vec!["SET", "key", "unclosed"]);
+
+        // 未闭合引号带空格
+        let args = parse_command_args("SET key \"unclosed string");
+        assert_eq!(args, vec!["SET", "key", "unclosed string"]);
+    }
+
+    /// 测试边界情况
+    #[test]
+    fn test_parse_edge_cases() {
+        // 连续空格
+        let args = parse_command_args("SET    key    value");
+        assert_eq!(args, vec!["SET", "key", "value"]);
+
+        // 前后空格
+        let args = parse_command_args("   SET key value   ");
+        assert_eq!(args, vec!["SET", "key", "value"]);
+
+        // 空引号在中间
+        let args = parse_command_args("SET \"\" value");
+        assert_eq!(args, vec!["SET", "", "value"]);
+
+        // 只有引号
+        let args = parse_command_args("\"\"");
+        assert_eq!(args, vec![""]);
+
+        // 单字符
+        let args = parse_command_args("a");
+        assert_eq!(args, vec!["a"]);
+
+        // 空列表
+        let args = parse_command_args("SET key []");
+        assert_eq!(args, vec!["SET", "key", "[]"]);
+
+        // 空字典
+        let args = parse_command_args("SET key {}");
+        assert_eq!(args, vec!["SET", "key", "{}"]);
+    }
+
+    /// 测试 Boolean 和 Number 类型
+    #[test]
+    fn test_parse_primitives() {
+        // Boolean
+        let args = parse_command_args("SET key true");
+        assert_eq!(args, vec!["SET", "key", "true"]);
+
+        // Number
+        let args = parse_command_args("SET key 123");
+        assert_eq!(args, vec!["SET", "key", "123"]);
+
+        // Float
+        let args = parse_command_args("SET key 3.14");
+        assert_eq!(args, vec!["SET", "key", "3.14"]);
+
+        // 负数
+        let args = parse_command_args("SET key -10");
+        assert_eq!(args, vec!["SET", "key", "-10"]);
+    }
+
+    /// 测试多命令场景
+    #[test]
+    fn test_parse_real_commands() {
+        // GET 命令
+        let args = parse_command_args("GET mykey");
+        assert_eq!(args, vec!["GET", "mykey"]);
+
+        // SETEX 命令
+        let args = parse_command_args("SETEX mykey {\"data\":1} 60");
+        assert_eq!(args, vec!["SETEX", "mykey", "{\"data\":1}", "60"]);
+
+        // SELECT 命令
+        let args = parse_command_args("SELECT mydb");
+        assert_eq!(args, vec!["SELECT", "mydb"]);
+
+        // DELETE 命令
+        let args = parse_command_args("DELETE mykey");
+        assert_eq!(args, vec!["DELETE", "mykey"]);
+
+        // INFO 命令
+        let args = parse_command_args("INFO db");
+        assert_eq!(args, vec!["INFO", "db"]);
     }
 }
