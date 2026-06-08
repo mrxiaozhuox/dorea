@@ -19,23 +19,69 @@ const DOREA_CLI_VERSION: &str = "0.5.0";
 /// 打印启动 Banner
 fn print_banner() {
     println!();
-    println!("{}", "  +---------------------------------------------------+".bright_cyan());
-    println!("{}", "  |                                                   |".bright_cyan());
-    println!("{}", "  |    /$$$$$$$                                       |".bright_cyan());
-    println!("{}", "  |   | $$__  $$                                      |".bright_cyan());
-    println!("{}", "  |   | $$  \\ $$  /$$$$$$   /$$$$$$   /$$$$$$   /$$$$$$|".bright_cyan());
-    println!("{}", "  |   | $$  | $$ /$$__  $$ /$$__  $$ /$$__  $$ |____  $$|".bright_cyan());
-    println!("{}", "  |   | $$  | $$| $$  \\ $$| $$  \\__/| $$$$$$$$  /$$$$$$$|".bright_cyan());
-    println!("{}", "  |   | $$  | $$| $$  | $$| $$      | $$_____/ /$$__  $$|".bright_cyan());
-    println!("{}", "  |   | $$$$$$$/|  $$$$$$/| $$      |  $$$$$$$|  $$$$$$$|".bright_cyan());
-    println!("{}", "  |   |_______/  \\______/ |__/       \\_______/ \\_______/|".bright_cyan());
-    println!("{}", "  |                                                   |".bright_cyan());
-    println!("{}", "  |     A Key-Value Storage System                    |".bright_cyan());
-    println!("{}", "  |                                                   |".bright_cyan());
-    println!("{}", "  +---------------------------------------------------+".bright_cyan());
+    println!(
+        "{}",
+        "  +--------------------------------------------------------+".bright_cyan()
+    );
+    println!(
+        "{}",
+        "  |                                                        |".bright_cyan()
+    );
+    println!(
+        "{}",
+        "  |    /$$$$$$$                                            |".bright_cyan()
+    );
+    println!(
+        "{}",
+        "  |   | $$__  $$                                           |".bright_cyan()
+    );
+    println!(
+        "{}",
+        "  |   | $$  \\ $$  /$$$$$$   /$$$$$$   /$$$$$$   /$$$$$$    |".bright_cyan()
+    );
+    println!(
+        "{}",
+        "  |   | $$  | $$ /$$__  $$ /$$__  $$ /$$__  $$ |____  $$   |".bright_cyan()
+    );
+    println!(
+        "{}",
+        "  |   | $$  | $$| $$  \\ $$| $$  \\__/| $$$$$$$$  /$$$$$$$   |".bright_cyan()
+    );
+    println!(
+        "{}",
+        "  |   | $$  | $$| $$  | $$| $$      | $$_____/ /$$__  $$   |".bright_cyan()
+    );
+    println!(
+        "{}",
+        "  |   | $$$$$$$/|  $$$$$$/| $$      |  $$$$$$$|  $$$$$$$   |".bright_cyan()
+    );
+    println!(
+        "{}",
+        "  |   |_______/  \\______/ |__/       \\_______/ \\_______/   |".bright_cyan()
+    );
+    println!(
+        "{}",
+        "  |                                                        |".bright_cyan()
+    );
+    println!(
+        "{}",
+        "  |     A Key-Value Storage System                         |".bright_cyan()
+    );
+    println!(
+        "{}",
+        "  |                                                        |".bright_cyan()
+    );
+    println!(
+        "{}",
+        "  +--------------------------------------------------------+".bright_cyan()
+    );
     println!();
     println!("  {} {}", "Version:".dimmed(), DOREA_CLI_VERSION.green());
-    println!("  {} {}", "Hint:".dimmed(), "Type 'docs' to see available commands".yellow());
+    println!(
+        "  {} {}",
+        "Hint:".dimmed(),
+        "Type 'docs' to see available commands".yellow()
+    );
     println!();
 }
 
@@ -45,13 +91,13 @@ fn smart_format(data: &str) {
         println!("{} {}", "✓".green().bold(), "OK".white());
         return;
     }
-    
+
     // 尝试解析为 JSON
     if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
         print_json(&json);
         return;
     }
-    
+
     // 检测是否是键列表格式（如 info keys 返回的）
     if data.starts_with('[') && data.contains("\",") {
         if let Some(keys) = parse_key_list(data) {
@@ -59,7 +105,7 @@ fn smart_format(data: &str) {
             return;
         }
     }
-    
+
     // 检测是否是键值对格式（如 info 返回的）
     if data.contains(':') && data.lines().count() > 1 {
         if let Some(pairs) = parse_info_pairs(data) {
@@ -67,7 +113,7 @@ fn smart_format(data: &str) {
             return;
         }
     }
-    
+
     // 默认直接输出
     println!("{} {}", "→".bright_cyan(), data.white());
 }
@@ -76,11 +122,13 @@ fn smart_format(data: &str) {
 fn parse_key_list(data: &str) -> Option<Vec<String>> {
     // 尝试解析 JSON 数组
     if let Ok(serde_json::Value::Array(arr)) = serde_json::from_str(data) {
-        return Some(arr.iter()
-            .filter_map(|v| v.as_str().map(|s| s.to_string()))
-            .collect());
+        return Some(
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect(),
+        );
     }
-    
+
     // 尝试解析 ["a","b","c"] 格式
     let trimmed = data.trim().trim_start_matches('[').trim_end_matches(']');
     let items: Vec<String> = trimmed
@@ -88,8 +136,10 @@ fn parse_key_list(data: &str) -> Option<Vec<String>> {
         .map(|s| s.trim().trim_matches('"').to_string())
         .filter(|s| !s.is_empty())
         .collect();
-    
-    if items.is_empty() { return None; }
+
+    if items.is_empty() {
+        return None;
+    }
     Some(items)
 }
 
@@ -106,8 +156,10 @@ fn parse_info_pairs(data: &str) -> Option<Vec<(String, String)>> {
             }
         })
         .collect();
-    
-    if pairs.is_empty() { return None; }
+
+    if pairs.is_empty() {
+        return None;
+    }
     Some(pairs)
 }
 
@@ -116,17 +168,28 @@ fn print_json(value: &serde_json::Value) {
     match value {
         serde_json::Value::Object(map) => {
             println!();
-            println!("  {}", "+----------------------------------------+".bright_cyan());
+            println!(
+                "  {}",
+                "+----------------------------------------+".bright_cyan()
+            );
             for (i, (key, val)) in map.iter().enumerate() {
                 let is_last = i == map.len() - 1;
                 let prefix = if is_last { "+--" } else { "|--" };
                 print_json_kv(key, val, prefix);
             }
-            println!("  {}", "+----------------------------------------+".bright_cyan());
+            println!(
+                "  {}",
+                "+----------------------------------------+".bright_cyan()
+            );
         }
         serde_json::Value::Array(arr) => {
             println!();
-            println!("  {} {} {} items", "📋".yellow(), "Array:".white(), arr.len().to_string().cyan());
+            println!(
+                "  {} {} {} items",
+                "📋".yellow(),
+                "Array:".white(),
+                arr.len().to_string().cyan()
+            );
             println!("  {}", "----------------------------------------".dimmed());
             for (i, item) in arr.iter().enumerate() {
                 let num = format!("[{}]", i).dimmed();
@@ -152,27 +215,44 @@ fn print_json_kv(key: &str, value: &serde_json::Value, prefix: &str) {
             println!("  {}: {}: {}", prefix.bright_cyan(), key_colored, s.green());
         }
         serde_json::Value::Number(n) => {
-            println!("  {}: {}: {}", prefix.bright_cyan(), key_colored, n.to_string().cyan());
+            println!(
+                "  {}: {}: {}",
+                prefix.bright_cyan(),
+                key_colored,
+                n.to_string().cyan()
+            );
         }
         serde_json::Value::Bool(b) => {
-            println!("  {}: {}: {}", prefix.bright_cyan(), key_colored, b.to_string().yellow());
+            println!(
+                "  {}: {}: {}",
+                prefix.bright_cyan(),
+                key_colored,
+                b.to_string().yellow()
+            );
         }
         serde_json::Value::Null => {
-            println!("  {}: {}: {}", prefix.bright_cyan(), key_colored, "null".dimmed());
+            println!(
+                "  {}: {}: {}",
+                prefix.bright_cyan(),
+                key_colored,
+                "null".dimmed()
+            );
         }
         serde_json::Value::Array(arr) => {
-            println!("  {}: {}: {} {} {}", 
-                prefix.bright_cyan(), 
-                key_colored, 
+            println!(
+                "  {}: {}: {} {} {}",
+                prefix.bright_cyan(),
+                key_colored,
                 "[".white(),
                 arr.len().to_string().cyan(),
                 "items]".white()
             );
         }
         serde_json::Value::Object(obj) => {
-            println!("  {}: {}: {} {} {}", 
-                prefix.bright_cyan(), 
-                key_colored, 
+            println!(
+                "  {}: {}: {} {} {}",
+                prefix.bright_cyan(),
+                key_colored,
                 "{".white(),
                 obj.len().to_string().cyan(),
                 "fields}".white()
@@ -195,11 +275,24 @@ fn highlight_value(value: &serde_json::Value) -> String {
 /// 打印键列表表格
 fn print_key_table(keys: &[String]) {
     println!();
-    println!("  {} {} {}", "🔑".yellow(), "Keys:".white(), keys.len().to_string().cyan());
-    println!("  {}", "+--------------------------------------------------+".bright_cyan());
-    
+    println!(
+        "  {} {} {}",
+        "🔑".yellow(),
+        "Keys:".white(),
+        keys.len().to_string().cyan()
+    );
+    println!(
+        "  {}",
+        "+--------------------------------------------------+".bright_cyan()
+    );
+
     if keys.is_empty() {
-        println!("  {} {:^46} {}", "|".bright_cyan(), "(empty)".dimmed(), "|".bright_cyan());
+        println!(
+            "  {} {:^46} {}",
+            "|".bright_cyan(),
+            "(empty)".dimmed(),
+            "|".bright_cyan()
+        );
     } else {
         for (i, key) in keys.iter().enumerate() {
             let num = format!("[{:>3}]", i + 1).dimmed();
@@ -208,36 +301,52 @@ fn print_key_table(keys: &[String]) {
             } else {
                 format!("{:<40}", key)
             };
-            println!("  {} {} {} {}", "|".bright_cyan(), num, key_display.white(), "|".bright_cyan());
+            println!(
+                "  {} {} {} {}",
+                "|".bright_cyan(),
+                num,
+                key_display.white(),
+                "|".bright_cyan()
+            );
         }
     }
-    
-    println!("  {}", "+--------------------------------------------------+".bright_cyan());
+
+    println!(
+        "  {}",
+        "+--------------------------------------------------+".bright_cyan()
+    );
 }
 
 /// 打印信息表格
 fn print_info_table(pairs: &[(String, String)]) {
     println!();
     println!("  {}", "📊 Info".yellow().bold());
-    println!("  {}", "+------------------+----------------------------------------+".bright_cyan());
-    
+    println!(
+        "  {}",
+        "+------------------+----------------------------------------+".bright_cyan()
+    );
+
     for (key, value) in pairs {
         let key_display = format!("{:<16}", key);
-        let value_display = if value.len() > 36 { 
+        let value_display = if value.len() > 36 {
             format!("{:<36}", &format!("{}...", &value[..33]))
-        } else { 
+        } else {
             format!("{:<36}", value)
         };
-        println!("  {} {} {} {} {}", 
-            "|".bright_cyan(), 
-            key_display.bright_blue(), 
+        println!(
+            "  {} {} {} {} {}",
+            "|".bright_cyan(),
+            key_display.bright_blue(),
             "|".bright_cyan(),
             value_display.white(),
             "|".bright_cyan()
         );
     }
-    
-    println!("  {}", "+------------------+----------------------------------------+".bright_cyan());
+
+    println!(
+        "  {}",
+        "+------------------+----------------------------------------+".bright_cyan()
+    );
 }
 
 /// 打印错误
@@ -248,32 +357,51 @@ fn print_err(msg: &str) {
 /// 打印 docs 文档
 fn print_docs(content: &str) {
     println!();
-    println!("{}", "┌─────────────────────────────────────────────────────┐".bright_cyan());
-    println!("{}", "│               📚 Dorea Command Docs                 │".bright_cyan());
-    println!("{}", "└─────────────────────────────────────────────────────┘".bright_cyan());
+    println!(
+        "{}",
+        "┌─────────────────────────────────────────────────────┐".bright_cyan()
+    );
+    println!(
+        "{}",
+        "│               📚 Dorea Command Docs                 │".bright_cyan()
+    );
+    println!(
+        "{}",
+        "└─────────────────────────────────────────────────────┘".bright_cyan()
+    );
     println!();
-    
+
     let mut in_code = false;
     for line in content.lines() {
         let t = line.trim();
-        
+
         if t.starts_with('#') && !t.starts_with("##") {
             println!();
-            println!("  {} {}", "▸".bright_cyan(), t.trim_start_matches('#').trim().white().bold());
+            println!(
+                "  {} {}",
+                "▸".bright_cyan(),
+                t.trim_start_matches('#').trim().white().bold()
+            );
             println!("  {}", "─".repeat(50).dimmed());
         } else if t.starts_with("```") {
             in_code = !in_code;
-            if in_code { println!(); }
+            if in_code {
+                println!();
+            }
         } else if in_code {
             println!("    {}", t.bright_black().italic());
         } else if !t.is_empty() {
             println!("  {}", t.dimmed());
         }
     }
-    
+
     println!();
     println!("{}", "─".repeat(55).dimmed());
-    println!("  {} Try {} for specific command", "💡".yellow(), "'docs <command>'".yellow().bold());
+    println!(
+        "  {} Try {} for specific command",
+        "💡".yellow(),
+        "'docs <command>'".yellow().bold()
+    );
     println!();
 }
 
@@ -311,10 +439,34 @@ pub async fn main() {
             SubCommand::with_name("run")
                 .about("Run a single command")
                 .arg(Arg::with_name("COMMAND").required(true).index(1))
-                .arg(Arg::with_name("HOSTNAME").short("h").long("hostname").takes_value(true).default_value("127.0.0.1"))
-                .arg(Arg::with_name("PORT").short("p").long("port").takes_value(true).default_value("3450"))
-                .arg(Arg::with_name("PASSWORD").short("a").long("password").takes_value(true).default_value(""))
-                .arg(Arg::with_name("DATABASE").short("t").long("database").takes_value(true).default_value("default")),
+                .arg(
+                    Arg::with_name("HOSTNAME")
+                        .short("h")
+                        .long("hostname")
+                        .takes_value(true)
+                        .default_value("127.0.0.1"),
+                )
+                .arg(
+                    Arg::with_name("PORT")
+                        .short("p")
+                        .long("port")
+                        .takes_value(true)
+                        .default_value("3450"),
+                )
+                .arg(
+                    Arg::with_name("PASSWORD")
+                        .short("a")
+                        .long("password")
+                        .takes_value(true)
+                        .default_value(""),
+                )
+                .arg(
+                    Arg::with_name("DATABASE")
+                        .short("t")
+                        .long("database")
+                        .takes_value(true)
+                        .default_value("default"),
+                ),
         )
         .get_matches();
 
@@ -327,9 +479,13 @@ pub async fn main() {
         let command = m.value_of("COMMAND").unwrap();
 
         let client = DoreaClient::connect(
-            (Box::leak(hostname.to_string().into_boxed_str()), port.parse::<u16>().unwrap_or(3450)),
+            (
+                Box::leak(hostname.to_string().into_boxed_str()),
+                port.parse::<u16>().unwrap_or(3450),
+            ),
             password,
-        ).await;
+        )
+        .await;
 
         let mut client = match client {
             Ok(c) => c,
@@ -341,7 +497,7 @@ pub async fn main() {
 
         client.select(target).await.ok();
         let res = execute(command, &mut client).await;
-        
+
         if res.0 == NetPacketState::ERR {
             print_err(&res.1);
         } else {
@@ -358,13 +514,22 @@ pub async fn main() {
     let password = matches.value_of("PASSWORD").unwrap();
 
     let client = DoreaClient::connect(
-        (Box::leak(hostname.to_string().into_boxed_str()), port.parse::<u16>().unwrap_or(3450)),
+        (
+            Box::leak(hostname.to_string().into_boxed_str()),
+            port.parse::<u16>().unwrap_or(3450),
+        ),
         password,
-    ).await;
+    )
+    .await;
 
     let mut client = match client {
         Ok(c) => {
-            println!("  {} Connected to {}:{}\n", "✓".green().bold(), hostname.white().bold(), port.white().bold());
+            println!(
+                "  {} Connected to {}:{}\n",
+                "✓".green().bold(),
+                hostname.white().bold(),
+                port.white().bold()
+            );
             c
         }
         Err(e) => {
@@ -384,11 +549,17 @@ pub async fn main() {
                     println!("\n  {} Bye! 👋\n", "✓".green().bold());
                     exit(0);
                 }
-                if cmd.is_empty() { continue; }
-                
+                if cmd.is_empty() {
+                    continue;
+                }
+
                 let _ = rl.add_history_entry(&cmd);
                 let res = execute(&cmd, &mut client).await;
-                let is_docs = cmd.split_whitespace().next().map(|s| s.to_uppercase() == "DOCS").unwrap_or(false);
+                let is_docs = cmd
+                    .split_whitespace()
+                    .next()
+                    .map(|s| s.to_uppercase() == "DOCS")
+                    .unwrap_or(false);
 
                 if is_docs && res.0 == NetPacketState::OK {
                     print_docs(&res.1);
@@ -434,11 +605,14 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
         }
         "SETEX" => {
             if parts.len() < 3 {
-                return (NetPacketState::ERR, "Usage: SETEX <key> <value> <expire>".into());
+                return (
+                    NetPacketState::ERR,
+                    "Usage: SETEX <key> <value> <expire>".into(),
+                );
             }
             let key = parts[0];
             let expire = parts.last().unwrap().parse::<usize>().unwrap_or(0);
-            let value = parts[1..parts.len()-1].join(" ");
+            let value = parts[1..parts.len() - 1].join(" ");
             match client.setex(key, DataValue::from(&value), expire).await {
                 Ok(_) => (NetPacketState::OK, "".into()),
                 Err(e) => (NetPacketState::ERR, e.to_string()),
@@ -446,31 +620,45 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
         }
         "BINARY" => {
             if parts.len() < 2 {
-                return (NetPacketState::ERR, "Usage: BINARY <stringify|tovec|download|upload> <key> ...".into());
+                return (
+                    NetPacketState::ERR,
+                    "Usage: BINARY <stringify|tovec|download|upload> <key> ...".into(),
+                );
             }
             let sub = parts[0];
             let key = parts[1];
 
             match sub.to_uppercase().as_str() {
                 "STRINGIFY" => match client.get(key).await {
-                    Some(DataValue::Binary(bin)) => (NetPacketState::OK, String::from_utf8(bin.read()).unwrap_or_default()),
+                    Some(DataValue::Binary(bin)) => (
+                        NetPacketState::OK,
+                        String::from_utf8(bin.read()).unwrap_or_default(),
+                    ),
                     Some(v) => (NetPacketState::OK, v.to_string()),
                     None => (NetPacketState::ERR, "Key not found".into()),
                 },
                 "TOVEC" => match client.get(key).await {
-                    Some(DataValue::Binary(bin)) => (NetPacketState::OK, format!("{:?}", bin.read())),
+                    Some(DataValue::Binary(bin)) => {
+                        (NetPacketState::OK, format!("{:?}", bin.read()))
+                    }
                     Some(v) => (NetPacketState::OK, v.to_string()),
                     None => (NetPacketState::ERR, "Key not found".into()),
                 },
                 "DOWNLOAD" => {
                     if parts.len() != 3 {
-                        return (NetPacketState::ERR, "Usage: BINARY DOWNLOAD <key> <filename>".into());
+                        return (
+                            NetPacketState::ERR,
+                            "Usage: BINARY DOWNLOAD <key> <filename>".into(),
+                        );
                     }
                     match client.get(key).await {
                         Some(DataValue::Binary(bin)) => {
                             let mut path = dirs::download_dir().unwrap();
                             path.push(parts[2]);
-                            std::fs::File::create(&path).unwrap().write_all(&bin.read()).unwrap();
+                            std::fs::File::create(&path)
+                                .unwrap()
+                                .write_all(&bin.read())
+                                .unwrap();
                             (NetPacketState::OK, format!("Saved to {:?}", path))
                         }
                         Some(v) => (NetPacketState::OK, v.to_string()),
@@ -479,15 +667,24 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
                 }
                 "UPLOAD" => {
                     if parts.len() != 3 {
-                        return (NetPacketState::ERR, "Usage: BINARY UPLOAD <key> <filepath>".into());
+                        return (
+                            NetPacketState::ERR,
+                            "Usage: BINARY UPLOAD <key> <filepath>".into(),
+                        );
                     }
                     let path = PathBuf::from(parts[2]);
                     if !path.is_file() {
                         return (NetPacketState::ERR, "File not found".into());
                     }
                     let mut buf = vec![];
-                    std::fs::File::open(&path).unwrap().read_to_end(&mut buf).unwrap();
-                    match client.setex(key, DataValue::Binary(Binary::build(buf)), 0).await {
+                    std::fs::File::open(&path)
+                        .unwrap()
+                        .read_to_end(&mut buf)
+                        .unwrap();
+                    match client
+                        .setex(key, DataValue::Binary(Binary::build(buf)), 0)
+                        .await
+                    {
                         Ok(_) => (NetPacketState::OK, "".into()),
                         Err(_) => (NetPacketState::ERR, "Upload failed".into()),
                     }
