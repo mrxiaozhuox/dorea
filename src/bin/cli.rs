@@ -98,6 +98,12 @@ fn smart_format(data: &str) {
         return;
     }
 
+    // 尝试解析为 Doson（包含 tuple 等非标准 JSON）
+    if is_doson_format(data) {
+        print_doson(data);
+        return;
+    }
+
     // 检测是否是键列表格式（如 info keys 返回的）
     if data.starts_with('[') && data.contains("\",") {
         if let Some(keys) = parse_key_list(data) {
@@ -116,6 +122,101 @@ fn smart_format(data: &str) {
 
     // 默认直接输出
     println!("{} {}", "→".bright_cyan(), data.white());
+}
+
+/// 检测是否是 doson 格式（包含 tuple 等非标准 JSON）
+fn is_doson_format(data: &str) -> bool {
+    // 检测是否以 { 开头且包含 tuple 格式 (x, y)
+    let trimmed = data.trim();
+    trimmed.starts_with('{') && trimmed.contains('(') && trimmed.contains(", ")
+}
+
+/// 打印 Doson 格式（带语法高亮）
+fn print_doson(data: &str) {
+    println!();
+    println!("{}", "+----------------------------------------+".bright_cyan());
+    
+    // 解析顶层 dict 的键值对
+    let content = data.trim().trim_start_matches('{').trim_end_matches('}');
+    
+    // 简单解析：按 key: value 模式
+    let mut depth = 0;
+    let mut current_key = String::new();
+    let mut current_value = String::new();
+    let mut in_key = false;
+    let mut in_value = false;
+    let mut in_string = false;
+    let mut entries: Vec<(String, String)> = Vec::new();
+    
+    for ch in content.chars() {
+        if ch == '"' && depth == 0 {
+            in_string = !in_string;
+            if !in_value {
+                in_key = true;
+            }
+        } else if ch == ':' && !in_string && depth == 0 {
+            in_key = false;
+            in_value = true;
+        } else if ch == ',' && !in_string && depth == 0 {
+            if !current_key.is_empty() && !current_value.is_empty() {
+                entries.push((current_key.trim().to_string(), current_value.trim().to_string()));
+            }
+            current_key.clear();
+            current_value.clear();
+            in_key = false;
+            in_value = false;
+        } else {
+            match ch {
+                '{' | '[' | '(' => depth += 1,
+                '}' | ']' | ')' => depth -= 1,
+                _ => {}
+            }
+            if in_key {
+                current_key.push(ch);
+            } else if in_value {
+                current_value.push(ch);
+            }
+        }
+    }
+    
+    // 添加最后一个条目
+    if !current_key.is_empty() && !current_value.is_empty() {
+        entries.push((current_key.trim().to_string(), current_value.trim().to_string()));
+    }
+    
+    // 打印格式化输出
+    for (i, (key, value)) in entries.iter().enumerate() {
+        let is_last = i == entries.len() - 1;
+        let prefix = if is_last { "+--" } else { "|--" };
+        let key_clean = key.trim_matches('"');
+        
+        // 根据 value 类型高亮
+        let value_colored = if value.starts_with('(') && value.contains(", ") {
+            // Tuple
+            format!("{} {} {}", "tuple".dimmed(), value.yellow(), "tuple".dimmed())
+        } else if value.starts_with('[') {
+            // List
+            format!("{} {} {} {}", "[".white(), "list".cyan(), value.len(), "]".white())
+        } else if value.starts_with('{') {
+            // Dict
+            format!("{} {} {} {}", "{".white(), "dict".cyan(), "object".white(), "}".white())
+        } else if value.starts_with('"') {
+            // String
+            value.trim_matches('"').green().to_string()
+        } else if value == "true" || value == "false" {
+            // Boolean
+            value.yellow().to_string()
+        } else if value.parse::<f64>().is_ok() {
+            // Number
+            value.cyan().to_string()
+        } else {
+            value.white().to_string()
+        };
+        
+        println!("{} {}: {}", prefix.bright_cyan(), key_clean.bright_blue().bold(), value_colored);
+    }
+    
+    println!("{}", "+----------------------------------------+".bright_cyan());
 }
 
 /// 解析键列表
