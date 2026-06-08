@@ -40,11 +40,8 @@ fn parse_command_args(input: &str) -> Vec<String> {
             }
             current.push(ch);
         } else if ch == '"' {
-            // 如果在括号内部，保留引号
-            if bracket_depth > 0 {
-                current.push(ch);
-            }
-            was_quoted = true;  // 标记进入或退出引号
+            // 保留所有引号，让 DataValue::from() 自己处理
+            current.push(ch);
             in_quotes = !in_quotes;
         } else if ch == ' ' && !in_quotes && bracket_depth == 0 {
             // 只有在引号外且括号外才分割
@@ -245,14 +242,14 @@ impl CommandManager {
             let key = slice.first().unwrap();
             let value = slice.get(1).unwrap();
 
-            // 尝试解析为 doson 格式，如果失败则当作普通字符串
             let data_value = DataValue::from(value);
-            let data_value = if data_value == DataValue::None {
-                // 不是有效的 doson 格式，当作普通字符串处理
-                DataValue::String(value.clone())
-            } else {
-                data_value
-            };
+
+            if data_value == DataValue::None {
+                return (
+                    NetPacketState::ERR,
+                    "Unknown data struct.".as_bytes().to_vec(),
+                );
+            }
 
             let mut expire = 0_u64;
 
@@ -1528,40 +1525,40 @@ mod tests {
         assert!(args.is_empty());
     }
 
-    /// 测试引号内的空格不分割
+    /// 测试引号内的空格不分割（引号保留，由 DataValue::from 处理）
     #[test]
     fn test_parse_quoted_strings() {
-        // 引号内的空格
+        // 引号内的空格，引号保留
         let args = parse_command_args("SET key \"hello world\"");
-        assert_eq!(args, vec!["SET", "key", "hello world"]);
+        assert_eq!(args, vec!["SET", "key", "\"hello world\""]);
 
         // 多个引号字符串
         let args = parse_command_args("SET key \"hello world\" \"foo bar\"");
-        assert_eq!(args, vec!["SET", "key", "hello world", "foo bar"]);
+        assert_eq!(args, vec!["SET", "key", "\"hello world\"", "\"foo bar\""]);
 
         // 引号和非引号混合
         let args = parse_command_args("SET key \"hello world\" normal");
-        assert_eq!(args, vec!["SET", "key", "hello world", "normal"]);
+        assert_eq!(args, vec!["SET", "key", "\"hello world\"", "normal"]);
 
         // 空引号
         let args = parse_command_args("SET key \"\"");
-        assert_eq!(args, vec!["SET", "key", ""]);
+        assert_eq!(args, vec!["SET", "key", "\"\""]);
     }
 
-    /// 测试转义字符
+    /// 测试转义字符（引号保留，转义序列被处理）
     #[test]
     fn test_parse_escaped_chars() {
-        // 转义引号
+        // 转义引号，引号保留，转义序列被处理
         let args = parse_command_args("SET key \"say \\\"hello\\\"\"");
-        assert_eq!(args, vec!["SET", "key", "say \"hello\""]);
+        assert_eq!(args, vec!["SET", "key", "\"say \"hello\"\""]);
 
         // 转义反斜杠
         let args = parse_command_args("SET key \"path\\\\to\\\\file\"");
-        assert_eq!(args, vec!["SET", "key", "path\\to\\file"]);
+        assert_eq!(args, vec!["SET", "key", "\"path\\to\\file\""]);
 
         // 混合转义
         let args = parse_command_args("SET key \"a\\\"b\\\\c\"");
-        assert_eq!(args, vec!["SET", "key", "a\"b\\c"]);
+        assert_eq!(args, vec!["SET", "key", "\"a\"b\\c\""]);
     }
 
     /// 测试 Dict（字典）格式
@@ -1676,16 +1673,16 @@ mod tests {
         assert_eq!(args, vec!["SET", "key", "{\"data\":[{\"id\":1,\"items\":[1,2]},{\"id\":2,\"items\":[3,4]}],\"meta\":{\"count\":2,\"tuple\":(true,false)},\"arr\":[[1,2],[3,4]]}"]);
     }
 
-    /// 测试未闭合引号
+    /// 测试未闭合引号（引号保留）
     #[test]
     fn test_parse_unclosed_quotes() {
-        // 未闭合引号：到末尾视为一个参数
+        // 未闭合引号：到末尾视为一个参数，引号保留
         let args = parse_command_args("SET key \"unclosed");
-        assert_eq!(args, vec!["SET", "key", "unclosed"]);
+        assert_eq!(args, vec!["SET", "key", "\"unclosed"]);
 
         // 未闭合引号带空格
         let args = parse_command_args("SET key \"unclosed string");
-        assert_eq!(args, vec!["SET", "key", "unclosed string"]);
+        assert_eq!(args, vec!["SET", "key", "\"unclosed string"]);
     }
 
     /// 测试边界情况
@@ -1701,11 +1698,11 @@ mod tests {
 
         // 空引号在中间
         let args = parse_command_args("SET \"\" value");
-        assert_eq!(args, vec!["SET", "", "value"]);
+        assert_eq!(args, vec!["SET", "\"\"", "value"]);
 
         // 只有引号
         let args = parse_command_args("\"\"");
-        assert_eq!(args, vec![""]);
+        assert_eq!(args, vec!["\"\""]);
 
         // 单字符
         let args = parse_command_args("a");
@@ -1767,17 +1764,17 @@ mod tests {
     /// 测试中文字符
     #[test]
     fn test_parse_chinese() {
-        // 中文 key
+        // 中文 key，引号保留
         let args = parse_command_args("SET 你好 \"世界\"");
-        assert_eq!(args, vec!["SET", "你好", "世界"]);
+        assert_eq!(args, vec!["SET", "你好", "\"世界\""]);
 
-        // 中文 value
+        // 中文 value，引号保留
         let args = parse_command_args("SET key \"你好世界\"");
-        assert_eq!(args, vec!["SET", "key", "你好世界"]);
+        assert_eq!(args, vec!["SET", "key", "\"你好世界\""]);
 
-        // 中文和英文混合
+        // 中文和英文混合，引号保留
         let args = parse_command_args("SET 测试 \"hello 世界\"");
-        assert_eq!(args, vec!["SET", "测试", "hello 世界"]);
+        assert_eq!(args, vec!["SET", "测试", "\"hello 世界\""]);
 
         // 中文在 Dict 中
         let args = parse_command_args("SET key {\"名字\":\"张三\"}");
@@ -1789,7 +1786,7 @@ mod tests {
     fn test_doson_chinese() {
         // ASCII 字符串
         let v = DataValue::from("\"hello\"");
-        assert!(v != DataValue::None);
+        assert!(v != DataValue::None, "ASCII string should parse");
 
         // 中文字符串
         let v = DataValue::from("\"你好\"");

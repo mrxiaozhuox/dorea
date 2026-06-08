@@ -814,12 +814,17 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
         }
         "SET" => {
             if parts.len() < 2 {
-                return (NetPacketState::ERR, "Usage: SET <key> <value>".into());
+                return (NetPacketState::ERR, "Usage: SET <key> <value> [expire]".into());
             }
             let key = parts[0];
             let value = parts[1..].join(" ");
-            match client.setex(key, DataValue::from(&value), 0).await {
-                Ok(_) => (NetPacketState::OK, "".into()),
+            // 直接发送原始命令给服务器
+            let command = format!("set {} {}", key, value);
+            match client.execute(&command).await {
+                Ok((state, data)) => {
+                    let result = String::from_utf8_lossy(&data).to_string();
+                    (state, result)
+                }
                 Err(e) => (NetPacketState::ERR, e.to_string()),
             }
         }
