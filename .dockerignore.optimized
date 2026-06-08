@@ -1,0 +1,32 @@
+# Git
+.github/
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+assets/
+design/
+examples/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build artifacts (not needed in context)
+target/
+
+# Docker (don't copy dockerfile into itself)
+Dockerfile*
+docker-compose*.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Development files
+*.log
+run.sh
