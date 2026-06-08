@@ -10,6 +10,8 @@ you can use this command to get the manual for other command.
 - edit      `docs edit`
 - service   `docs service`
 
+TIP: use double quotes for values containing spaces: set foo \"hello world\"
+
 ";
 
 pub const SUBCOMMAND_SERVICE_HELP: &str = "
@@ -62,4 +64,6 @@ pub const SUBCOMMAND_EDIT_HELP: &str = "
     - pop                           pop the last value from the list: List type only.
     - sort [ASC|DESC]               ASC for positive sequence, and DESC for reverse sequence: List type only.
     - reverse                       reverse the data sequence: (List Tuple) type only.
+
+TIP: use double quotes for values containing spaces: edit @foo insert \"hello world\"
 ";
