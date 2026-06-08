@@ -44,7 +44,8 @@ fn parse_command_args(input: &str) -> Vec<String> {
                 current.push(ch);
             }
             in_quotes = !in_quotes;
-        } else if ch == ' ' && !in_quotes {
+        } else if ch == ' ' && !in_quotes && bracket_depth == 0 {
+            // 只有在引号外且括号外才分割
             if !current.is_empty() {
                 args.push(std::mem::take(&mut current));
             }
