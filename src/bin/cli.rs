@@ -159,7 +159,7 @@ fn print_doson_value(data: &str, indent: &str) {
 
 /// 打印 Dict
 fn print_doson_dict(data: &str, indent: &str) {
-    let content = data.trim_start_matches('{').trim_end_matches('}');
+    let content = &data[1..data.len()-1];  // 只去掉最外层的 { }
     let entries = parse_doson_dict_entries(content);
     
     for (i, (key, value)) in entries.iter().enumerate() {
@@ -183,7 +183,7 @@ fn print_doson_dict(data: &str, indent: &str) {
 
 /// 打印 List
 fn print_doson_list(data: &str, indent: &str) {
-    let content = data.trim_start_matches('[').trim_end_matches(']');
+    let content = &data[1..data.len()-1];  // 只去掉最外层的 [ ]
     let items = parse_doson_list_items(content);
     
     for (i, item) in items.iter().enumerate() {
@@ -206,7 +206,7 @@ fn print_doson_list(data: &str, indent: &str) {
 
 /// 打印 Tuple
 fn print_doson_tuple(data: &str, indent: &str) {
-    let content = data.trim_start_matches('(').trim_end_matches(')');
+    let content = &data[1..data.len()-1];  // 只去掉最外层的 ( )
     // tuple 只有两个元素，用 ", " 分割
     let parts: Vec<&str> = content.splitn(2, ", ").collect();
     
