@@ -416,7 +416,7 @@ fn print_json(value: &serde_json::Value) {
     }
 }
 
-/// 打印 JSON 键值对
+/// 打印 JSON 键值对（支持递归展开）
 fn print_json_kv(key: &str, value: &serde_json::Value, prefix: &str) {
     let key_colored = key.bright_blue().bold();
     match value {
@@ -454,8 +454,14 @@ fn print_json_kv(key: &str, value: &serde_json::Value, prefix: &str) {
                 key_colored,
                 "[".white(),
                 arr.len().to_string().cyan(),
-                "items]".white()
+                "]".white()
             );
+            // 递归展开数组
+            let child_prefix = format!("{}    ", prefix);
+            for (i, item) in arr.iter().enumerate() {
+                let item_key = format!("[{}]", i);
+                print_json_kv(&item_key, item, &child_prefix);
+            }
         }
         serde_json::Value::Object(obj) => {
             println!(
@@ -464,8 +470,13 @@ fn print_json_kv(key: &str, value: &serde_json::Value, prefix: &str) {
                 key_colored,
                 "{".white(),
                 obj.len().to_string().cyan(),
-                "fields}".white()
+                "}".white()
             );
+            // 递归展开对象
+            let child_prefix = format!("{}    ", prefix);
+            for (k, v) in obj {
+                print_json_kv(k, v, &child_prefix);
+            }
         }
     }
 }
