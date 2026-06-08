@@ -6,6 +6,9 @@
 /// 本示例展示：
 /// - 使用 info() 方法获取服务器信息
 /// - InfoType 枚举的各种选项
+///
+/// 注意：CurrentConnectionNumber 和 PreloadDatabaseList 在当前版本
+/// 的服务器端未实现，调用会返回错误。
 use dorea::client::{DoreaClient, InfoType};
 
 #[tokio::main]
@@ -19,26 +22,21 @@ async fn main() -> anyhow::Result<()> {
     let version = db.info(InfoType::ServerVersion).await?;
     println!("📌 服务版本: {}", version.trim());
 
-    // 启动时间
-    let startup_time = db.info(InfoType::ServerStartupTime).await?;
-    println!("⏰ 启动时间: {}", startup_time.trim());
-
-    // 连接信息
-    let current_conn = db.info(InfoType::CurrentConnectionNumber).await?;
-    let max_conn = db.info(InfoType::MaxConnectionNumber).await?;
-    println!("🔗 当前连接: {} / {}", current_conn.trim(), max_conn.trim());
-
     // 当前数据库
     let current_db = db.info(InfoType::CurrentDataBase).await?;
     println!("💾 当前数据库: {}", current_db.trim());
 
-    // 预加载数据库列表
-    let preload_list = db.info(InfoType::PreloadDatabaseList).await?;
-    println!("📂 预加载数据库: {}", preload_list.trim());
+    // 最大连接数
+    let max_conn = db.info(InfoType::MaxConnectionNumber).await?;
+    println!("🔗 最大连接数: {}", max_conn.trim());
 
     // 索引信息
     let index_info = db.info(InfoType::TotalIndexNumber).await?;
     println!("📊 索引使用: {}", index_info.trim());
+
+    // 启动时间（注意：当前版本返回占位符）
+    let startup_time = db.info(InfoType::ServerStartupTime).await?;
+    println!("⏰ 启动时间: {}", startup_time.trim());
 
     // 当前数据库的 key 列表
     let keys = db.info(InfoType::KeyList).await?;
