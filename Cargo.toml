@@ -96,6 +96,9 @@ dashmap = "5.4"
 # Tools
 rand = "0.8"
 
+# Terminal Colors
+colored = "2.1"
+
 # Logger Library
 log = "0.4.14"
 log4rs = { version = "1.0.0", optional = true }

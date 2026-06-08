@@ -4,6 +4,7 @@
 //! @DoreaDB Client
 
 use clap::{App, Arg, SubCommand};
+use colored::Colorize;
 use dorea::client::DoreaClient;
 use dorea::network::NetPacketState;
 use dorea::value::DataValue;
@@ -13,27 +14,133 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::process::exit;
 
+const DOREA_CLI_VERSION: &str = "0.5.0";
+
+/// 打印启动 Banner
+fn print_banner() {
+    println!();
+    println!(
+        "{}",
+        r#"
+    ╭──────────────────────────────────────╮
+    │   ____                              │
+    │  |  _ \  ___  _ __  ___  ___        │
+    │  | | | |/ _ \| '_ \/ __|/ _ \       │
+    │  | |_| | (_) | | | \__ \  __/       │
+    │  |____/ \___/|_| |_|___/\___|       │
+    │                                      │
+    │  A Key-Value Storage System          │
+    ╰──────────────────────────────────────╯
+    "#
+        .bright_cyan()
+    );
+    println!("  {} {}", "Version:".dimmed(), DOREA_CLI_VERSION.green());
+    println!(
+        "  {} {}",
+        "Hint:".dimmed(),
+        "Type 'docs' to see available commands".yellow()
+    );
+    println!();
+}
+
+/// 格式化 JSON 输出（带语法高亮）
+fn format_json(json_str: &str) -> String {
+    if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(json_str) {
+        if let Ok(pretty) = serde_json::to_string_pretty(&json_value) {
+            return highlight_json(&pretty);
+        }
+    }
+    json_str.to_string()
+}
+
+/// JSON 语法高亮
+fn highlight_json(json: &str) -> String {
+    let mut result = String::new();
+    for line in json.lines() {
+        if line.contains(':') {
+            let parts: Vec<&str> = line.splitn(2, ':').collect();
+            if parts.len() == 2 {
+                let key = parts[0].bright_blue().to_string();
+                let value = highlight_json_value(parts[1]);
+                result.push_str(&format!("{}:{}\n", key, value));
+                continue;
+            }
+        }
+        result.push_str(&format!("{}\n", line));
+    }
+    result.trim_end().to_string()
+}
+
+/// 高亮 JSON 值
+fn highlight_json_value(value: &str) -> String {
+    let trimmed = value.trim_end_matches(',');
+    let comma = if value.ends_with(',') { "," } else { "" };
+    
+    if trimmed.starts_with('"') && trimmed.ends_with('"') {
+        format!("{}{}", trimmed.green(), comma)
+    } else if trimmed == "true" || trimmed == "false" {
+        format!("{}{}", trimmed.yellow(), comma)
+    } else if trimmed == "null" {
+        format!("{}{}", trimmed.dimmed(), comma)
+    } else if trimmed.parse::<f64>().is_ok() {
+        format!("{}{}", trimmed.cyan(), comma)
+    } else {
+        format!("{}{}", trimmed, comma)
+    }
+}
+
+/// 打印成功
+fn print_ok(msg: &str) {
+    if msg.is_empty() {
+        println!("{} {}", "✓".green().bold(), "OK".white());
+    } else if msg.starts_with('{') || msg.starts_with('[') {
+        println!("{}", format_json(msg));
+    } else {
+        println!("{} {}", "→".bright_cyan(), msg.white());
+    }
+}
+
+/// 打印错误
+fn print_err(msg: &str) {
+    println!("{} {}", "✗".red().bold(), msg.red());
+}
+
+/// 打印 docs 文档
+fn print_docs(content: &str) {
+    println!();
+    println!("{}", "┌─────────────────────────────────────────────────────┐".bright_cyan());
+    println!("{}", "│               📚 Dorea Command Docs                 │".bright_cyan());
+    println!("{}", "└─────────────────────────────────────────────────────┘".bright_cyan());
+    println!();
+    
+    let mut in_code = false;
+    for line in content.lines() {
+        let t = line.trim();
+        
+        if t.starts_with('#') && !t.starts_with("##") {
+            println!();
+            println!("  {} {}", "▸".bright_cyan(), t.trim_start_matches('#').trim().white().bold());
+            println!("  {}", "─".repeat(50).dimmed());
+        } else if t.starts_with("```") {
+            in_code = !in_code;
+            if in_code { println!(); }
+        } else if in_code {
+            println!("    {}", t.bright_black().italic());
+        } else if !t.is_empty() {
+            println!("  {}", t.dimmed());
+        }
+    }
+    
+    println!();
+    println!("{}", "─".repeat(55).dimmed());
+    println!("  {} Try {} for specific command", "💡".yellow(), "'docs <command>'".yellow().bold());
+    println!();
+}
+
 #[tokio::main]
 pub async fn main() {
-    // let matches = clap_app!(dorea =>
-    //     (version: "0.2.1")
-    //     (author: "ZhuoEr Liu <mrxzx@qq.com>")
-    //     (about: "DoreaDB Cli Tool")
-    //     (@arg HOSTNAME: -h --hostname +takes_value "Set the server hostname")
-    //     (@arg PORT: -p --port +takes_value "Set the server port")
-    //     (@arg PASSWORD: -a --password +takes_value "Connect password")
-    //     (@subcommand run =>
-    //         (about: "Try to run a command with dorea-cli")
-    //         (@arg COMMAND: +required "target command")
-    //         (@arg HOSTNAME: -h --hostname +takes_value "Set the server hostname")
-    //         (@arg PORT: -p --port +takes_value "Set the server port")
-    //         (@arg PASSWORD: -a --password +takes_value "Connect password")
-    //         (@arg DATABASE: -d --database +takes_value "Select DataBase")
-    //     )
-    // ).get_matches();
-
-    let matches = App::new("Dorea Cli")
-        .version("0.4.0")
+    let matches = App::new("Dorea CLI")
+        .version(DOREA_CLI_VERSION)
         .author("YuKun Liu <mrxzx.info@gmail.com>")
         .about("DoreaDB Cli Tool")
         .arg(
@@ -41,7 +148,7 @@ pub async fn main() {
                 .short("h")
                 .long("hostname")
                 .takes_value(true)
-                .help("Set the server hostname")
+                .help("Server hostname")
                 .default_value("127.0.0.1"),
         )
         .arg(
@@ -49,7 +156,7 @@ pub async fn main() {
                 .short("p")
                 .long("port")
                 .takes_value(true)
-                .help("Set the server port")
+                .help("Server port")
                 .default_value("3450"),
         )
         .arg(
@@ -57,322 +164,200 @@ pub async fn main() {
                 .short("a")
                 .long("password")
                 .takes_value(true)
-                .help("Connect password")
+                .help("Connection password")
                 .default_value(""),
         )
         .subcommand(
             SubCommand::with_name("run")
-                .about("Try to run a command with dorea-cli")
+                .about("Run a single command")
                 .arg(Arg::with_name("COMMAND").required(true).index(1))
-                .arg(
-                    Arg::with_name("HOSTNAME")
-                        .short("h")
-                        .long("hostname")
-                        .takes_value(true)
-                        .help("Set the server hostname")
-                        .default_value("127.0.0.1"),
-                )
-                .arg(
-                    Arg::with_name("PORT")
-                        .short("p")
-                        .long("port")
-                        .takes_value(true)
-                        .help("Set the server port")
-                        .default_value("3450"),
-                )
-                .arg(
-                    Arg::with_name("PASSWORD")
-                        .short("a")
-                        .long("password")
-                        .takes_value(true)
-                        .help("Connect password")
-                        .default_value(""),
-                )
-                .arg(
-                    Arg::with_name("DATABASE")
-                        .short("t")
-                        .long("database")
-                        .takes_value(true)
-                        .help("Target database")
-                        .default_value("default"),
-                ),
+                .arg(Arg::with_name("HOSTNAME").short("h").long("hostname").takes_value(true).default_value("127.0.0.1"))
+                .arg(Arg::with_name("PORT").short("p").long("port").takes_value(true).default_value("3450"))
+                .arg(Arg::with_name("PASSWORD").short("a").long("password").takes_value(true).default_value(""))
+                .arg(Arg::with_name("DATABASE").short("t").long("database").takes_value(true).default_value("default")),
         )
         .get_matches();
+
+    // 单次执行模式
+    if let Some(m) = matches.subcommand_matches("run") {
+        let hostname = m.value_of("HOSTNAME").unwrap();
+        let port = m.value_of("PORT").unwrap();
+        let password = m.value_of("PASSWORD").unwrap();
+        let target = m.value_of("DATABASE").unwrap();
+        let command = m.value_of("COMMAND").unwrap();
+
+        let client = DoreaClient::connect(
+            (Box::leak(hostname.to_string().into_boxed_str()), port.parse::<u16>().unwrap_or(3450)),
+            password,
+        ).await;
+
+        let mut client = match client {
+            Ok(c) => c,
+            Err(e) => {
+                print_err(&format!("Connection failed: {:?}", e));
+                exit(1);
+            }
+        };
+
+        client.select(target).await.ok();
+        let res = execute(command, &mut client).await;
+        
+        if res.0 == NetPacketState::ERR {
+            print_err(&res.1);
+        } else {
+            print_ok(&res.1);
+        }
+        return;
+    }
+
+    // 交互模式
+    print_banner();
 
     let hostname = matches.value_of("HOSTNAME").unwrap();
     let port = matches.value_of("PORT").unwrap();
     let password = matches.value_of("PASSWORD").unwrap();
 
-    if let Some(matches) = matches.subcommand_matches("run") {
-        let hostname = matches.value_of("HOSTNAME").unwrap();
-        let port = matches.value_of("PORT").unwrap();
-        let password = matches.value_of("PASSWORD").unwrap();
-        let target = matches.value_of("DATABASE").unwrap();
-
-        let command = matches.value_of("COMMAND").unwrap();
-
-        let tc = DoreaClient::connect(
-            (
-                Box::leak(hostname.to_string().into_boxed_str()),
-                port.parse::<u16>().unwrap_or(3450),
-            ),
-            password,
-        )
-        .await;
-
-        let mut tc = match tc {
-            Ok(c) => c,
-            Err(err) => {
-                panic!("{:?}", err);
-            }
-        };
-
-        tc.select(target).await.expect("database select failed!");
-
-        let res = execute(command, &mut tc).await;
-        if res.0 == NetPacketState::ERR {
-            println!("[Error]: {}", res.1);
-        } else {
-            println!("{}", res.1);
-        }
-
-        return;
-    }
-
-    // 获取数据库客户端连接
-    let c = DoreaClient::connect(
-        (
-            Box::leak(hostname.to_string().into_boxed_str()),
-            port.parse::<u16>().unwrap_or(3450),
-        ),
+    let client = DoreaClient::connect(
+        (Box::leak(hostname.to_string().into_boxed_str()), port.parse::<u16>().unwrap_or(3450)),
         password,
-    )
-    .await;
+    ).await;
 
-    let mut c = match c {
-        Ok(c) => c,
-        Err(err) => {
-            panic!("{:?}", err);
+    let mut client = match client {
+        Ok(c) => {
+            println!("  {} Connected to {}:{}\n", "✓".green().bold(), hostname.white().bold(), port.white().bold());
+            c
+        }
+        Err(e) => {
+            print_err(&format!("Connection failed: {:?}", e));
+            exit(1);
         }
     };
 
-    let prompt = format!("{}:{} ~> ", hostname, port);
-    let mut readline = Editor::<()>::new();
+    let prompt = format!("{}:{}→ ", hostname.bright_cyan(), port.bright_cyan());
+    let mut rl = Editor::<()>::new();
 
     loop {
-        let cmd = readline.readline(&prompt);
+        let cmd = rl.readline(&prompt);
         match cmd {
             Ok(cmd) => {
-                if cmd == "exit" {
-                    exit(0)
+                if cmd == "exit" || cmd == "quit" {
+                    println!("\n  {} Bye! 👋\n", "✓".green().bold());
+                    exit(0);
                 }
-                if cmd.is_empty() {
-                    continue;
-                }
+                if cmd.is_empty() { continue; }
+                
+                let _ = rl.add_history_entry(&cmd);
+                let res = execute(&cmd, &mut client).await;
+                let is_docs = cmd.split_whitespace().next().map(|s| s.to_uppercase() == "DOCS").unwrap_or(false);
 
-                let res = execute(&cmd, &mut c).await;
-
-                if cmd.split(' ').collect::<Vec<&str>>()[0].to_uppercase() == "DOCS" {
-                    if res.0 == NetPacketState::OK {
-                        println!("{}", res.1);
-                    } else {
-                        println!("[ERR]: Document load failed.")
-                    }
+                if is_docs && res.0 == NetPacketState::OK {
+                    print_docs(&res.1);
+                } else if res.0 == NetPacketState::ERR {
+                    print_err(&res.1);
                 } else {
-                    println!("[{:?}]: {}", res.0, res.1);
+                    print_ok(&res.1);
                 }
+                println!();
             }
             Err(_) => {
-                std::process::exit(0);
-            } /* exit cli system */
+                println!("\n  {} Bye! 👋\n", "✓".green().bold());
+                exit(0);
+            }
         }
     }
 }
 
-// cli 命令运行
 pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState, String) {
-    // 判断操作类型
-    let mut slice: Vec<&str> = command.split(' ').collect();
-    let operation = slice.remove(0);
+    let mut parts: Vec<&str> = command.split_whitespace().collect();
+    let op = parts.remove(0);
 
-    if operation.to_uppercase() == "GET" {
-        if slice.len() != 1 {
-            return (
-                NetPacketState::ERR,
-                "Incorrect number of parameters".to_string(),
-            );
+    match op.to_uppercase().as_str() {
+        "GET" => {
+            if parts.len() != 1 {
+                return (NetPacketState::ERR, "Usage: GET <key>".into());
+            }
+            match client.get(parts[0]).await {
+                Some(v) => (NetPacketState::OK, v.to_string()),
+                None => (NetPacketState::ERR, "Key not found".into()),
+            }
         }
-
-        return match client.get(slice.first().unwrap()).await {
-            Some(v) => (NetPacketState::OK, v.to_string()),
-            None => (NetPacketState::ERR, "Value not found.".to_string()),
-        };
-    } else if operation.to_uppercase() == "SET" {
-        if slice.len() < 2 {
-            return (
-                NetPacketState::ERR,
-                "Missing command parameters.".to_string(),
-            );
+        "SET" => {
+            if parts.len() < 2 {
+                return (NetPacketState::ERR, "Usage: SET <key> <value>".into());
+            }
+            let key = parts[0];
+            let value = parts[1..].join(" ");
+            match client.setex(key, DataValue::from(&value), 0).await {
+                Ok(_) => (NetPacketState::OK, "".into()),
+                Err(e) => (NetPacketState::ERR, e.to_string()),
+            }
         }
+        "SETEX" => {
+            if parts.len() < 3 {
+                return (NetPacketState::ERR, "Usage: SETEX <key> <value> <expire>".into());
+            }
+            let key = parts[0];
+            let expire = parts.last().unwrap().parse::<usize>().unwrap_or(0);
+            let value = parts[1..parts.len()-1].join(" ");
+            match client.setex(key, DataValue::from(&value), expire).await {
+                Ok(_) => (NetPacketState::OK, "".into()),
+                Err(e) => (NetPacketState::ERR, e.to_string()),
+            }
+        }
+        "BINARY" => {
+            if parts.len() < 2 {
+                return (NetPacketState::ERR, "Usage: BINARY <stringify|tovec|download|upload> <key> ...".into());
+            }
+            let sub = parts[0];
+            let key = parts[1];
 
-        let mut temp = slice.clone();
-
-        let key = temp.remove(0);
-
-        temp.retain(|x| x.trim() != "");
-
-        let value: String = temp.join(" ");
-        let value = DataValue::from(&value);
-
-        return match client.setex(key, value, 0).await {
-            Ok(_) => (NetPacketState::OK, "Successful.".to_string()),
+            match sub.to_uppercase().as_str() {
+                "STRINGIFY" => match client.get(key).await {
+                    Some(DataValue::Binary(bin)) => (NetPacketState::OK, String::from_utf8(bin.read()).unwrap_or_default()),
+                    Some(v) => (NetPacketState::OK, v.to_string()),
+                    None => (NetPacketState::ERR, "Key not found".into()),
+                },
+                "TOVEC" => match client.get(key).await {
+                    Some(DataValue::Binary(bin)) => (NetPacketState::OK, format!("{:?}", bin.read())),
+                    Some(v) => (NetPacketState::OK, v.to_string()),
+                    None => (NetPacketState::ERR, "Key not found".into()),
+                },
+                "DOWNLOAD" => {
+                    if parts.len() != 3 {
+                        return (NetPacketState::ERR, "Usage: BINARY DOWNLOAD <key> <filename>".into());
+                    }
+                    match client.get(key).await {
+                        Some(DataValue::Binary(bin)) => {
+                            let mut path = dirs::download_dir().unwrap();
+                            path.push(parts[2]);
+                            std::fs::File::create(&path).unwrap().write_all(&bin.read()).unwrap();
+                            (NetPacketState::OK, format!("Saved to {:?}", path))
+                        }
+                        Some(v) => (NetPacketState::OK, v.to_string()),
+                        None => (NetPacketState::ERR, "Key not found".into()),
+                    }
+                }
+                "UPLOAD" => {
+                    if parts.len() != 3 {
+                        return (NetPacketState::ERR, "Usage: BINARY UPLOAD <key> <filepath>".into());
+                    }
+                    let path = PathBuf::from(parts[2]);
+                    if !path.is_file() {
+                        return (NetPacketState::ERR, "File not found".into());
+                    }
+                    let mut buf = vec![];
+                    std::fs::File::open(&path).unwrap().read_to_end(&mut buf).unwrap();
+                    match client.setex(key, DataValue::Binary(Binary::build(buf)), 0).await {
+                        Ok(_) => (NetPacketState::OK, "".into()),
+                        Err(_) => (NetPacketState::ERR, "Upload failed".into()),
+                    }
+                }
+                _ => (NetPacketState::ERR, format!("Unknown operation: {}", sub)),
+            }
+        }
+        _ => match client.execute(command).await {
+            Ok(p) => (p.0, String::from_utf8(p.1).unwrap_or_default()),
             Err(e) => (NetPacketState::ERR, e.to_string()),
-        };
-    } else if operation.to_uppercase() == "SETEX" {
-        if slice.len() < 3 {
-            return (
-                NetPacketState::ERR,
-                "Missing command parameters.".to_string(),
-            );
-        }
-
-        let mut temp = slice.clone();
-
-        let key = temp.remove(0);
-
-        let expire = temp.last().unwrap();
-        let expire = match expire.parse::<usize>() {
-            Ok(v) => {
-                temp.remove(temp.len() - 1);
-                v
-            }
-            Err(_) => 0,
-        };
-
-        temp.retain(|x| x.trim() != "");
-
-        let value: String = temp.join(" ");
-        let value = DataValue::from(&value);
-
-        return match client.setex(key, value, expire).await {
-            Ok(_) => (NetPacketState::OK, "Successful.".to_string()),
-            Err(e) => (NetPacketState::ERR, e.to_string()),
-        };
-    } else if operation.to_uppercase() == "BINARY" {
-        // 二进制操作功能
-        // 目前 Dorea 内部没有提供 Binary 原生函数
-        // Cli 专门封装了 Binary 的一些基本用途函数
-        // 二进制转字符串、二进制下载、二进制上传、二进制数组等
-
-        if slice.len() < 2 {
-            return (
-                NetPacketState::ERR,
-                "Missing command parameters.".to_string(),
-            );
-        }
-
-        // 子命令和目标 key
-        let sub = slice.first().unwrap();
-        let key = slice.get(1).unwrap();
-
-        if sub.to_uppercase() == "STRINGIFY" {
-            return match client.get(key).await {
-                Some(v) => {
-                    if let DataValue::Binary(bin) = v {
-                        let bytes = bin.read();
-                        return (
-                            NetPacketState::OK,
-                            String::from_utf8(bytes).unwrap_or_default(),
-                        );
-                    }
-                    return (NetPacketState::OK, v.to_string());
-                }
-                None => (NetPacketState::ERR, "Value not found.".to_string()),
-            };
-        } else if sub.to_uppercase() == "TOVEC" {
-            return match client.get(key).await {
-                Some(v) => {
-                    if let DataValue::Binary(bin) = v {
-                        let bytes = bin.read();
-                        return (NetPacketState::OK, format!("{:?}", bytes));
-                    }
-                    return (NetPacketState::OK, v.to_string());
-                }
-                None => (NetPacketState::ERR, "Value not found.".to_string()),
-            };
-        } else if sub.to_uppercase() == "DOWNLOAD" {
-            if slice.len() != 3 {
-                return (
-                    NetPacketState::ERR,
-                    "Missing command parameters.".to_string(),
-                );
-            }
-
-            let filename = slice.get(2).unwrap();
-
-            return match client.get(key).await {
-                Some(v) => {
-                    if let DataValue::Binary(bin) = v {
-                        let bytes = bin.read();
-
-                        let mut download_dir = dirs::download_dir().unwrap();
-                        download_dir.push(filename);
-
-                        let mut file = std::fs::File::create(&download_dir).unwrap();
-
-                        file.write_all(&bytes[..]).unwrap();
-
-                        return (NetPacketState::OK, format!("{:?}", download_dir));
-                    }
-                    return (NetPacketState::OK, v.to_string());
-                }
-                None => (NetPacketState::ERR, "Value not found.".to_string()),
-            };
-        } else if sub.to_uppercase() == "UPLOAD" {
-            if slice.len() != 3 {
-                return (
-                    NetPacketState::ERR,
-                    "Missing command parameters.".to_string(),
-                );
-            }
-
-            let filename = slice.get(2).unwrap();
-
-            let path = PathBuf::from(filename);
-
-            if !path.is_file() {
-                return (NetPacketState::ERR, "Path not a file.".to_string());
-            }
-
-            let mut file = std::fs::File::open(path).unwrap();
-
-            let mut buf = vec![];
-
-            file.read_to_end(&mut buf).unwrap();
-
-            match client
-                .setex(key, DataValue::Binary(Binary::build(buf.clone())), 0)
-                .await
-            {
-                Ok(_) => return (NetPacketState::OK, "Successful.".to_string()),
-                Err(_) => return (NetPacketState::ERR, "Upload failed.".to_string()),
-            };
-        }
-
-        return (NetPacketState::ERR, "Unknown sub-operation.".to_string());
-    }
-
-    let res = client.execute(command).await;
-    match res {
-        Ok(p) => {
-            let mut message = String::from_utf8(p.1).unwrap_or_default();
-
-            if message.is_empty() {
-                message = "Successful.".to_string();
-            }
-
-            (p.0, message)
-        }
-        Err(err) => (NetPacketState::ERR, err.to_string()),
+        },
     }
 }
