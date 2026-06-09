@@ -7,10 +7,6 @@
 /// - 使用 info() 方法获取服务器信息
 /// - InfoType 枚举的各种选项
 ///
-/// 注意：以下 InfoType 在当前版本服务器端未正确实现：
-/// - CurrentConnectionNumber ('current-connect-num') - 未处理
-/// - PreloadDatabaseList ('preload-db-list') - 未处理
-/// - ServerStartupTime ('server-startup-time') - 返回占位符而非真实时间
 use dorea::client::{DoreaClient, InfoType};
 
 #[tokio::main]
@@ -27,6 +23,10 @@ async fn main() -> anyhow::Result<()> {
     // 当前数据库
     let current_db = db.info(InfoType::CurrentDataBase).await?;
     println!("💾 当前数据库: {}", current_db.trim());
+
+    // 服务器启动时间
+    let server_startup_time = db.info(InfoType::ServerStartupTime).await?;
+    println!("🕛 服务器启动时间：{}", server_startup_time.trim());
 
     // 最大连接数
     // let max_conn = db.info(InfoType::MaxConnectionNumber).await?;
