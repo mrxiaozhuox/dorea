@@ -160,6 +160,37 @@ impl DoreaClient {
         Ok((frame.latest_state, result))
     }
 
+    /// Pipeline: 批量执行多个命令，减少网络往返次数
+    /// 
+    /// # Example
+    /// ```rust
+    /// let commands = vec![
+    ///     "set key1 \"value1\"",
+    ///     "set key2 \"value2\"",
+    ///     "set key3 \"value3\"",
+    /// ];
+    /// let results = client.pipeline(&commands).await?;
+    /// ```
+    pub async fn pipeline(&mut self, commands: &[&str]) -> crate::Result<Vec<(NetPacketState, Vec<u8>)>> {
+        // 1. 连续发送所有命令
+        for command in commands {
+            let command_byte = command.as_bytes().to_vec();
+            NetPacket::make(command_byte, NetPacketState::IGNORE)
+                .send(&mut self.connection)
+                .await?;
+        }
+
+        // 2. 接收所有响应
+        let mut results = Vec::with_capacity(commands.len());
+        for _ in 0..commands.len() {
+            let mut frame = Frame::new();
+            let result = frame.parse_frame(&mut self.connection).await?;
+            results.push((frame.latest_state, result));
+        }
+
+        Ok(results)
+    }
+
     // pub async fn list(&mut self, key:&str) -> Option<CompList> {
     //     let list = self.get(key).await;
     //     if let Err(_) = list { return None; }
