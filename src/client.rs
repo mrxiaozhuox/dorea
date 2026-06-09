@@ -160,6 +160,47 @@ impl DoreaClient {
         Ok((frame.latest_state, result))
     }
 
+    /// Pipeline: 批量执行多个命令，减少网络往返次数
+    /// 
+    /// # Example
+    /// ```no_run
+    /// use dorea::client::DoreaClient;
+    /// 
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let mut client = DoreaClient::connect(("127.0.0.1", 3450), "").await?;
+    /// let commands = vec![
+    ///     "set key1 \"value1\"",
+    ///     "set key2 \"value2\"",
+    ///     "set key3 \"value3\"",
+    /// ];
+    /// let results = client.pipeline(&commands).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn pipeline(&mut self, commands: &[&str]) -> crate::Result<Vec<(NetPacketState, Vec<u8>)>> {
+        use tokio::io::AsyncWriteExt;
+
+        // 1. 先发送 PIPELINE 标记包（body 是命令数量的 u32）
+        let count = commands.len() as u32;
+        let header_packet = NetPacket::make(count.to_be_bytes().to_vec(), NetPacketState::PIPELINE);
+        header_packet.send(&mut self.connection).await?;
+
+        // 2. 发送所有命令
+        let bodies: Vec<Vec<u8>> = commands.iter().map(|c| c.as_bytes().to_vec()).collect();
+        let buffer = NetPacket::serialize_batch(&bodies, NetPacketState::IGNORE);
+        self.connection.write_all(&buffer).await?;
+
+        // 3. 接收所有响应
+        let mut results = Vec::with_capacity(commands.len());
+        for _ in 0..commands.len() {
+            let mut frame = Frame::new();
+            let result = frame.parse_frame(&mut self.connection).await?;
+            results.push((frame.latest_state, result));
+        }
+
+        Ok(results)
+    }
+
     // pub async fn list(&mut self, key:&str) -> Option<CompList> {
     //     let list = self.get(key).await;
     //     if let Err(_) = list { return None; }

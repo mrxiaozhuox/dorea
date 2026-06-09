@@ -2,8 +2,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 // 协议常量
-const MAGIC: [u8; 2] = [0xD0, 0x9A];
-const PROTOCOL_VERSION: u8 = 0x01;
+pub const MAGIC: [u8; 2] = [0xD0, 0x9A];
+pub const PROTOCOL_VERSION: u8 = 0x01;
 const MAX_PAYLOAD_LEN: u32 = 0xFFFFFF; // 16MB
 const HEADER_SIZE: usize = 8;
 
@@ -14,6 +14,7 @@ pub enum NetPacketState {
     ERR = 0x02,
     EMPTY = 0x03,
     NOAUTH = 0x04,
+    PIPELINE = 0x05,  // Pipeline 批量命令标记
 }
 
 impl NetPacketState {
@@ -24,11 +25,12 @@ impl NetPacketState {
             0x02 => Self::ERR,
             0x03 => Self::EMPTY,
             0x04 => Self::NOAUTH,
+            0x05 => Self::PIPELINE,
             _ => Self::EMPTY,
         }
     }
 
-    fn to_u8(self) -> u8 {
+    pub fn to_u8(self) -> u8 {
         self as u8
     }
 }
@@ -53,6 +55,23 @@ impl NetPacket {
             socket.write_all(&self.body).await?;
         }
         Ok(())
+    }
+
+    /// 批量发送多个包，只做一次 write_all 系统调用
+    pub(crate) fn serialize_batch(bodies: &[Vec<u8>], state: NetPacketState) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        for body in bodies {
+            // MAGIC
+            buffer.extend_from_slice(&MAGIC);
+            // VERSION + STATE
+            buffer.push(PROTOCOL_VERSION);
+            buffer.push(state.to_u8());
+            // LENGTH (4 bytes, big endian)
+            buffer.extend_from_slice(&(body.len() as u32).to_be_bytes());
+            // BODY
+            buffer.extend_from_slice(body);
+        }
+        buffer
     }
 }
 
