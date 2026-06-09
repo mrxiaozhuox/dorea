@@ -63,14 +63,19 @@ pub(crate) async fn process(
             }
         }
 
-        // 尝试读取更多请求（非阻塞，用于 pipeline 优化）
+        // 尝试读取更多请求（带超时，用于 pipeline 优化）
         socket.set_nodelay(true)?;
         loop {
-            // 检查是否有更多数据可读
+            // 检查是否有更多数据可读（带 1ms 超时）
             let mut peek_buf = [0u8; 1];
-            match socket.peek(&mut peek_buf).await {
-                Ok(0) => break, // 没有更多数据
-                Ok(_) => {
+            let peek_result = tokio::time::timeout(
+                std::time::Duration::from_millis(1),
+                socket.peek(&mut peek_buf)
+            ).await;
+
+            match peek_result {
+                Ok(Ok(0)) => break, // 没有更多数据
+                Ok(Ok(_)) => {
                     // 有数据，尝试读取一个完整的帧
                     match frame.parse_frame(socket).await {
                         Ok(msg) => {
@@ -82,7 +87,8 @@ pub(crate) async fn process(
                         Err(_) => break, // 读取失败，停止批量读取
                     }
                 }
-                Err(_) => break,
+                Ok(Err(_)) => break,
+                Err(_) => break, // 超时，说明没有更多数据
             }
 
             // 防止无限循环，限制单次批量处理的请求数
