@@ -163,13 +163,19 @@ impl DoreaClient {
     /// Pipeline: 批量执行多个命令，减少网络往返次数
     /// 
     /// # Example
-    /// ```rust
+    /// ```no_run
+    /// use dorea::client::DoreaClient;
+    /// 
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let mut client = DoreaClient::connect(("127.0.0.1", 3450), "").await?;
     /// let commands = vec![
     ///     "set key1 \"value1\"",
     ///     "set key2 \"value2\"",
     ///     "set key3 \"value3\"",
     /// ];
     /// let results = client.pipeline(&commands).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn pipeline(&mut self, commands: &[&str]) -> crate::Result<Vec<(NetPacketState, Vec<u8>)>> {
         use tokio::io::AsyncWriteExt;

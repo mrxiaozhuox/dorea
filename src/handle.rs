@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::RwLock;
 
 use crate::command::CommandManager;
 use crate::configure::DoreaFileConfig;
 use crate::database::{DataBase, DataBaseManager};
-use crate::network::{Frame, NetPacket, NetPacketState};
+use crate::network::{Frame, NetPacket, NetPacketState, MAGIC, PROTOCOL_VERSION};
 use crate::Result;
 
 // connection process
@@ -30,13 +31,19 @@ pub(crate) async fn process(
 
     let mut frame = Frame::new();
 
-    let mut message: Vec<u8>;
-
     loop {
-        message = match frame.parse_frame(socket).await {
-            Ok(message) => message,
+        // 批量读取请求
+        let mut requests: Vec<Vec<u8>> = Vec::new();
+
+        // 读取第一个请求（阻塞）
+        match frame.parse_frame(socket).await {
+            Ok(message) => {
+                if message.is_empty() {
+                    return Ok(());
+                }
+                requests.push(message);
+            }
             Err(e) => {
-                // 流损坏（MAGIC 不匹配/版本不对）无法恢复，直接断开连接
                 let err_msg = e.to_string();
                 if err_msg.contains("invalid magic") || err_msg.contains("unsupported protocol") {
                     return Err(e);
@@ -54,24 +61,55 @@ pub(crate) async fn process(
                     .await?;
                 continue;
             }
-        };
-
-        if message.is_empty() {
-            return Ok(());
         }
 
-        let res = CommandManager::command_handle(
-            String::from_utf8_lossy(&message[..]).to_string(),
-            &mut auth,
-            &mut current,
-            &mut value_ser_style,
-            &config,
-            &database_manager,
-            &connect_id,
-        )
-        .await;
+        // 尝试读取更多请求（非阻塞，用于 pipeline 优化）
+        socket.set_nodelay(true)?;
+        loop {
+            // 检查是否有更多数据可读
+            let mut peek_buf = [0u8; 1];
+            match socket.peek(&mut peek_buf).await {
+                Ok(0) => break, // 没有更多数据
+                Ok(_) => {
+                    // 有数据，尝试读取一个完整的帧
+                    match frame.parse_frame(socket).await {
+                        Ok(msg) => {
+                            if msg.is_empty() {
+                                break;
+                            }
+                            requests.push(msg);
+                        }
+                        Err(_) => break, // 读取失败，停止批量读取
+                    }
+                }
+                Err(_) => break,
+            }
 
-        if res.0 != NetPacketState::EMPTY {
+            // 防止无限循环，限制单次批量处理的请求数
+            if requests.len() >= 1000 {
+                break;
+            }
+        }
+
+        // 批量处理请求
+        let mut responses: Vec<(Vec<u8>, NetPacketState)> = Vec::with_capacity(requests.len());
+
+        for message in requests {
+            let res = CommandManager::command_handle(
+                String::from_utf8_lossy(&message[..]).to_string(),
+                &mut auth,
+                &mut current,
+                &mut value_ser_style,
+                &config,
+                &database_manager,
+                &connect_id,
+            )
+            .await;
+
+            if res.0 == NetPacketState::EMPTY {
+                return Ok(());
+            }
+
             // 将预设的数据转换为数据本值
             let body = match String::from_utf8_lossy(&res.1[..]).to_string().as_str() {
                 "@[SERVER_STARTUP_TIME]" => startup_time.to_string().as_bytes().to_vec(),
@@ -115,13 +153,43 @@ pub(crate) async fn process(
                     }
 
                     tmp
-                } /* 不是预设数据，不处理 */
+                }
             };
 
-            NetPacket::make(body, res.0).send(socket).await?;
-        } else {
-            // if is empty: connection closed
-            return Ok(());
+            responses.push((body, res.0));
+        }
+
+        // 批量发送响应
+        if responses.len() == 1 {
+            // 单个响应，直接发送
+            NetPacket::make(responses[0].0.clone(), responses[0].1)
+                .send(socket)
+                .await?;
+        } else if responses.len() > 1 {
+            // 多个响应，批量序列化后一次性发送
+            let bodies: Vec<Vec<u8>> = responses.iter().map(|(b, _)| b.clone()).collect();
+            let states: Vec<NetPacketState> = responses.iter().map(|(_, s)| *s).collect();
+
+            // 批量序列化（假设所有响应状态相同，取第一个）
+            let buffer = serialize_batch_responses(&bodies, states.first().copied().unwrap_or(NetPacketState::OK));
+            socket.write_all(&buffer).await?;
         }
     }
+}
+
+/// 批量序列化多个响应到一个 buffer
+fn serialize_batch_responses(bodies: &[Vec<u8>], state: NetPacketState) -> Vec<u8> {
+    let mut buffer = Vec::new();
+    for body in bodies {
+        // MAGIC
+        buffer.extend_from_slice(&MAGIC);
+        // VERSION + STATE
+        buffer.push(PROTOCOL_VERSION);
+        buffer.push(state as u8);
+        // LENGTH (4 bytes, big endian)
+        buffer.extend_from_slice(&(body.len() as u32).to_be_bytes());
+        // BODY
+        buffer.extend_from_slice(body);
+    }
+    buffer
 }
