@@ -66,10 +66,10 @@ pub(crate) async fn process(
         // 尝试读取更多请求（带超时，用于 pipeline 优化）
         socket.set_nodelay(true)?;
         loop {
-            // 检查是否有更多数据可读（带 1ms 超时）
+            // 检查是否有更多数据可读（带极短超时，避免阻塞普通请求）
             let mut peek_buf = [0u8; 1];
             let peek_result = tokio::time::timeout(
-                std::time::Duration::from_millis(1),
+                std::time::Duration::from_micros(100),  // 100微秒，几乎不影响普通请求
                 socket.peek(&mut peek_buf)
             ).await;
 
