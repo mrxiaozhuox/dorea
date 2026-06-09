@@ -28,7 +28,7 @@ impl NetPacketState {
         }
     }
 
-    fn to_u8(self) -> u8 {
+    pub fn to_u8(self) -> u8 {
         self as u8
     }
 }

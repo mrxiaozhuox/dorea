@@ -173,25 +173,21 @@ pub(crate) async fn process(
                 .await?;
         } else if responses.len() > 1 {
             // 多个响应，批量序列化后一次性发送
-            let bodies: Vec<Vec<u8>> = responses.iter().map(|(b, _)| b.clone()).collect();
-            let states: Vec<NetPacketState> = responses.iter().map(|(_, s)| *s).collect();
-
-            // 批量序列化（假设所有响应状态相同，取第一个）
-            let buffer = serialize_batch_responses(&bodies, states.first().copied().unwrap_or(NetPacketState::OK));
+            let buffer = serialize_batch_responses(&responses);
             socket.write_all(&buffer).await?;
         }
     }
 }
 
 /// 批量序列化多个响应到一个 buffer
-fn serialize_batch_responses(bodies: &[Vec<u8>], state: NetPacketState) -> Vec<u8> {
+fn serialize_batch_responses(responses: &[(Vec<u8>, NetPacketState)]) -> Vec<u8> {
     let mut buffer = Vec::new();
-    for body in bodies {
+    for (body, state) in responses {
         // MAGIC
         buffer.extend_from_slice(&MAGIC);
         // VERSION + STATE
         buffer.push(PROTOCOL_VERSION);
-        buffer.push(state as u8);
+        buffer.push(state.to_u8());
         // LENGTH (4 bytes, big endian)
         buffer.extend_from_slice(&(body.len() as u32).to_be_bytes());
         // BODY
