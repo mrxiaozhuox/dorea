@@ -30,11 +30,8 @@ async fn main() -> anyhow::Result<()> {
 
     for i in 1..=TOTAL_RECORDS {
         let cmd = format!("set key_{} \"value_{}\"", i, i);
-        match db.execute(&cmd).await {
-            Ok((state, _)) if state == dorea::network::NetPacketState::OK => {
-                success += 1;
-            }
-            _ => {}
+        if let Ok((dorea::network::NetPacketState::OK, _)) = db.execute(&cmd).await {
+            success += 1;
         }
     }
 
@@ -57,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
     // 分批处理
     for batch_start in (1..=TOTAL_RECORDS).step_by(BATCH_SIZE) {
         let batch_end = (batch_start + BATCH_SIZE - 1).min(TOTAL_RECORDS);
-        
+
         // 构建这一批的命令
         let commands: Vec<String> = (batch_start..=batch_end)
             .map(|i| format!("set key_{} \"value_{}\"", i, i))
