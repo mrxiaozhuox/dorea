@@ -34,15 +34,21 @@ fn parse_command_args(input: &str) -> Vec<String> {
             // 转义字符：只处理 \" 和 \\
             if let Some(&next) = chars.peek() {
                 if next == '"' || next == '\\' {
+                    // 添加转义后的字符，并标记这是转义引号
+                    current.push('\\');
                     current.push(chars.next().unwrap());
                     continue;
                 }
             }
             current.push(ch);
         } else if ch == '"' {
-            // 保留所有引号，让 DataValue::from() 自己处理
+            // 检查这个引号是否是转义引号的一部分
+            // 如果 current 以 \" 结尾，说明这是被转义的引号，只添加不切换状态
+            let is_escaped = current.ends_with('\\');
             current.push(ch);
-            in_quotes = !in_quotes;
+            if !is_escaped {
+                in_quotes = !in_quotes;
+            }
         } else if ch == ' ' && !in_quotes && bracket_depth == 0 {
             // 只有在引号外且括号外才分割
             if !current.is_empty() || was_quoted {
@@ -1545,20 +1551,23 @@ mod tests {
         assert_eq!(args, vec!["SET", "key", "\"\""]);
     }
 
-    /// 测试转义字符（引号保留，转义序列被处理）
+    /// 测试转义字符（转义序列保留，由 DataValue::from 处理）
     #[test]
     fn test_parse_escaped_chars() {
-        // 转义引号，引号保留，转义序列被处理
+        // 转义引号：`"say \"hello\""` 保留转义序列
+        // 输入是 SET key "say \"hello\""
         let args = parse_command_args("SET key \"say \\\"hello\\\"\"");
-        assert_eq!(args, vec!["SET", "key", "\"say \"hello\"\""]);
+        // 转义引号保留为 \"
+        assert_eq!(args, vec!["SET", "key", "\"say \\\"hello\\\"\""]);
 
-        // 转义反斜杠
+        // 转义反斜杠：`"path\\to\\file"` 保留转义序列
         let args = parse_command_args("SET key \"path\\\\to\\\\file\"");
-        assert_eq!(args, vec!["SET", "key", "\"path\\to\\file\""]);
+        // 转义反斜杠保留为 \\
+        assert_eq!(args, vec!["SET", "key", "\"path\\\\to\\\\file\""]);
 
-        // 混合转义
+        // 混合转义：`"a\"b\\c"` 保留转义序列
         let args = parse_command_args("SET key \"a\\\"b\\\\c\"");
-        assert_eq!(args, vec!["SET", "key", "\"a\"b\\c\""]);
+        assert_eq!(args, vec!["SET", "key", "\"a\\\"b\\\\c\""]);
     }
 
     /// 测试 Dict（字典）格式
@@ -1883,5 +1892,103 @@ mod tests {
         // ===== 混合 =====
         let v = DataValue::from("\"中文日本語한국어English\"");
         assert!(v != DataValue::None, "Mixed languages should parse");
+    }
+
+    /// 测试 doson 解析带转义引号的字符串
+    #[test]
+    fn test_doson_escaped_quotes() {
+        // 普通引号字符串
+        let v = DataValue::from("\"hello\"");
+        assert!(v != DataValue::None, "Simple quoted string should parse");
+        
+        // 带转义引号的字符串：`"\"1231321231\""`
+        // 这是从命令 `set baz "\"1231321231\""` 解析出来的值
+        let v = DataValue::from("\"\\\"1231321231\\\"\"");
+        println!("Escaped quotes result: {:?}", v);
+        assert!(v != DataValue::None, "Escaped quotes string should parse");
+        assert!(v != DataValue::String("".to_string()), "Should not be empty string");
+        
+        // 中间带转义引号：`"hello \"world\""`
+        let v = DataValue::from("\"hello \\\"world\\\"\"");
+        println!("Middle escaped quotes result: {:?}", v);
+        assert!(v != DataValue::None, "Middle escaped quotes should parse");
+    }
+
+    /// 测试完整命令解析流程：set baz "\"1231321231\""
+    #[test]
+    fn test_full_command_escaped_quotes() {
+        // 模拟用户输入：set baz "\"1231321231\""
+        // 注意：在 Rust 字符串中，\" 表示一个双引号，\\" 表示一个反斜杠后跟双引号
+        let input = r#"set baz "\"1231321231\"""#;
+        println!("Input: {}", input);
+        
+        let args = parse_command_args(input);
+        println!("Parsed args: {:?}", args);
+        
+        assert_eq!(args.len(), 3, "Should have 3 arguments");
+        assert_eq!(args[0], "set");
+        assert_eq!(args[1], "baz");
+        
+        // args[2] 应该是带引号的字符串值
+        let value_str = &args[2];
+        println!("Value string: {}", value_str);
+        
+        // 解析为 DataValue
+        let data_value = DataValue::from(value_str.as_str());
+        println!("DataValue: {:?}", data_value);
+        
+        assert!(data_value != DataValue::None, "Value should parse successfully");
+        
+        // 检查值不是空字符串
+        if let DataValue::String(s) = &data_value {
+            println!("String value: {}", s);
+            assert!(!s.is_empty(), "String should not be empty");
+        }
+    }
+
+    /// 测试不同的引号输入格式
+    #[test]
+    fn test_quote_formats() {
+        // 格式 1: 用户在终端输入 set baz "\"123\""
+        // bash 会把 "\"123\"" 解析为 "123"（双引号内的转义引号）
+        // 所以 CLI 收到的是: set baz "123"
+        // 这是我们期望的行为
+        let input1 = r#"set baz "123""#;
+        let args1 = parse_command_args(input1);
+        println!("Format 1: {} -> {:?}", input1, args1);
+        let v1 = DataValue::from(args1[2].as_str());
+        println!("DataValue 1: {:?}", v1);
+
+        // 格式 2: 如果用户想存储带引号的字符串，应该怎么输入？
+        // 用户想存储的值是: "123" (包含引号)
+        // 在 bash 中输入: set baz '"123"'
+        // 或者: set baz "\"123\""
+        // 但 bash 会先解析引号...
+        
+        // 假设服务器直接收到的原始字符串是：
+        // 用户输入 set baz "\"123\"" 后，经过 bash 解析，CLI 收到 set baz "123"
+        // CLI 用 split_whitespace 分割后 ["set", "baz", "\"123\""]
+        // 然后 join 成 "baz \"123\""，最终发送 "set baz \"123\""
+        // 服务器 parse_command_args 解析...
+        
+        // 让我们测试这个场景
+        let input2 = r#"set baz "123""#;  // 这是 CLI 发送给服务器的格式
+        let args2 = parse_command_args(input2);
+        println!("Format 2 (CLI -> Server): {} -> {:?}", input2, args2);
+        let v2 = DataValue::from(args2[2].as_str());
+        println!("DataValue 2: {:?}", v2);
+        
+        // 如果用户想存储 "123"（带引号的字符串），需要用嵌套引号
+        // 在 doson 格式中，字符串值用引号包裹
+        // 用户想存储的值: "123"
+        // doson 格式: "\"123\""
+        // CLI 发送给服务器: set baz "\"123\""
+        // 但 parse_command_args 会如何处理这个？
+        
+        let input3 = r#"set baz "\"123\"""#;
+        let args3 = parse_command_args(input3);
+        println!("Format 3 (nested quotes): {} -> {:?}", input3, args3);
+        let v3 = DataValue::from(args3[2].as_str());
+        println!("DataValue 3: {:?}", v3);
     }
 }
