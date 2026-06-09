@@ -172,15 +172,16 @@ impl DoreaClient {
     /// let results = client.pipeline(&commands).await?;
     /// ```
     pub async fn pipeline(&mut self, commands: &[&str]) -> crate::Result<Vec<(NetPacketState, Vec<u8>)>> {
-        // 1. 连续发送所有命令
-        for command in commands {
-            let command_byte = command.as_bytes().to_vec();
-            NetPacket::make(command_byte, NetPacketState::IGNORE)
-                .send(&mut self.connection)
-                .await?;
-        }
+        use tokio::io::AsyncWriteExt;
 
-        // 2. 接收所有响应
+        // 1. 序列化所有命令到一个 buffer
+        let bodies: Vec<Vec<u8>> = commands.iter().map(|c| c.as_bytes().to_vec()).collect();
+        let buffer = NetPacket::serialize_batch(&bodies, NetPacketState::IGNORE);
+
+        // 2. 一次性发送所有命令
+        self.connection.write_all(&buffer).await?;
+
+        // 3. 接收所有响应
         let mut results = Vec::with_capacity(commands.len());
         for _ in 0..commands.len() {
             let mut frame = Frame::new();

@@ -54,6 +54,23 @@ impl NetPacket {
         }
         Ok(())
     }
+
+    /// 批量发送多个包，只做一次 write_all 系统调用
+    pub(crate) fn serialize_batch(bodies: &[Vec<u8>], state: NetPacketState) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        for body in bodies {
+            // MAGIC
+            buffer.extend_from_slice(&MAGIC);
+            // VERSION + STATE
+            buffer.push(PROTOCOL_VERSION);
+            buffer.push(state.to_u8());
+            // LENGTH (4 bytes, big endian)
+            buffer.extend_from_slice(&(body.len() as u32).to_be_bytes());
+            // BODY
+            buffer.extend_from_slice(body);
+        }
+        buffer
+    }
 }
 
 pub struct Frame {
