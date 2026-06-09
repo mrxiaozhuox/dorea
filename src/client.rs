@@ -180,11 +180,14 @@ impl DoreaClient {
     pub async fn pipeline(&mut self, commands: &[&str]) -> crate::Result<Vec<(NetPacketState, Vec<u8>)>> {
         use tokio::io::AsyncWriteExt;
 
-        // 1. 序列化所有命令到一个 buffer
+        // 1. 先发送 PIPELINE 标记包（body 是命令数量的 u32）
+        let count = commands.len() as u32;
+        let header_packet = NetPacket::make(count.to_be_bytes().to_vec(), NetPacketState::PIPELINE);
+        header_packet.send(&mut self.connection).await?;
+
+        // 2. 发送所有命令
         let bodies: Vec<Vec<u8>> = commands.iter().map(|c| c.as_bytes().to_vec()).collect();
         let buffer = NetPacket::serialize_batch(&bodies, NetPacketState::IGNORE);
-
-        // 2. 一次性发送所有命令
         self.connection.write_all(&buffer).await?;
 
         // 3. 接收所有响应

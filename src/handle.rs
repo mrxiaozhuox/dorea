@@ -32,17 +32,9 @@ pub(crate) async fn process(
     let mut frame = Frame::new();
 
     loop {
-        // 批量读取请求
-        let mut requests: Vec<Vec<u8>> = Vec::new();
-
-        // 读取第一个请求（阻塞）
-        match frame.parse_frame(socket).await {
-            Ok(message) => {
-                if message.is_empty() {
-                    return Ok(());
-                }
-                requests.push(message);
-            }
+        // 读取请求
+        let message = match frame.parse_frame(socket).await {
+            Ok(message) => message,
             Err(e) => {
                 let err_msg = e.to_string();
                 if err_msg.contains("invalid magic") || err_msg.contains("unsupported protocol") {
@@ -61,46 +53,55 @@ pub(crate) async fn process(
                     .await?;
                 continue;
             }
+        };
+
+        if message.is_empty() {
+            return Ok(());
         }
 
-        // 尝试读取更多请求（带超时，用于 pipeline 优化）
-        socket.set_nodelay(true)?;
-        loop {
-            // 检查是否有更多数据可读（带极短超时，避免阻塞普通请求）
-            let mut peek_buf = [0u8; 1];
-            let peek_result = tokio::time::timeout(
-                std::time::Duration::from_micros(100),  // 100微秒，几乎不影响普通请求
-                socket.peek(&mut peek_buf)
+        // 检查是否是 Pipeline 模式
+        if frame.latest_state == NetPacketState::PIPELINE {
+            // Pipeline 模式：body 是命令数量 (u32)
+            let count = u32::from_be_bytes([
+                message.get(0).copied().unwrap_or(0),
+                message.get(1).copied().unwrap_or(0),
+                message.get(2).copied().unwrap_or(0),
+                message.get(3).copied().unwrap_or(0),
+            ]) as usize;
+
+            let count = count.min(10000); // 限制最大数量
+
+            // 批量读取所有命令
+            let mut requests: Vec<Vec<u8>> = Vec::with_capacity(count);
+            for _ in 0..count {
+                match frame.parse_frame(socket).await {
+                    Ok(msg) => {
+                        if msg.is_empty() {
+                            break;
+                        }
+                        requests.push(msg);
+                    }
+                    Err(_) => break,
+                }
+            }
+
+            // 批量处理
+            let responses = process_batch(
+                &requests,
+                &mut auth,
+                &mut current,
+                &mut value_ser_style,
+                &config,
+                &database_manager,
+                &connect_id,
+                startup_time,
             ).await;
 
-            match peek_result {
-                Ok(Ok(0)) => break, // 没有更多数据
-                Ok(Ok(_)) => {
-                    // 有数据，尝试读取一个完整的帧
-                    match frame.parse_frame(socket).await {
-                        Ok(msg) => {
-                            if msg.is_empty() {
-                                break;
-                            }
-                            requests.push(msg);
-                        }
-                        Err(_) => break, // 读取失败，停止批量读取
-                    }
-                }
-                Ok(Err(_)) => break,
-                Err(_) => break, // 超时，说明没有更多数据
-            }
-
-            // 防止无限循环，限制单次批量处理的请求数
-            if requests.len() >= 1000 {
-                break;
-            }
-        }
-
-        // 批量处理请求
-        let mut responses: Vec<(Vec<u8>, NetPacketState)> = Vec::with_capacity(requests.len());
-
-        for message in requests {
+            // 批量发送响应
+            let buffer = serialize_batch_responses(&responses);
+            socket.write_all(&buffer).await?;
+        } else {
+            // 普通模式：处理单个请求
             let res = CommandManager::command_handle(
                 String::from_utf8_lossy(&message[..]).to_string(),
                 &mut auth,
@@ -117,65 +118,92 @@ pub(crate) async fn process(
             }
 
             // 将预设的数据转换为数据本值
-            let body = match String::from_utf8_lossy(&res.1[..]).to_string().as_str() {
-                "@[SERVER_STARTUP_TIME]" => startup_time.to_string().as_bytes().to_vec(),
-                _ => {
-                    let mut tmp = res.1.clone();
+            let body = process_response_body(&res.1, startup_time, &database_manager, &config).await;
 
-                    let val = String::from_utf8_lossy(&res.1[..]).to_string();
-                    if val.len() > 14 && &val[0..14] == "@[PRELOAD_DB]:" {
-                        let db_name = String::from(&val[14..]);
-                        let tmp_db_manager = database_manager.clone();
-                        let db_config = config.database.clone();
-                        tokio::spawn(async move {
-                            crate::database::DB_STATE
-                                .lock()
-                                .await
-                                .insert(db_name.clone(), crate::database::DataBaseState::LOADING);
+            NetPacket::make(body, res.0).send(socket).await?;
+        }
+    }
+}
 
-                            let storage_path =
-                                tmp_db_manager.location.clone().join("storage");
+/// 批量处理请求
+async fn process_batch(
+    requests: &[Vec<u8>],
+    auth: &mut bool,
+    current: &mut String,
+    value_ser_style: &mut String,
+    config: &DoreaFileConfig,
+    database_manager: &Arc<DataBaseManager>,
+    connect_id: &uuid::Uuid,
+    startup_time: i64,
+) -> Vec<(Vec<u8>, NetPacketState)> {
+    let mut responses = Vec::with_capacity(requests.len());
 
-                            let ndb = DataBase::init(
-                                db_name.to_string(),
-                                storage_path,
-                                db_config,
-                            )
-                            .await;
+    for message in requests {
+        let res = CommandManager::command_handle(
+            String::from_utf8_lossy(&message[..]).to_string(),
+            auth,
+            current,
+            value_ser_style,
+            config,
+            database_manager,
+            connect_id,
+        )
+        .await;
 
-                            match tmp_db_manager.load_from(&db_name, Arc::new(RwLock::new(ndb))).await {
-                                Ok(_) => {
-                                    crate::database::DB_STATE.lock().await.insert(
-                                        db_name.clone(),
-                                        crate::database::DataBaseState::NORMAL,
-                                    );
-                                }
-                                Err(e) => {
-                                    log::error!("database load error: {}", e.to_string())
-                                }
-                            };
-                        });
-                        tmp = vec![];
+        if res.0 == NetPacketState::EMPTY {
+            continue;
+        }
+
+        let body = process_response_body(&res.1, startup_time, database_manager, config).await;
+        responses.push((body, res.0));
+    }
+
+    responses
+}
+
+/// 处理响应 body（处理预设数据）
+async fn process_response_body(
+    res_body: &[u8],
+    startup_time: i64,
+    database_manager: &Arc<DataBaseManager>,
+    config: &DoreaFileConfig,
+) -> Vec<u8> {
+    match String::from_utf8_lossy(res_body).to_string().as_str() {
+        "@[SERVER_STARTUP_TIME]" => startup_time.to_string().as_bytes().to_vec(),
+        val if val.len() > 14 && &val[0..14] == "@[PRELOAD_DB]:" => {
+            let db_name = String::from(&val[14..]);
+            let tmp_db_manager = database_manager.clone();
+            let db_config = config.database.clone();
+            tokio::spawn(async move {
+                crate::database::DB_STATE
+                    .lock()
+                    .await
+                    .insert(db_name.clone(), crate::database::DataBaseState::LOADING);
+
+                let storage_path = tmp_db_manager.location.clone().join("storage");
+
+                let ndb = DataBase::init(
+                    db_name.to_string(),
+                    storage_path,
+                    db_config,
+                )
+                .await;
+
+                match tmp_db_manager.load_from(&db_name, Arc::new(RwLock::new(ndb))).await {
+                    Ok(_) => {
+                        crate::database::DB_STATE.lock().await.insert(
+                            db_name.clone(),
+                            crate::database::DataBaseState::NORMAL,
+                        );
                     }
-
-                    tmp
-                }
-            };
-
-            responses.push((body, res.0));
+                    Err(e) => {
+                        log::error!("database load error: {}", e.to_string())
+                    }
+                };
+            });
+            vec![]
         }
-
-        // 批量发送响应
-        if responses.len() == 1 {
-            // 单个响应，直接发送
-            NetPacket::make(responses[0].0.clone(), responses[0].1)
-                .send(socket)
-                .await?;
-        } else if responses.len() > 1 {
-            // 多个响应，批量序列化后一次性发送
-            let buffer = serialize_batch_responses(&responses);
-            socket.write_all(&buffer).await?;
-        }
+        _ => res_body.to_vec(),
     }
 }
 

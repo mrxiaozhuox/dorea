@@ -14,6 +14,7 @@ pub enum NetPacketState {
     ERR = 0x02,
     EMPTY = 0x03,
     NOAUTH = 0x04,
+    PIPELINE = 0x05,  // Pipeline 批量命令标记
 }
 
 impl NetPacketState {
@@ -24,6 +25,7 @@ impl NetPacketState {
             0x02 => Self::ERR,
             0x03 => Self::EMPTY,
             0x04 => Self::NOAUTH,
+            0x05 => Self::PIPELINE,
             _ => Self::EMPTY,
         }
     }
