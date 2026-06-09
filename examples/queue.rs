@@ -23,14 +23,14 @@ async fn main() -> anyhow::Result<()> {
 
     // 生产者：添加任务到队列（使用 EDIT push 在末尾添加）
     println!("\n📤 生产者: 添加任务到队列...");
-    let tasks = vec![
+    let tasks = [
         r#"{"task":"send_email","to":"user@example.com"}"#,
         r#"{"task":"generate_report","type":"monthly"}"#,
         r#"{"task":"cleanup_logs","older_than":"7d"}"#,
     ];
 
     for (i, task) in tasks.iter().enumerate() {
-        db.execute(&format!("edit @task_queue push \"{}\"", task))
+        db.execute(&format!("edit @task_queue push {}", task))
             .await?;
         println!("   任务 #{}: {}", i + 1, task);
     }

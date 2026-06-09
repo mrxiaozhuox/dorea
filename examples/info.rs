@@ -29,8 +29,8 @@ async fn main() -> anyhow::Result<()> {
     println!("💾 当前数据库: {}", current_db.trim());
 
     // 最大连接数
-    let max_conn = db.info(InfoType::MaxConnectionNumber).await?;
-    println!("🔗 最大连接数: {}", max_conn.trim());
+    // let max_conn = db.info(InfoType::MaxConnectionNumber).await?;
+    // println!("🔗 最大连接数: {}", max_conn.trim());
 
     // 索引信息
     let index_info = db.info(InfoType::TotalIndexNumber).await?;
