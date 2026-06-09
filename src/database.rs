@@ -483,10 +483,38 @@ impl DataNode {
     }
 }
 
-#[derive(Debug, Clone)]
+/// 缓存的文件写入器，避免每次写入都打开文件
+struct DataFileWriter {
+    file: tokio::fs::File,
+    /// 当前写入位置，避免每次调用 metadata()
+    write_position: u64,
+}
+
+impl std::fmt::Debug for DataFileWriter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DataFileWriter")
+            .field("write_position", &self.write_position)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug)]
 struct DataFile {
     root: PathBuf,
     name: String,
+    /// 缓存的文件句柄和写入位置
+    writer: Option<DataFileWriter>,
+}
+
+impl Clone for DataFile {
+    fn clone(&self) -> Self {
+        // Clone 时不复制文件句柄，让新实例自己打开
+        Self {
+            root: self.root.clone(),
+            name: self.name.clone(),
+            writer: None,
+        }
+    }
 }
 
 impl DataFile {
@@ -494,6 +522,7 @@ impl DataFile {
         let mut db = Self {
             root: root.to_path_buf(),
             name,
+            writer: None,
         };
 
         db.init_db().unwrap();
@@ -713,30 +742,47 @@ impl DataFile {
     }
 
     pub async fn write(
-        &self,
+        &mut self,
         data: DataNode,
         index: &mut HashMap<String, IndexInfo>,
     ) -> Result<()> {
-        self.check_file().await?;
+        // 检查并处理 archive（如果需要）
+        if self.check_and_archive().await? {
+            // archive 后需要重新打开文件
+            self.writer = None;
+        }
 
-        let file = self.root.join("active.db");
+        let file_path = self.root.join("active.db");
 
+        // 准备数据
         let mut v = serde_json::to_vec(&data).expect("serialize failed");
-
         v.push(13);
         v.push(10);
 
-        let mut f = tokio::fs::OpenOptions::new()
-            .append(true)
-            .open(&file)
-            .await?;
+        // 获取或创建 writer
+        let writer = if let Some(ref mut w) = self.writer {
+            w
+        } else {
+            // 首次写入：打开文件并获取当前位置
+            let f = tokio::fs::OpenOptions::new()
+                .append(true)
+                .open(&file_path)
+                .await?;
+            let pos = f.metadata().await?.len();
+            self.writer = Some(DataFileWriter {
+                file: f,
+                write_position: pos,
+            });
+            self.writer.as_mut().unwrap()
+        };
 
-        let start_position = f.metadata().await?.len();
+        let start_position = writer.write_position;
 
-        f.write_all(&v[..]).await?;
+        // 写入数据
+        writer.file.write_all(&v[..]).await?;
+        writer.write_position += v.len() as u64;
 
-        let end_position: u64 = start_position + v.len() as u64;
-        let end_position: u64 = end_position - 2;
+        let end_position: u64 = start_position + v.len() as u64 - 2;
 
         let index_info = IndexInfo {
             file_id: self.get_file_id(),
@@ -797,6 +843,33 @@ impl DataFile {
         };
 
         Some(v)
+    }
+
+    /// 检查文件是否需要 archive，如果需要则执行
+    /// 返回 true 表示执行了 archive
+    async fn check_and_archive(&mut self) -> crate::Result<bool> {
+        let file = self.root.join("active.db");
+
+        if !file.is_file() {
+            self.active()?;
+            return Ok(false);
+        }
+
+        // 使用缓存的 write_position 或获取文件大小
+        let size = if let Some(ref writer) = self.writer {
+            writer.write_position
+        } else {
+            tokio::fs::metadata(&file).await?.len()
+        };
+
+        if size >= (1024 * 1024 * 64) {
+            // archive 前先关闭文件句柄
+            self.writer = None;
+            self.archive()?;
+            return Ok(true);
+        }
+
+        Ok(false)
     }
 
     pub async fn check_file(&self) -> crate::Result<()> {
