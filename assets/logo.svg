@@ -1,0 +1,8 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 正方形圆角边框 -->
+  <rect x="32" y="32" width="448" height="448" stroke="#4A9EFF" stroke-width="10" fill="none" rx="40"/>
+  <!-- 粗体 D -->
+  <text x="256" y="340" font-family="Inter, -apple-system, sans-serif" font-size="280" font-weight="600" fill="#4A9EFF" text-anchor="middle">D</text>
+  <!-- 底部装饰线 -->
+  <path d="M100 392 L412 392" stroke="#4A9EFF" stroke-width="10" stroke-linecap="round"/>
+</svg>
