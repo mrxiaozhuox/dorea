@@ -862,8 +862,7 @@ pub async fn execute(command: &str, client: &mut DoreaClient) -> (NetPacketState
             // 直接发送原始命令给服务器，不分割重组，保留引号结构
             match client.execute(command).await {
                 Ok((state, data)) => {
-                    let result = String::from_utf8_lossy(&data).to_string();
-                    (state, result)
+                    (state, String::from_utf8_lossy(&data).to_string())
                 }
                 Err(e) => (NetPacketState::ERR, e.to_string()),
             }
