@@ -18,8 +18,9 @@ use crate::{
 /// 带引号支持的命令参数解析
 /// 规则：
 /// - 空格分隔参数
-/// - 双引号内的空格不分割：`"hello world"` → 一个参数 `hello world`
-/// - 双引号可用 `\"` 转义
+/// - 双引号内的空格不分割：`"hello world"` → 一个参数 `"hello world"`
+/// - 双引号可用 `\"` 转义（跳过引号，不当作结束符）
+/// - 引号原样保留，让 DataValue::from() 处理值解析
 /// - 未闭合引号则到末尾视为一个参数
 fn parse_command_args(input: &str) -> Vec<String> {
     let mut args = Vec::new();
@@ -31,12 +32,12 @@ fn parse_command_args(input: &str) -> Vec<String> {
 
     while let Some(ch) = chars.next() {
         if ch == '\\' && in_quotes {
-            // 转义字符：只处理 \" 和 \\
-            if let Some(&next) = chars.peek() {
-                if next == '"' || next == '\\' {
-                    current.push(chars.next().unwrap());
-                    continue;
-                }
+            // 转义字符：跳过下一个字符（不解析其特殊含义）
+            if let Some(&_next) = chars.peek() {
+                // 只是跳过，不做转换，原样保留
+                current.push(ch);
+                current.push(chars.next().unwrap());
+                continue;
             }
             current.push(ch);
         } else if ch == '"' {
@@ -1545,20 +1546,20 @@ mod tests {
         assert_eq!(args, vec!["SET", "key", "\"\""]);
     }
 
-    /// 测试转义字符（引号保留，转义序列被处理）
+    /// 测试转义字符（引号保留，转义序列原样保留给 doson 处理）
     #[test]
     fn test_parse_escaped_chars() {
-        // 转义引号，引号保留，转义序列被处理
+        // 转义引号，引号和转义序列都保留，让 DataValue::from 处理
         let args = parse_command_args("SET key \"say \\\"hello\\\"\"");
-        assert_eq!(args, vec!["SET", "key", "\"say \"hello\"\""]);
+        assert_eq!(args, vec!["SET", "key", "\"say \\\"hello\\\"\""]);
 
-        // 转义反斜杠
+        // 转义反斜杠 - 原样保留
         let args = parse_command_args("SET key \"path\\\\to\\\\file\"");
-        assert_eq!(args, vec!["SET", "key", "\"path\\to\\file\""]);
+        assert_eq!(args, vec!["SET", "key", "\"path\\\\to\\\\file\""]);
 
-        // 混合转义
+        // 混合转义 - 原样保留
         let args = parse_command_args("SET key \"a\\\"b\\\\c\"");
-        assert_eq!(args, vec!["SET", "key", "\"a\"b\\c\""]);
+        assert_eq!(args, vec!["SET", "key", "\"a\\\"b\\\\c\""]);
     }
 
     /// 测试 Dict（字典）格式
