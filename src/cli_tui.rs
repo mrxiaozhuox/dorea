@@ -462,19 +462,28 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
     match client.execute(&command).await {
         Ok((state, data)) if state == NetPacketState::OK => {
             let raw_value = String::from_utf8_lossy(&data).to_string();
+            
+            // 检查是否为空或 key 不存在
+            if raw_value.is_empty() {
+                app.current_value = Some("(key not found)".to_string());
+                app.current_value_raw = None;
+                app.current_value_type = None;
+                return;
+            }
+            
             let value_type = infer_value_type(&raw_value);
             
             // 格式化值（Tree 模式）
             let formatted_value = format_value(&raw_value, &value_type);
             
-            app.current_value_raw = Some(raw_value);
+            app.current_value_raw = Some(raw_value.clone());
             app.current_value = Some(formatted_value);
             app.current_value_type = Some(value_type.clone());
             
             // 更新键列表中的类型
             if let Some(key_info) = app.keys.iter_mut().find(|k| k.key == key) {
                 key_info.key_type = value_type;
-                key_info.size = format!("{}B", app.current_value_raw.as_ref().unwrap().len());
+                key_info.size = format!("{}B", raw_value.len());
             }
         }
         _ => {
