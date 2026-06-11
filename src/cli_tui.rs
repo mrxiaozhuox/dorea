@@ -417,9 +417,9 @@ async fn load_keys(app: &mut App, client: &mut DoreaClient) {
             
             app.status_message = format!("Loaded {} keys", app.keys.len());
             
-            // 加载第一个键的值 - 先 clone key 避免借用冲突
-            let first_key = app.keys.first().map(|k| k.key.clone());
-            if let Some(key) = first_key {
+            // 加载当前选中键的值 - 先 clone key 避免借用冲突
+            let selected_key = app.keys.get(app.selected_key).map(|k| k.key.clone());
+            if let Some(key) = selected_key {
                 load_key_value(app, client, &key).await;
             }
         }
@@ -494,18 +494,115 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
     }
 }
 
-/// 格式化值（Tree 模式）
+/// 格式化值（Tree 模式）- 真正的树形结构
 fn format_value(value: &str, value_type: &str) -> String {
     match value_type {
-        "Dict" | "List" => {
-            // 尝试 JSON 格式化
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(value) {
-                serde_json::to_string_pretty(&json).unwrap_or_else(|_| value.to_string())
+        "Dict" => format_dict_tree(value),
+        "List" => format_list_tree(value),
+        _ => value.to_string(),
+    }
+}
+
+/// 格式化 Dict 为树形结构
+fn format_dict_tree(value: &str) -> String {
+    // 尝试解析为 JSON
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(value) {
+        if let serde_json::Value::Object(map) = json {
+            let mut result = String::new();
+            let keys: Vec<_> = map.keys().collect();
+            
+            for (i, key) in keys.iter().enumerate() {
+                let is_last = i == keys.len() - 1;
+                let prefix = if is_last { "└── " } else { "├── " };
+                
+                if let Some(val) = map.get(*key) {
+                    result.push_str(&format!("{}{}: ", prefix, key));
+                    result.push_str(&format_json_value(val, if is_last { "    " } else { "│   " }));
+                    result.push('\n');
+                }
+            }
+            
+            return result.trim_end().to_string();
+        }
+    }
+    
+    // 解析失败，返回原始值
+    value.to_string()
+}
+
+/// 格式化 List 为树形结构
+fn format_list_tree(value: &str) -> String {
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(value) {
+        if let serde_json::Value::Array(arr) = json {
+            let mut result = String::new();
+            
+            for (i, item) in arr.iter().enumerate() {
+                let is_last = i == arr.len() - 1;
+                let prefix = if is_last { "└── " } else { "├── " };
+                let indent = if is_last { "    " } else { "│   " };
+                
+                result.push_str(&format!("{}[{}] ", prefix, i));
+                result.push_str(&format_json_value(item, indent));
+                result.push('\n');
+            }
+            
+            return result.trim_end().to_string();
+        }
+    }
+    
+    value.to_string()
+}
+
+/// 格式化 JSON 值（递归）
+fn format_json_value(value: &serde_json::Value, indent: &str) -> String {
+    match value {
+        serde_json::Value::Object(map) => {
+            if map.is_empty() {
+                "{}".to_string()
             } else {
-                value.to_string()
+                let mut result = "{\n".to_string();
+                let keys: Vec<_> = map.keys().collect();
+                
+                for (i, key) in keys.iter().enumerate() {
+                    let is_last = i == keys.len() - 1;
+                    let prefix = if is_last { "└── " } else { "├── " };
+                    let next_indent = if is_last { "    " } else { "│   " };
+                    
+                    if let Some(val) = map.get(*key) {
+                        result.push_str(&format!("{}{}{}: ", indent, prefix, key));
+                        result.push_str(&format_json_value(val, &format!("{}{}", indent, next_indent)));
+                        result.push('\n');
+                    }
+                }
+                
+                result.push_str(&format!("{}}}", &indent[..indent.len().saturating_sub(4)]));
+                result
             }
         }
-        _ => value.to_string(),
+        serde_json::Value::Array(arr) => {
+            if arr.is_empty() {
+                "[]".to_string()
+            } else {
+                let mut result = "[\n".to_string();
+                
+                for (i, item) in arr.iter().enumerate() {
+                    let is_last = i == arr.len() - 1;
+                    let prefix = if is_last { "└── " } else { "├── " };
+                    let next_indent = if is_last { "    " } else { "│   " };
+                    
+                    result.push_str(&format!("{}{}[{}] ", indent, prefix, i));
+                    result.push_str(&format_json_value(item, &format!("{}{}", indent, next_indent)));
+                    result.push('\n');
+                }
+                
+                result.push_str(&format!("{}]", &indent[..indent.len().saturating_sub(4)]));
+                result
+            }
+        }
+        serde_json::Value::String(s) => format!("\"{}\"", s),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Null => "null".to_string(),
     }
 }
 
