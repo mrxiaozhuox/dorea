@@ -108,6 +108,9 @@ pub struct App {
     // 操作日志
     logs: Vec<LogEntry>,
     
+    // Monitor 数据
+    monitor: MonitorData,
+    
     // 状态消息
     status_message: String,
     
@@ -122,6 +125,18 @@ struct KeyInfo {
     key_type: String,
     size: String,
     ttl: String,
+}
+
+/// Monitor 数据
+#[derive(Debug, Clone, Default)]
+struct MonitorData {
+    server_version: String,
+    uptime: String,
+    connected_clients: String,
+    total_keys: String,
+    memory_used: String,
+    total_commands: String,
+    last_updated: String,
 }
 
 /// 日志条目
@@ -152,6 +167,7 @@ impl App {
             command_mode: false,
             command_result: None,
             logs: Vec::new(),
+            monitor: MonitorData::default(),
             status_message: "Press j/k to navigate, h/l to switch panels, q to quit".to_string(),
             should_quit: false,
         }
@@ -270,7 +286,7 @@ async fn handle_key_event(
             // Tab 特定快捷键
             match app.current_tab {
                 TabId::Data => handle_data_tab_keys(key, app, client).await?,
-                TabId::Monitor => handle_monitor_tab_keys(key, app).await?,
+                TabId::Monitor => handle_monitor_tab_keys(key, app, client).await?,
                 TabId::Log => handle_log_tab_keys(key, app).await?,
                 TabId::Help => handle_help_tab_keys(key, app).await?,
             }
@@ -287,8 +303,8 @@ async fn handle_data_tab_keys(
     client: &mut DoreaClient,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match key.code {
-        // 导航
-        KeyCode::Char('j') => {
+        // 导航 - 支持 j/k 和 上下方向键
+        KeyCode::Char('j') | KeyCode::Down => {
             match app.focus {
                 Focus::DatabaseList => {
                     if app.selected_database < app.databases.len() - 1 {
@@ -308,7 +324,7 @@ async fn handle_data_tab_keys(
                 _ => {}
             }
         }
-        KeyCode::Char('k') => {
+        KeyCode::Char('k') | KeyCode::Up => {
             match app.focus {
                 Focus::DatabaseList => {
                     if app.selected_database > 0 {
@@ -327,14 +343,15 @@ async fn handle_data_tab_keys(
                 _ => {}
             }
         }
-        KeyCode::Char('h') => {
+        // 支持 h/l 和 左右方向键
+        KeyCode::Char('h') | KeyCode::Left => {
             match app.focus {
                 Focus::KeyList => app.focus = Focus::DatabaseList,
                 Focus::ValueView => app.focus = Focus::KeyList,
                 _ => {}
             }
         }
-        KeyCode::Char('l') => {
+        KeyCode::Char('l') | KeyCode::Right => {
             match app.focus {
                 Focus::DatabaseList => app.focus = Focus::KeyList,
                 Focus::KeyList => app.focus = Focus::ValueView,
@@ -394,9 +411,11 @@ async fn handle_data_tab_keys(
 async fn handle_monitor_tab_keys(
     key: event::KeyEvent,
     app: &mut App,
+    client: &mut DoreaClient,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match key.code {
         KeyCode::Char('r') => {
+            load_monitor_data(app, client).await;
             app.add_log("INFO", "Refreshed monitor data");
         }
         _ => {}
@@ -481,9 +500,15 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
     match client.execute(&command).await {
         Ok((state, data)) if state == NetPacketState::OK => {
             let value = String::from_utf8_lossy(&data).to_string();
+            let value_type = infer_value_type(&value);
             app.current_value = Some(value);
-            // 尝试推断类型
-            app.current_value_type = Some(infer_value_type(&app.current_value.as_ref().unwrap()));
+            app.current_value_type = Some(value_type.clone());
+            
+            // 更新键列表中的类型
+            if let Some(key_info) = app.keys.iter_mut().find(|k| k.key == key) {
+                key_info.key_type = value_type;
+                key_info.size = format!("{}B", app.current_value.as_ref().unwrap().len());
+            }
         }
         _ => {
             app.current_value = Some("(error loading value)".to_string());
@@ -509,6 +534,91 @@ fn infer_value_type(value: &str) -> String {
         "Number".to_string()
     } else {
         "Unknown".to_string()
+    }
+}
+
+/// 加载 Monitor 数据
+async fn load_monitor_data(app: &mut App, client: &mut DoreaClient) {
+    // 获取服务器信息
+    if let Ok((state, data)) = client.execute("info server").await {
+        if state == NetPacketState::OK {
+            let info = String::from_utf8_lossy(&data).to_string();
+            // 解析服务器信息
+            for line in info.lines() {
+                if let Some(version) = line.strip_prefix("version:") {
+                    app.monitor.server_version = version.trim().to_string();
+                } else if let Some(uptime) = line.strip_prefix("uptime:") {
+                    app.monitor.uptime = format_seconds(uptime.trim().parse().unwrap_or(0));
+                }
+            }
+        }
+    }
+    
+    // 获取客户端连接数
+    if let Ok((state, data)) = client.execute("info client").await {
+        if state == NetPacketState::OK {
+            let info = String::from_utf8_lossy(&data).to_string();
+            for line in info.lines() {
+                if let Some(count) = line.strip_prefix("connected:") {
+                    app.monitor.connected_clients = count.trim().to_string();
+                }
+            }
+        }
+    }
+    
+    // 获取键数量
+    if let Ok((state, data)) = client.execute("info keys").await {
+        if state == NetPacketState::OK {
+            let result = String::from_utf8_lossy(&data).to_string();
+            // 解析键列表 ["key1", "key2", ...]
+            if result.starts_with('[') {
+                let count = result.matches(',').count().max(0) + if result.contains('"') { 1 } else { 0 };
+                app.monitor.total_keys = count.to_string();
+            }
+        }
+    }
+    
+    // 获取内存使用
+    if let Ok((state, data)) = client.execute("info memory").await {
+        if state == NetPacketState::OK {
+            let info = String::from_utf8_lossy(&data).to_string();
+            for line in info.lines() {
+                if let Some(memory) = line.strip_prefix("used:") {
+                    app.monitor.memory_used = format_bytes(memory.trim().parse().unwrap_or(0));
+                }
+            }
+        }
+    }
+    
+    // 更新时间
+    app.monitor.last_updated = chrono::Local::now().format("%H:%M:%S").to_string();
+}
+
+/// 格式化秒数为可读时间
+fn format_seconds(seconds: u64) -> String {
+    if seconds < 60 {
+        format!("{}s", seconds)
+    } else if seconds < 3600 {
+        format!("{}m {}s", seconds / 60, seconds % 60)
+    } else {
+        format!("{}h {}m", seconds / 3600, (seconds % 3600) / 60)
+    }
+}
+
+/// 格式化字节数为可读大小
+fn format_bytes(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = KB * 1024;
+    const GB: u64 = MB * 1024;
+    
+    if bytes >= GB {
+        format!("{:.2} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.2} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.2} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{} B", bytes)
     }
 }
 
@@ -735,24 +845,66 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
 
 /// 渲染 Monitor Tab
 fn render_monitor_tab(f: &mut Frame, app: &mut App, area: Rect) {
-    let text = vec![
-        Line::from("Monitor Tab - Coming Soon"),
+    // 使用两列布局
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(area);
+    
+    // 左侧 - 服务器信息
+    let server_info = vec![
+        Line::from(vec![
+            Span::styled("Server Version:  ", Style::default().fg(Color::DarkGray)),
+            Span::styled(&app.monitor.server_version, Style::default().fg(Color::White)),
+        ]),
         Line::from(""),
-        Line::from("This tab will show:"),
-        Line::from("  - Server version"),
-        Line::from("  - Connection count"),
-        Line::from("  - Memory usage"),
-        Line::from("  - Index count"),
+        Line::from(vec![
+            Span::styled("Uptime:          ", Style::default().fg(Color::DarkGray)),
+            Span::styled(&app.monitor.uptime, Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            Span::styled("Connected:       ", Style::default().fg(Color::DarkGray)),
+            Span::styled(&app.monitor.connected_clients, Style::default().fg(Color::Green)),
+        ]),
         Line::from(""),
-        Line::from("Auto-refresh every 2 seconds"),
+        Line::from(vec![
+            Span::styled("Last Updated:    ", Style::default().fg(Color::DarkGray)),
+            Span::styled(&app.monitor.last_updated, Style::default().fg(Color::Yellow)),
+        ]),
     ];
     
-    let paragraph = Paragraph::new(text)
+    let left_panel = Paragraph::new(server_info)
         .block(Block::default()
             .borders(Borders::ALL)
-            .title(" Monitor ")
+            .title(" Server Info ")
             .title_style(Style::default().fg(Color::Cyan)));
-    f.render_widget(paragraph, area);
+    f.render_widget(left_panel, chunks[0]);
+    
+    // 右侧 - 数据统计
+    let data_stats = vec![
+        Line::from(vec![
+            Span::styled("Total Keys:      ", Style::default().fg(Color::DarkGray)),
+            Span::styled(&app.monitor.total_keys, Style::default().fg(Color::White)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Memory Used:     ", Style::default().fg(Color::DarkGray)),
+            Span::styled(&app.monitor.memory_used, Style::default().fg(Color::Magenta)),
+        ]),
+        Line::from(vec![
+            Span::styled("Total Commands:  ", Style::default().fg(Color::DarkGray)),
+            Span::styled(&app.monitor.total_commands, Style::default().fg(Color::White)),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled("Press r to refresh", Style::default().fg(Color::DarkGray))),
+    ];
+    
+    let right_panel = Paragraph::new(data_stats)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title(" Statistics ")
+            .title_style(Style::default().fg(Color::Cyan)));
+    f.render_widget(right_panel, chunks[1]);
 }
 
 /// 渲染 Log Tab
