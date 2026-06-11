@@ -68,7 +68,7 @@ enum Focus {
 /// 值显示模式
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum ValueViewMode {
-    Tree,
+    Pretty,
     Raw,
 }
 
@@ -99,7 +99,8 @@ pub struct App {
     // 命令输入
     command_input: String,
     command_mode: bool,
-    command_result: Option<(bool, String)>,
+    command_result: Option<(bool, String)>,  // (success, message)
+    command_result_time: Option<std::time::Instant>,  // 用于自动隐藏
     
     // 操作日志
     logs: Vec<LogEntry>,
@@ -148,7 +149,7 @@ impl App {
         Self {
             current_tab: TabId::Data,
             focus: Focus::KeyList,
-            value_mode: ValueViewMode::Tree,
+            value_mode: ValueViewMode::Pretty,
             hostname,
             port,
             current_database: "default".to_string(),
@@ -161,6 +162,7 @@ impl App {
             command_input: String::new(),
             command_mode: false,
             command_result: None,
+            command_result_time: None,
             logs: Vec::new(),
             monitor: MonitorData::default(),
             status_message: "Press j/k to navigate, h/l to switch panels, q to quit".to_string(),
@@ -347,11 +349,11 @@ async fn handle_data_tab_keys(
             // TODO: 搜索
             app.status_message = "Search: (not implemented yet)".to_string();
         }
+        // 切换 Pretty/Raw 模式
         KeyCode::F(2) => {
-            // 切换 Tree/Raw 模式
             app.value_mode = match app.value_mode {
-                ValueViewMode::Tree => ValueViewMode::Raw,
-                ValueViewMode::Raw => ValueViewMode::Tree,
+                ValueViewMode::Pretty => ValueViewMode::Raw,
+                ValueViewMode::Raw => ValueViewMode::Pretty,
             };
         }
         _ => {}
@@ -473,7 +475,7 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
             
             let value_type = infer_value_type(&raw_value);
             
-            // 格式化值（Tree 模式）
+            // 格式化值（Pretty 模式）
             let formatted_value = format_value(&raw_value, &value_type);
             
             app.current_value_raw = Some(raw_value.clone());
@@ -494,7 +496,7 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
     }
 }
 
-/// 格式化值（Tree 模式）- 真正的树形结构
+/// 格式化值（Pretty 模式）- 树形结构美化
 fn format_value(value: &str, value_type: &str) -> String {
     match value_type {
         "Dict" => format_dict_tree(value),
@@ -712,6 +714,11 @@ async fn execute_command(app: &mut App, client: &mut DoreaClient, cmd: &str) {
         return;
     }
     
+    let show_result = |app: &mut App, success: bool, msg: &str| {
+        app.command_result = Some((success, msg.to_string()));
+        app.command_result_time = Some(std::time::Instant::now());
+    };
+    
     match parts[0] {
         "select" if parts.len() >= 2 => {
             let db = parts[1];
@@ -722,13 +729,13 @@ async fn execute_command(app: &mut App, client: &mut DoreaClient, cmd: &str) {
                     app.selected_key = 0;
                     app.current_value = None;
                     app.current_value_raw = None;
-                    app.status_message = format!("✓ Switched to database: {}", db);
+                    show_result(app, true, &format!("Switched to database: {}", db));
                     app.add_log("INFO", &format!("Switched to database: {}", db));
                     // 切换数据库后刷新键列表
                     load_keys(app, client).await;
                 }
                 Err(e) => {
-                    app.status_message = format!("✗ Error: {:?}", e);
+                    show_result(app, false, &format!("Error: {:?}", e));
                     app.add_log("ERROR", &format!("Failed: {:?}", e));
                 }
             }
@@ -739,22 +746,22 @@ async fn execute_command(app: &mut App, client: &mut DoreaClient, cmd: &str) {
                 Ok((state, data)) => {
                     let result = String::from_utf8_lossy(&data).to_string();
                     if state == NetPacketState::OK {
-                        let preview = if result.len() > 50 { 
-                            format!("{}...", &result[..47])
+                        let preview = if result.len() > 100 { 
+                            format!("{}...", &result[..97])
                         } else { 
                             result.clone()
                         };
-                        app.status_message = format!("✓ {}", preview);
+                        show_result(app, true, &preview);
                         app.add_log("INFO", &format!("OK: {}", preview));
                         // 执行命令后自动刷新键列表（保留缓存）
                         load_keys(app, client).await;
                     } else {
-                        app.status_message = format!("✗ {}", result);
+                        show_result(app, false, &result);
                         app.add_log("ERROR", &result);
                     }
                 }
                 Err(e) => {
-                    app.status_message = format!("✗ Error: {:?}", e);
+                    show_result(app, false, &format!("Error: {:?}", e));
                     app.add_log("ERROR", &format!("Error: {:?}", e));
                 }
             }
@@ -841,6 +848,37 @@ fn ui(f: &mut Frame, app: &mut App) {
         .block(Block::default().borders(Borders::ALL).title("Command"));
         f.render_widget(input, area);
     }
+    
+    // 命令结果弹出窗口 (显示 3 秒后自动消失)
+    if let Some((success, ref msg)) = app.command_result {
+        if let Some(time) = app.command_result_time {
+            if time.elapsed().as_secs() < 3 {
+                let area = centered_rect(70, 3, f.size());
+                f.render_widget(Clear, area);
+                
+                let (icon, color) = if success {
+                    ("✓", Color::Green)
+                } else {
+                    ("✗", Color::Red)
+                };
+                
+                let result = Paragraph::new(Line::from(vec![
+                    Span::styled(format!("{} ", icon), Style::default().fg(color).bold()),
+                    Span::styled(msg, Style::default().fg(Color::White)),
+                ]))
+                .block(Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Result ")
+                    .title_style(Style::default().fg(color))
+                    .border_style(Style::default().fg(color)));
+                f.render_widget(result, area);
+            } else {
+                // 超时自动清除
+                app.command_result = None;
+                app.command_result_time = None;
+            }
+        }
+    }
 }
 
 /// 渲染 Data Tab
@@ -895,13 +933,13 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
     };
     
     let mode_hint = match app.value_mode {
-        ValueViewMode::Tree => " [F2: Raw]",
-        ValueViewMode::Raw => " [F2: Tree]",
+        ValueViewMode::Pretty => " [F2: Raw]",
+        ValueViewMode::Raw => " [F2: Pretty]",
     };
     
     // 根据模式选择显示的值
     let value_content = match app.value_mode {
-        ValueViewMode::Tree => match &app.current_value {
+        ValueViewMode::Pretty => match &app.current_value {
             Some(value) => value.clone(),
             None => "(no value)".to_string(),
         },
@@ -1080,25 +1118,30 @@ fn render_help_tab(f: &mut Frame, app: &mut App, area: Rect) {
         Line::from(Span::styled("Dorea CLI TUI - Key Bindings", Style::default().fg(Color::Cyan).bold())),
         Line::from(""),
         Line::from(Span::styled("Global", Style::default().fg(Color::Yellow).bold())),
-        Line::from("  q          Quit TUI"),
-        Line::from("  Tab        Switch tab"),
-        Line::from("  :          Command input"),
+        Line::from("  q              Quit TUI"),
+        Line::from("  Tab            Next tab"),
+        Line::from("  Shift+Tab      Previous tab"),
+        Line::from("  :              Command input"),
         Line::from(""),
-        Line::from(Span::styled("Navigation (Vim Style)", Style::default().fg(Color::Yellow).bold())),
-        Line::from("  j/k        Move up/down"),
-        Line::from("  h/l        Switch panel (db → keys → value)"),
-        Line::from("  G          Jump to bottom"),
+        Line::from(Span::styled("Navigation", Style::default().fg(Color::Yellow).bold())),
+        Line::from("  j / ↓          Move down"),
+        Line::from("  k / ↑          Move up"),
+        Line::from("  h / ←          Previous panel"),
+        Line::from("  l / →          Next panel"),
+        Line::from("  G              Jump to bottom"),
+        Line::from("  g              Jump to top"),
         Line::from(""),
         Line::from(Span::styled("Data Tab", Style::default().fg(Color::Yellow).bold())),
-        Line::from("  Enter      Select database"),
-        Line::from("  r          Refresh key list"),
-        Line::from("  F2         Toggle Tree/Raw mode"),
+        Line::from("  Enter          Load selected key value"),
+        Line::from("  r              Refresh key list"),
+        Line::from("  F2             Toggle Pretty/Raw mode"),
         Line::from(""),
         Line::from(Span::styled("Commands", Style::default().fg(Color::Yellow).bold())),
-        Line::from("  :select <db>    Switch database"),
-        Line::from("  :get <key>      Get value"),
-        Line::from("  :set <k> <v>    Set value"),
-        Line::from("  :q              Quit"),
+        Line::from("  :select <db>   Switch database"),
+        Line::from("  :get <key>     Get value"),
+        Line::from("  :set <k> <v>   Set value"),
+        Line::from("  :del <key>     Delete key"),
+        Line::from("  :q             Quit"),
     ];
     
     let paragraph = Paragraph::new(help_text)
