@@ -293,16 +293,30 @@ async fn handle_key_event(
             app.should_quit = true;
         }
         KeyCode::Tab => {
+            let prev_tab = app.current_tab;
             app.current_tab = app.current_tab.next();
+            // 切换到 Monitor Tab 时自动刷新
+            if prev_tab != TabId::Monitor && app.current_tab == TabId::Monitor {
+                load_monitor_data(app, client).await;
+            }
         }
         KeyCode::BackTab => {
+            let prev_tab = app.current_tab;
             app.current_tab = app.current_tab.prev();
+            // 切换到 Monitor Tab 时自动刷新
+            if prev_tab != TabId::Monitor && app.current_tab == TabId::Monitor {
+                load_monitor_data(app, client).await;
+            }
         }
         KeyCode::Char('g') if key.modifiers.contains(KeyModifiers::NONE) => {
             // gg = 跳转到顶部（需要两次 g）
         }
         KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            let prev_tab = app.current_tab;
             app.current_tab = app.current_tab.next();
+            if prev_tab != TabId::Monitor && app.current_tab == TabId::Monitor {
+                load_monitor_data(app, client).await;
+            }
         }
         KeyCode::Char(':') => {
             app.command_mode = true;
@@ -520,8 +534,21 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
             app.current_value_raw = Some(raw_value.clone());
             app.current_value = Some(formatted_value);
             app.current_value_type = Some(value_type.clone());
-            app.value_tree = value_tree;
-            app.expand_state = ExpandState::default();  // 重置展开状态
+            app.value_tree = value_tree.clone();
+            
+            // 智能展开：第一层少于30项自动展开
+            let mut expand_state = ExpandState::default();
+            if let Some(tree) = &value_tree {
+                let should_expand = match tree {
+                    ValueNode::Object(map) => map.len() <= 30,
+                    ValueNode::Array(arr) => arr.len() <= 30,
+                    _ => false,
+                };
+                if should_expand {
+                    expand_state.expanded.insert("".to_string());
+                }
+            }
+            app.expand_state = expand_state;
             
             // 更新键列表中的类型
             if let Some(key_info) = app.keys.iter_mut().find(|k| k.key == key) {
@@ -1253,30 +1280,31 @@ fn render_help_tab(f: &mut Frame, app: &mut App, area: Rect) {
         Line::from(Span::styled("Dorea CLI TUI - Key Bindings", Style::default().fg(Color::Cyan).bold())),
         Line::from(""),
         Line::from(Span::styled("Global", Style::default().fg(Color::Yellow).bold())),
-        Line::from("  q              Quit TUI"),
-        Line::from("  Tab            Next tab"),
-        Line::from("  Shift+Tab      Previous tab"),
-        Line::from("  :              Command input"),
+        Line::from("  q                     Quit TUI"),
+        Line::from("  Tab / Shift+Tab       Next / Previous tab"),
+        Line::from("  :                     Command input"),
         Line::from(""),
         Line::from(Span::styled("Navigation", Style::default().fg(Color::Yellow).bold())),
-        Line::from("  j / ↓          Move down"),
-        Line::from("  k / ↑          Move up"),
-        Line::from("  h / ←          Previous panel"),
-        Line::from("  l / →          Next panel"),
-        Line::from("  G              Jump to bottom"),
-        Line::from("  g              Jump to top"),
+        Line::from("  j / ↓                 Move down"),
+        Line::from("  k / ↑                 Move up"),
+        Line::from("  h / ←                 Previous panel"),
+        Line::from("  l / →                 Next panel"),
+        Line::from("  G                     Jump to bottom"),
+        Line::from("  g                     Jump to top"),
         Line::from(""),
         Line::from(Span::styled("Data Tab", Style::default().fg(Color::Yellow).bold())),
-        Line::from("  Enter          Load selected key value"),
-        Line::from("  r              Refresh key list"),
-        Line::from("  F2             Toggle Pretty/Raw mode"),
+        Line::from("  Enter                 Expand/Collapse value tree"),
+        Line::from("  r                     Refresh key list"),
+        Line::from("  F2                    Toggle Pretty/Raw mode"),
+        Line::from(""),
+        Line::from(Span::styled("Monitor Tab", Style::default().fg(Color::Yellow).bold())),
+        Line::from("  r                     Refresh monitor data"),
         Line::from(""),
         Line::from(Span::styled("Commands", Style::default().fg(Color::Yellow).bold())),
-        Line::from("  :select <db>   Switch database"),
-        Line::from("  :get <key>     Get value"),
-        Line::from("  :set <k> <v>   Set value"),
-        Line::from("  :del <key>     Delete key"),
-        Line::from("  :q             Quit"),
+        Line::from("  select <db>           Switch database"),
+        Line::from("  get <key>             Get value"),
+        Line::from("  set <k> <v>           Set value"),
+        Line::from("  del <key>             Delete key"),
     ];
     
     let paragraph = Paragraph::new(help_text)
