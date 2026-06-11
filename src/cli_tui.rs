@@ -292,6 +292,13 @@ async fn handle_key_event(
         KeyCode::Char('q') => {
             app.should_quit = true;
         }
+        KeyCode::Esc => {
+            // ESC 关闭命令结果弹窗
+            if app.command_result.is_some() {
+                app.command_result = None;
+                app.command_result_time = None;
+            }
+        }
         KeyCode::Tab => {
             let prev_tab = app.current_tab;
             app.current_tab = app.current_tab.next();
@@ -319,6 +326,9 @@ async fn handle_key_event(
             }
         }
         KeyCode::Char(':') => {
+            // 关闭弹窗并打开命令输入
+            app.command_result = None;
+            app.command_result_time = None;
             app.command_mode = true;
             app.command_input.clear();
         }
@@ -1012,6 +1022,7 @@ fn ui(f: &mut Frame, app: &mut App) {
                     Span::styled(format!("{} ", icon), Style::default().fg(color).bold()),
                     Span::styled(msg, Style::default().fg(Color::White)),
                 ]))
+                .alignment(ratatui::layout::Alignment::Center)
                 .block(Block::default()
                     .borders(Borders::ALL)
                     .title(" Result ")
