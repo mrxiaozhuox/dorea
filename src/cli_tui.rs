@@ -60,7 +60,6 @@ impl TabId {
 /// 面板焦点
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Focus {
-    DatabaseList,
     KeyList,
     ValueView,
     CommandInput,
@@ -86,10 +85,6 @@ pub struct App {
     hostname: String,
     port: u16,
     current_database: String,
-    
-    // 数据库列表
-    databases: Vec<String>,
-    selected_database: usize,
     
     // 键列表
     keys: Vec<KeyInfo>,
@@ -151,13 +146,11 @@ impl App {
     pub fn new(hostname: String, port: u16) -> Self {
         Self {
             current_tab: TabId::Data,
-            focus: Focus::DatabaseList,
+            focus: Focus::KeyList,
             value_mode: ValueViewMode::Tree,
             hostname,
             port,
             current_database: "default".to_string(),
-            databases: vec!["default".to_string()],
-            selected_database: 0,
             keys: Vec::new(),
             selected_key: 0,
             key_scroll_offset: 0,
@@ -305,84 +298,38 @@ async fn handle_data_tab_keys(
     match key.code {
         // 导航 - 支持 j/k 和 上下方向键
         KeyCode::Char('j') | KeyCode::Down => {
-            match app.focus {
-                Focus::DatabaseList => {
-                    if app.selected_database < app.databases.len() - 1 {
-                        app.selected_database += 1;
-                    }
+            if app.selected_key < app.keys.len().saturating_sub(1) {
+                app.selected_key += 1;
+                // 加载值 - 先 clone key 避免借用冲突
+                let key = app.keys.get(app.selected_key).map(|k| k.key.clone());
+                if let Some(key) = key {
+                    load_key_value(app, client, &key).await;
                 }
-                Focus::KeyList => {
-                    if app.selected_key < app.keys.len().saturating_sub(1) {
-                        app.selected_key += 1;
-                        // 加载值 - 先 clone key 避免借用冲突
-                        let key = app.keys.get(app.selected_key).map(|k| k.key.clone());
-                        if let Some(key) = key {
-                            load_key_value(app, client, &key).await;
-                        }
-                    }
-                }
-                _ => {}
             }
         }
         KeyCode::Char('k') | KeyCode::Up => {
-            match app.focus {
-                Focus::DatabaseList => {
-                    if app.selected_database > 0 {
-                        app.selected_database -= 1;
-                    }
+            if app.selected_key > 0 {
+                app.selected_key -= 1;
+                let key = app.keys.get(app.selected_key).map(|k| k.key.clone());
+                if let Some(key) = key {
+                    load_key_value(app, client, &key).await;
                 }
-                Focus::KeyList => {
-                    if app.selected_key > 0 {
-                        app.selected_key -= 1;
-                        let key = app.keys.get(app.selected_key).map(|k| k.key.clone());
-                        if let Some(key) = key {
-                            load_key_value(app, client, &key).await;
-                        }
-                    }
-                }
-                _ => {}
             }
         }
         // 支持 h/l 和 左右方向键
         KeyCode::Char('h') | KeyCode::Left => {
-            match app.focus {
-                Focus::KeyList => app.focus = Focus::DatabaseList,
-                Focus::ValueView => app.focus = Focus::KeyList,
-                _ => {}
+            if app.focus == Focus::ValueView {
+                app.focus = Focus::KeyList;
             }
         }
         KeyCode::Char('l') | KeyCode::Right => {
-            match app.focus {
-                Focus::DatabaseList => app.focus = Focus::KeyList,
-                Focus::KeyList => app.focus = Focus::ValueView,
-                _ => {}
+            if app.focus == Focus::KeyList {
+                app.focus = Focus::ValueView;
             }
         }
         KeyCode::Char('G') => {
-            if app.focus == Focus::KeyList && !app.keys.is_empty() {
+            if !app.keys.is_empty() {
                 app.selected_key = app.keys.len() - 1;
-            }
-        }
-        KeyCode::Enter => {
-            if app.focus == Focus::DatabaseList {
-                // 切换数据库
-                if let Some(db) = app.databases.get(app.selected_database) {
-                    let db_name = db.clone();
-                    match client.select(&db_name).await {
-                        Ok(_) => {
-                            app.current_database = db_name.clone();
-                            app.keys.clear();
-                            app.selected_key = 0;
-                            app.current_value = None;
-                            app.add_log("INFO", &format!("Switched to database: {}", db_name));
-                            // 加载键列表
-                            load_keys(app, client).await;
-                        }
-                        Err(e) => {
-                            app.add_log("ERROR", &format!("Failed to switch database: {:?}", e));
-                        }
-                    }
-                }
             }
         }
         KeyCode::Char('r') => {
@@ -750,42 +697,13 @@ fn ui(f: &mut Frame, app: &mut App) {
 
 /// 渲染 Data Tab
 fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
+    // 两列布局：键列表 | 值视图
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(20), Constraint::Min(40)])
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
         .split(area);
     
-    // 左侧：数据库列表
-    let db_items: Vec<ListItem> = app
-        .databases
-        .iter()
-        .enumerate()
-        .map(|(i, db)| {
-            let style = if i == app.selected_database && app.focus == Focus::DatabaseList {
-                Style::default().fg(Color::Yellow).bg(Color::DarkGray)
-            } else if i == app.selected_database {
-                Style::default().fg(Color::Yellow)
-            } else {
-                Style::default().fg(Color::White)
-            };
-            ListItem::new(Line::from(Span::styled(format!("  {}", db), style)))
-        })
-        .collect();
-    
-    let db_list = List::new(db_items)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title(" Databases ")
-            .title_style(Style::default().fg(Color::Cyan)));
-    f.render_widget(db_list, chunks[0]);
-    
-    // 右侧：键列表 + 值视图
-    let right_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(chunks[1]);
-    
-    // 键列表
+    // 左侧：键列表
     let key_rows: Vec<Row> = app
         .keys
         .iter()
@@ -819,9 +737,9 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
         .borders(Borders::ALL)
         .title(format!(" Keys ({}) ", app.keys.len()))
         .title_style(Style::default().fg(Color::Cyan)));
-    f.render_widget(key_table, right_chunks[0]);
+    f.render_widget(key_table, chunks[0]);
     
-    // 值视图
+    // 右侧：值视图
     let value_title = if let Some(ref vtype) = app.current_value_type {
         format!(" Value ({}) ", vtype)
     } else {
@@ -843,7 +761,7 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
             .borders(Borders::ALL)
             .title(value_title + mode_hint)
             .title_style(Style::default().fg(Color::Cyan)));
-    f.render_widget(value_widget, right_chunks[1]);
+    f.render_widget(value_widget, chunks[1]);
 }
 
 /// 渲染 Monitor Tab
