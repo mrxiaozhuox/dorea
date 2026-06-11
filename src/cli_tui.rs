@@ -93,6 +93,7 @@ pub struct App {
     
     // 当前值
     current_value: Option<String>,
+    current_value_raw: Option<String>,
     current_value_type: Option<String>,
     
     // 命令输入
@@ -155,6 +156,7 @@ impl App {
             selected_key: 0,
             key_scroll_offset: 0,
             current_value: None,
+            current_value_raw: None,
             current_value_type: None,
             command_input: String::new(),
             command_mode: false,
@@ -193,8 +195,9 @@ pub async fn run_tui(client: DoreaClient, hostname: String, port: u16) -> Result
     let mut app = App::new(hostname, port);
     let mut client = client;
     
-    // 初始加载数据库列表
+    // 初始加载数据
     app.add_log("INFO", "Connected to server");
+    load_keys(&mut app, &mut client).await;
     
     // 主循环
     loop {
@@ -264,6 +267,9 @@ async fn handle_key_event(
         }
         KeyCode::Tab => {
             app.current_tab = app.current_tab.next();
+        }
+        KeyCode::BackTab => {
+            app.current_tab = app.current_tab.prev();
         }
         KeyCode::Char('g') if key.modifiers.contains(KeyModifiers::NONE) => {
             // gg = 跳转到顶部（需要两次 g）
@@ -446,21 +452,42 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
     let command = format!("get {}", key);
     match client.execute(&command).await {
         Ok((state, data)) if state == NetPacketState::OK => {
-            let value = String::from_utf8_lossy(&data).to_string();
-            let value_type = infer_value_type(&value);
-            app.current_value = Some(value);
+            let raw_value = String::from_utf8_lossy(&data).to_string();
+            let value_type = infer_value_type(&raw_value);
+            
+            // 格式化值（Tree 模式）
+            let formatted_value = format_value(&raw_value, &value_type);
+            
+            app.current_value_raw = Some(raw_value);
+            app.current_value = Some(formatted_value);
             app.current_value_type = Some(value_type.clone());
             
             // 更新键列表中的类型
             if let Some(key_info) = app.keys.iter_mut().find(|k| k.key == key) {
                 key_info.key_type = value_type;
-                key_info.size = format!("{}B", app.current_value.as_ref().unwrap().len());
+                key_info.size = format!("{}B", app.current_value_raw.as_ref().unwrap().len());
             }
         }
         _ => {
             app.current_value = Some("(error loading value)".to_string());
+            app.current_value_raw = None;
             app.current_value_type = None;
         }
+    }
+}
+
+/// 格式化值（Tree 模式）
+fn format_value(value: &str, value_type: &str) -> String {
+    match value_type {
+        "Dict" | "List" => {
+            // 尝试 JSON 格式化
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(value) {
+                serde_json::to_string_pretty(&json).unwrap_or_else(|_| value.to_string())
+            } else {
+                value.to_string()
+            }
+        }
+        _ => value.to_string(),
     }
 }
 
@@ -751,9 +778,16 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
         ValueViewMode::Raw => " [F2: Tree]",
     };
     
-    let value_content = match &app.current_value {
-        Some(value) => value.clone(),
-        None => "(no value)".to_string(),
+    // 根据模式选择显示的值
+    let value_content = match app.value_mode {
+        ValueViewMode::Tree => match &app.current_value {
+            Some(value) => value.clone(),
+            None => "(no value)".to_string(),
+        },
+        ValueViewMode::Raw => match &app.current_value_raw {
+            Some(value) => value.clone(),
+            None => "(no value)".to_string(),
+        },
     };
     
     let value_widget = Paragraph::new(value_content)
