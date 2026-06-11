@@ -503,7 +503,9 @@ fn format_value(value: &str, value_type: &str) -> String {
 /// 推断值类型
 fn infer_value_type(value: &str) -> String {
     let trimmed = value.trim();
-    if trimmed.starts_with('{') && trimmed.ends_with('}') {
+    if trimmed.starts_with("binary!(") {
+        "Binary".to_string()
+    } else if trimmed.starts_with('{') && trimmed.ends_with('}') {
         "Dict".to_string()
     } else if trimmed.starts_with('[') && trimmed.ends_with(']') {
         "List".to_string()
@@ -516,7 +518,7 @@ fn infer_value_type(value: &str) -> String {
     } else if trimmed.parse::<f64>().is_ok() {
         "Number".to_string()
     } else {
-        "Unknown".to_string()
+        "String".to_string()
     }
 }
 
