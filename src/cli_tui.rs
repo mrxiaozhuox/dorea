@@ -406,8 +406,15 @@ async fn load_keys(app: &mut App, client: &mut DoreaClient) {
     match client.execute("info keys").await {
         Ok((state, data)) if state == NetPacketState::OK => {
             let result = String::from_utf8_lossy(&data).to_string();
-            // 解析键列表 ["key1", "key2", ...]
-            app.keys = parse_key_list(&result);
+            // 解析键列表，保留已有 key 的缓存
+            let old_keys = std::mem::take(&mut app.keys);
+            app.keys = parse_key_list(&result, &old_keys);
+            
+            // 尝试保持选中状态
+            if app.selected_key >= app.keys.len() {
+                app.selected_key = app.keys.len().saturating_sub(1);
+            }
+            
             app.status_message = format!("Loaded {} keys", app.keys.len());
             
             // 加载第一个键的值 - 先 clone key 避免借用冲突
@@ -423,8 +430,8 @@ async fn load_keys(app: &mut App, client: &mut DoreaClient) {
     }
 }
 
-/// 解析键列表
-fn parse_key_list(data: &str) -> Vec<KeyInfo> {
+/// 解析键列表，保留已有 key 的缓存
+fn parse_key_list(data: &str, cached_keys: &[KeyInfo]) -> Vec<KeyInfo> {
     let mut keys = Vec::new();
     
     // 简单解析 JSON 数组
@@ -434,11 +441,13 @@ fn parse_key_list(data: &str) -> Vec<KeyInfo> {
         for item in content.split(',') {
             let key = item.trim().trim_matches('"').to_string();
             if !key.is_empty() {
+                // 查找缓存
+                let cached = cached_keys.iter().find(|k| k.key == key);
                 keys.push(KeyInfo {
                     key: key.clone(),
-                    key_type: "-".to_string(),  // 未加载时显示 "-"
-                    size: "-".to_string(),
-                    ttl: "-".to_string(),
+                    key_type: cached.map(|k| k.key_type.clone()).unwrap_or_else(|| "-".to_string()),
+                    size: cached.map(|k| k.size.clone()).unwrap_or_else(|| "-".to_string()),
+                    ttl: cached.map(|k| k.ttl.clone()).unwrap_or_else(|| "-".to_string()),
                 });
             }
         }
@@ -601,8 +610,14 @@ async fn execute_command(app: &mut App, client: &mut DoreaClient, cmd: &str) {
             match client.select(db).await {
                 Ok(_) => {
                     app.current_database = db.to_string();
+                    app.keys.clear();  // 清空缓存
+                    app.selected_key = 0;
+                    app.current_value = None;
+                    app.current_value_raw = None;
                     app.status_message = format!("✓ Switched to database: {}", db);
                     app.add_log("INFO", &format!("Switched to database: {}", db));
+                    // 切换数据库后刷新键列表
+                    load_keys(app, client).await;
                 }
                 Err(e) => {
                     app.status_message = format!("✗ Error: {:?}", e);
@@ -623,10 +638,8 @@ async fn execute_command(app: &mut App, client: &mut DoreaClient, cmd: &str) {
                         };
                         app.status_message = format!("✓ {}", preview);
                         app.add_log("INFO", &format!("OK: {}", preview));
-                        // 如果是 keys 相关命令，刷新键列表
-                        if cmd.starts_with("set ") || cmd.starts_with("delete ") {
-                            // 可选：自动刷新键列表
-                        }
+                        // 执行命令后自动刷新键列表（保留缓存）
+                        load_keys(app, client).await;
                     } else {
                         app.status_message = format!("✗ {}", result);
                         app.add_log("ERROR", &result);
