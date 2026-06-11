@@ -72,6 +72,25 @@ enum ValueViewMode {
     Raw,
 }
 
+/// 值树节点（用于 Pretty 模式的组件化渲染）
+#[derive(Debug, Clone)]
+enum ValueNode {
+    String(String),
+    Number(String),
+    Boolean(bool),
+    Null,
+    Array(Vec<ValueNode>),
+    Object(Vec<(String, ValueNode)>),
+}
+
+/// 展开状态
+#[derive(Debug, Clone, Default)]
+struct ExpandState {
+    expanded: std::collections::HashSet<String>,
+    cursor_path: String,  // 当前光标所在路径
+    scroll_offset: usize, // 值树滚动偏移
+}
+
 /// TUI 应用状态
 pub struct App {
     /// 当前 Tab
@@ -95,6 +114,10 @@ pub struct App {
     current_value: Option<String>,
     current_value_raw: Option<String>,
     current_value_type: Option<String>,
+    
+    // 值树（Pretty 模式用）
+    value_tree: Option<ValueNode>,
+    expand_state: ExpandState,
     
     // 命令输入
     command_input: String,
@@ -159,6 +182,8 @@ impl App {
             current_value: None,
             current_value_raw: None,
             current_value_type: None,
+            value_tree: None,
+            expand_state: ExpandState::default(),
             command_input: String::new(),
             command_mode: false,
             command_result: None,
@@ -356,6 +381,17 @@ async fn handle_data_tab_keys(
                 ValueViewMode::Raw => ValueViewMode::Pretty,
             };
         }
+        // Enter 键展开/折叠值树节点
+        KeyCode::Enter => {
+            if app.focus == Focus::ValueView && app.value_mode == ValueViewMode::Pretty {
+                // 切换根节点展开状态
+                if app.expand_state.expanded.contains("") {
+                    app.expand_state.expanded.remove("");
+                } else {
+                    app.expand_state.expanded.insert("".to_string());
+                }
+            }
+        }
         _ => {}
     }
     
@@ -475,12 +511,17 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
             
             let value_type = infer_value_type(&raw_value);
             
-            // 格式化值（Pretty 模式）
-            let formatted_value = format_value(&raw_value, &value_type);
+            // 解析值树（用于 Pretty 模式的组件化渲染）
+            let value_tree = parse_value_to_tree(&raw_value);
+            
+            // 格式化值（作为备用的简单文本）
+            let formatted_value = format_value_simple(&raw_value, &value_type);
             
             app.current_value_raw = Some(raw_value.clone());
             app.current_value = Some(formatted_value);
             app.current_value_type = Some(value_type.clone());
+            app.value_tree = value_tree;
+            app.expand_state = ExpandState::default();  // 重置展开状态
             
             // 更新键列表中的类型
             if let Some(key_info) = app.keys.iter_mut().find(|k| k.key == key) {
@@ -492,119 +533,197 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
             app.current_value = Some("(error loading value)".to_string());
             app.current_value_raw = None;
             app.current_value_type = None;
+            app.value_tree = None;
         }
     }
 }
 
-/// 格式化值（Pretty 模式）- 树形结构美化
-fn format_value(value: &str, value_type: &str) -> String {
-    match value_type {
-        "Dict" => format_dict_tree(value),
-        "List" => format_list_tree(value),
-        _ => value.to_string(),
+/// 解析 JSON 值为 ValueNode 树
+fn parse_value_to_tree(value: &str) -> Option<ValueNode> {
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(value) {
+        Some(json_to_node(&json))
+    } else {
+        None
     }
 }
 
-/// 格式化 Dict 为树形结构
-fn format_dict_tree(value: &str) -> String {
-    // 尝试解析为 JSON
-    if let Ok(json) = serde_json::from_str::<serde_json::Value>(value) {
-        if let serde_json::Value::Object(map) = json {
-            let mut result = String::new();
-            let keys: Vec<_> = map.keys().collect();
+/// JSON Value 转 ValueNode
+fn json_to_node(value: &serde_json::Value) -> ValueNode {
+    match value {
+        serde_json::Value::String(s) => ValueNode::String(s.clone()),
+        serde_json::Value::Number(n) => ValueNode::Number(n.to_string()),
+        serde_json::Value::Bool(b) => ValueNode::Boolean(*b),
+        serde_json::Value::Null => ValueNode::Null,
+        serde_json::Value::Array(arr) => {
+            ValueNode::Array(arr.iter().map(json_to_node).collect())
+        }
+        serde_json::Value::Object(map) => {
+            ValueNode::Object(
+                map.iter()
+                    .map(|(k, v)| (k.clone(), json_to_node(v)))
+                    .collect()
+            )
+        }
+    }
+}
+
+/// 渲染值树为可滚动的 Lines
+fn render_value_tree(node: &ValueNode, expand_state: &ExpandState) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+    render_node(node, "", 0, true, expand_state, &mut lines);
+    if lines.is_empty() {
+        lines.push(Line::from("(empty)"));
+    }
+    lines
+}
+
+/// 递归渲染节点
+fn render_node(
+    node: &ValueNode,
+    path: &str,
+    depth: usize,
+    is_last: bool,
+    expand_state: &ExpandState,
+    lines: &mut Vec<Line<'static>>,
+) {
+    let indent = "  ".repeat(depth);
+    let prefix = if depth == 0 { "" } else if is_last { "└─" } else { "├─" };
+    
+    match node {
+        ValueNode::String(s) => {
+            let display = if s.len() > 50 {
+                format!("\"{}...\"", &s[..47])
+            } else {
+                format!("\"{}\"", s)
+            };
+            lines.push(Line::from(vec![
+                Span::raw(format!("{}{}", indent, prefix)),
+                Span::styled(display, Style::default().fg(Color::Green)),
+            ]));
+        }
+        ValueNode::Number(n) => {
+            lines.push(Line::from(vec![
+                Span::raw(format!("{}{}", indent, prefix)),
+                Span::styled(n.clone(), Style::default().fg(Color::Yellow)),
+            ]));
+        }
+        ValueNode::Boolean(b) => {
+            let text = if *b { "true" } else { "false" };
+            lines.push(Line::from(vec![
+                Span::raw(format!("{}{}", indent, prefix)),
+                Span::styled(text, Style::default().fg(Color::Magenta)),
+            ]));
+        }
+        ValueNode::Null => {
+            lines.push(Line::from(vec![
+                Span::raw(format!("{}{}", indent, prefix)),
+                Span::styled("null", Style::default().fg(Color::DarkGray)),
+            ]));
+        }
+        ValueNode::Array(arr) => {
+            let is_expanded = expand_state.expanded.contains(path);
+            let count = arr.len();
+            let icon = if is_expanded { "▼" } else { "▶" };
             
-            for (i, key) in keys.iter().enumerate() {
-                let is_last = i == keys.len() - 1;
-                let prefix = if is_last { "└── " } else { "├── " };
-                
-                if let Some(val) = map.get(*key) {
-                    result.push_str(&format!("{}{}: ", prefix, key));
-                    result.push_str(&format_json_value(val, if is_last { "    " } else { "│   " }));
-                    result.push('\n');
+            lines.push(Line::from(vec![
+                Span::raw(format!("{}{}", indent, prefix)),
+                Span::styled(format!("{} [{} items]", icon, count), Style::default().fg(Color::Cyan)),
+            ]));
+            
+            if is_expanded {
+                for (i, item) in arr.iter().enumerate() {
+                    let item_path = format!("{}[{}]", path, i);
+                    let item_is_last = i == arr.len() - 1;
+                    render_node(item, &item_path, depth + 1, item_is_last, expand_state, lines);
                 }
             }
-            
-            return result.trim_end().to_string();
         }
-    }
-    
-    // 解析失败，返回原始值
-    value.to_string()
-}
-
-/// 格式化 List 为树形结构
-fn format_list_tree(value: &str) -> String {
-    if let Ok(json) = serde_json::from_str::<serde_json::Value>(value) {
-        if let serde_json::Value::Array(arr) = json {
-            let mut result = String::new();
+        ValueNode::Object(map) => {
+            let is_expanded = expand_state.expanded.contains(path);
+            let count = map.len();
+            let icon = if is_expanded { "▼" } else { "▶" };
             
-            for (i, item) in arr.iter().enumerate() {
-                let is_last = i == arr.len() - 1;
-                let prefix = if is_last { "└── " } else { "├── " };
-                let indent = if is_last { "    " } else { "│   " };
-                
-                result.push_str(&format!("{}[{}] ", prefix, i));
-                result.push_str(&format_json_value(item, indent));
-                result.push('\n');
-            }
+            lines.push(Line::from(vec![
+                Span::raw(format!("{}{}", indent, prefix)),
+                Span::styled(format!("{} {{{}}} keys", icon, count), Style::default().fg(Color::Cyan)),
+            ]));
             
-            return result.trim_end().to_string();
-        }
-    }
-    
-    value.to_string()
-}
-
-/// 格式化 JSON 值（递归）
-fn format_json_value(value: &serde_json::Value, indent: &str) -> String {
-    match value {
-        serde_json::Value::Object(map) => {
-            if map.is_empty() {
-                "{}".to_string()
-            } else {
-                let mut result = "{\n".to_string();
-                let keys: Vec<_> = map.keys().collect();
-                
-                for (i, key) in keys.iter().enumerate() {
-                    let is_last = i == keys.len() - 1;
-                    let prefix = if is_last { "└── " } else { "├── " };
-                    let next_indent = if is_last { "    " } else { "│   " };
+            if is_expanded {
+                for (i, (key, value)) in map.iter().enumerate() {
+                    let item_path = format!("{}.{}", path, key);
+                    let item_is_last = i == map.len() - 1;
                     
-                    if let Some(val) = map.get(*key) {
-                        result.push_str(&format!("{}{}{}: ", indent, prefix, key));
-                        result.push_str(&format_json_value(val, &format!("{}{}", indent, next_indent)));
-                        result.push('\n');
+                    // 先渲染 key
+                    let key_indent = "  ".repeat(depth + 1);
+                    let key_prefix = if item_is_last { "└─" } else { "├─" };
+                    
+                    match value {
+                        ValueNode::String(s) => {
+                            let display = if s.len() > 40 {
+                                format!("\"{}...\"", &s[..37])
+                            } else {
+                                format!("\"{}\"", s)
+                            };
+                            lines.push(Line::from(vec![
+                                Span::raw(format!("{}{}", key_indent, key_prefix)),
+                                Span::styled(key.clone(), Style::default().fg(Color::Blue)),
+                                Span::raw(": "),
+                                Span::styled(display, Style::default().fg(Color::Green)),
+                            ]));
+                        }
+                        ValueNode::Number(n) => {
+                            lines.push(Line::from(vec![
+                                Span::raw(format!("{}{}", key_indent, key_prefix)),
+                                Span::styled(key.clone(), Style::default().fg(Color::Blue)),
+                                Span::raw(": "),
+                                Span::styled(n.clone(), Style::default().fg(Color::Yellow)),
+                            ]));
+                        }
+                        ValueNode::Boolean(b) => {
+                            let text = if *b { "true" } else { "false" };
+                            lines.push(Line::from(vec![
+                                Span::raw(format!("{}{}", key_indent, key_prefix)),
+                                Span::styled(key.clone(), Style::default().fg(Color::Blue)),
+                                Span::raw(": "),
+                                Span::styled(text, Style::default().fg(Color::Magenta)),
+                            ]));
+                        }
+                        ValueNode::Null => {
+                            lines.push(Line::from(vec![
+                                Span::raw(format!("{}{}", key_indent, key_prefix)),
+                                Span::styled(key.clone(), Style::default().fg(Color::Blue)),
+                                Span::raw(": "),
+                                Span::styled("null", Style::default().fg(Color::DarkGray)),
+                            ]));
+                        }
+                        _ => {
+                            // 复合类型，递归
+                            lines.push(Line::from(vec![
+                                Span::raw(format!("{}{}", key_indent, key_prefix)),
+                                Span::styled(key.clone(), Style::default().fg(Color::Blue)),
+                                Span::raw(": "),
+                            ]));
+                            render_node(value, &item_path, depth + 2, item_is_last, expand_state, lines);
+                        }
                     }
                 }
-                
-                result.push_str(&format!("{}}}", &indent[..indent.len().saturating_sub(4)]));
-                result
             }
         }
-        serde_json::Value::Array(arr) => {
-            if arr.is_empty() {
-                "[]".to_string()
+    }
+}
+
+/// 格式化值（Pretty 模式）- 简单文本美化（非 JSON）
+fn format_value_simple(value: &str, value_type: &str) -> String {
+    match value_type {
+        "Dict" | "List" | "Tuple" => {
+            // 尝试 JSON 美化
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(value) {
+                serde_json::to_string_pretty(&json).unwrap_or_else(|_| value.to_string())
             } else {
-                let mut result = "[\n".to_string();
-                
-                for (i, item) in arr.iter().enumerate() {
-                    let is_last = i == arr.len() - 1;
-                    let prefix = if is_last { "└── " } else { "├── " };
-                    let next_indent = if is_last { "    " } else { "│   " };
-                    
-                    result.push_str(&format!("{}{}[{}] ", indent, prefix, i));
-                    result.push_str(&format_json_value(item, &format!("{}{}", indent, next_indent)));
-                    result.push('\n');
-                }
-                
-                result.push_str(&format!("{}]", &indent[..indent.len().saturating_sub(4)]));
-                result
+                value.to_string()
             }
         }
-        serde_json::Value::String(s) => format!("\"{}\"", s),
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::Bool(b) => b.to_string(),
-        serde_json::Value::Null => "null".to_string(),
+        _ => value.to_string(),
     }
 }
 
@@ -938,23 +1057,39 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
     };
     
     // 根据模式选择显示的值
-    let value_content = match app.value_mode {
-        ValueViewMode::Pretty => match &app.current_value {
-            Some(value) => value.clone(),
-            None => "(no value)".to_string(),
-        },
-        ValueViewMode::Raw => match &app.current_value_raw {
-            Some(value) => value.clone(),
-            None => "(no value)".to_string(),
-        },
-    };
-    
-    let value_widget = Paragraph::new(value_content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title(value_title + mode_hint)
-            .title_style(Style::default().fg(Color::Cyan)));
-    f.render_widget(value_widget, chunks[1]);
+    match app.value_mode {
+        ValueViewMode::Pretty => {
+            // 使用组件化渲染
+            if let Some(tree) = &app.value_tree {
+                let lines = render_value_tree(tree, &app.expand_state);
+                let value_widget = Paragraph::new(lines)
+                    .block(Block::default()
+                        .borders(Borders::ALL)
+                        .title(value_title.clone() + mode_hint)
+                        .title_style(Style::default().fg(Color::Cyan)));
+                f.render_widget(value_widget, chunks[1]);
+            } else {
+                // 没有值树，显示简单文本
+                let text = app.current_value.as_deref().unwrap_or("(no value)");
+                let value_widget = Paragraph::new(text)
+                    .block(Block::default()
+                        .borders(Borders::ALL)
+                        .title(value_title.clone() + mode_hint)
+                        .title_style(Style::default().fg(Color::Cyan)));
+                f.render_widget(value_widget, chunks[1]);
+            }
+        }
+        ValueViewMode::Raw => {
+            // 显示原始值
+            let text = app.current_value_raw.as_deref().unwrap_or("(no value)");
+            let value_widget = Paragraph::new(text)
+                .block(Block::default()
+                    .borders(Borders::ALL)
+                    .title(value_title + mode_hint)
+                    .title_style(Style::default().fg(Color::Cyan)));
+            f.render_widget(value_widget, chunks[1]);
+        }
+    }
 }
 
 /// 渲染 Monitor Tab
