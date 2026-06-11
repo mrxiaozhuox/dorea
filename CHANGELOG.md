@@ -2,6 +2,18 @@
 
 ## v0.5.0
 
+### 🖥️ TUI 模式
+
+- **新增 TUI (Terminal User Interface) 模式**：通过 `dorea-cli tui` 命令或 REPL 中输入 `tui` 启动
+- **Tab 切换界面**：Data / Monitor / Log / Help 四个 Tab，支持 `Tab` / `Shift+Tab` 切换
+- **Data Tab**：两列布局（键列表 | 值视图），支持 Vim 风格导航 (`j`/`k`/`h`/`l`) 和方向键
+- **Pretty 模式**：组件化值展示，支持 Dict/List/Tuple 展开折叠，语法高亮（String 绿色、Number 黄色、Boolean 紫色）
+- **智能展开**：第一层子项 ≤30 时自动展开，超过则折叠
+- **Monitor Tab**：显示服务器版本、运行时间、连接数、索引数等信息，切换 Tab 时自动刷新
+- **Log Tab**：记录操作日志
+- **命令输入**：按 `:` 进入命令模式，执行结果以居中弹窗显示，支持 ESC 关闭、`:` 覆盖
+- **快捷键**：`r` 刷新、`F2` 切换 Pretty/Raw、`Enter` 展开/折叠、`q` 退出
+
 ### 🚀 性能优化
 
 - **Pipeline 批量写入**：新增 `DoreaClient::pipeline()` 方法，支持批量发送命令，吞吐量提升 **2.28x**
