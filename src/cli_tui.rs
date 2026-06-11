@@ -134,8 +134,8 @@ struct MonitorData {
     uptime: String,
     connected_clients: String,
     total_keys: String,
-    memory_used: String,
-    total_commands: String,
+    total_indexes: String,
+    current_db: String,
     last_updated: String,
 }
 
@@ -483,7 +483,7 @@ fn parse_key_list(data: &str) -> Vec<KeyInfo> {
             if !key.is_empty() {
                 keys.push(KeyInfo {
                     key: key.clone(),
-                    key_type: "Unknown".to_string(),
+                    key_type: "-".to_string(),  // 未加载时显示 "-"
                     size: "-".to_string(),
                     ttl: "-".to_string(),
                 });
@@ -539,30 +539,32 @@ fn infer_value_type(value: &str) -> String {
 
 /// 加载 Monitor 数据
 async fn load_monitor_data(app: &mut App, client: &mut DoreaClient) {
-    // 获取服务器信息
-    if let Ok((state, data)) = client.execute("info server").await {
+    // 获取服务器版本 - 直接返回版本字符串
+    if let Ok((state, data)) = client.execute("info version").await {
         if state == NetPacketState::OK {
-            let info = String::from_utf8_lossy(&data).to_string();
-            // 解析服务器信息
-            for line in info.lines() {
-                if let Some(version) = line.strip_prefix("version:") {
-                    app.monitor.server_version = version.trim().to_string();
-                } else if let Some(uptime) = line.strip_prefix("uptime:") {
-                    app.monitor.uptime = format_seconds(uptime.trim().parse().unwrap_or(0));
-                }
+            let version = String::from_utf8_lossy(&data).to_string();
+            app.monitor.server_version = version.trim().trim_matches('"').to_string();
+        }
+    }
+    
+    // 获取服务器启动时间 - 返回时间戳字符串
+    if let Ok((state, data)) = client.execute("info server-startup-time").await {
+        if state == NetPacketState::OK {
+            let startup = String::from_utf8_lossy(&data).to_string();
+            // 尝试解析时间戳计算 uptime
+            if let Ok(ts) = startup.trim().parse::<i64>() {
+                let now = chrono::Utc::now().timestamp();
+                let uptime_secs = (now - ts).max(0) as u64;
+                app.monitor.uptime = format_seconds(uptime_secs);
             }
         }
     }
     
-    // 获取客户端连接数
-    if let Ok((state, data)) = client.execute("info client").await {
+    // 获取当前连接数
+    if let Ok((state, data)) = client.execute("info current-connect-num").await {
         if state == NetPacketState::OK {
-            let info = String::from_utf8_lossy(&data).to_string();
-            for line in info.lines() {
-                if let Some(count) = line.strip_prefix("connected:") {
-                    app.monitor.connected_clients = count.trim().to_string();
-                }
-            }
+            let count = String::from_utf8_lossy(&data).to_string();
+            app.monitor.connected_clients = count.trim().to_string();
         }
     }
     
@@ -578,15 +580,19 @@ async fn load_monitor_data(app: &mut App, client: &mut DoreaClient) {
         }
     }
     
-    // 获取内存使用
-    if let Ok((state, data)) = client.execute("info memory").await {
+    // 获取总索引数
+    if let Ok((state, data)) = client.execute("info total-index-number").await {
         if state == NetPacketState::OK {
-            let info = String::from_utf8_lossy(&data).to_string();
-            for line in info.lines() {
-                if let Some(memory) = line.strip_prefix("used:") {
-                    app.monitor.memory_used = format_bytes(memory.trim().parse().unwrap_or(0));
-                }
-            }
+            let count = String::from_utf8_lossy(&data).to_string();
+            app.monitor.total_indexes = count.trim().to_string();
+        }
+    }
+    
+    // 获取当前数据库
+    if let Ok((state, data)) = client.execute("info current").await {
+        if state == NetPacketState::OK {
+            let db = String::from_utf8_lossy(&data).to_string();
+            app.monitor.current_db = db.trim().trim_matches('"').to_string();
         }
     }
     
@@ -602,23 +608,6 @@ fn format_seconds(seconds: u64) -> String {
         format!("{}m {}s", seconds / 60, seconds % 60)
     } else {
         format!("{}h {}m", seconds / 3600, (seconds % 3600) / 60)
-    }
-}
-
-/// 格式化字节数为可读大小
-fn format_bytes(bytes: u64) -> String {
-    const KB: u64 = 1024;
-    const MB: u64 = KB * 1024;
-    const GB: u64 = MB * 1024;
-    
-    if bytes >= GB {
-        format!("{:.2} GB", bytes as f64 / GB as f64)
-    } else if bytes >= MB {
-        format!("{:.2} MB", bytes as f64 / MB as f64)
-    } else if bytes >= KB {
-        format!("{:.2} KB", bytes as f64 / KB as f64)
-    } else {
-        format!("{} B", bytes)
     }
 }
 
@@ -638,9 +627,11 @@ async fn execute_command(app: &mut App, client: &mut DoreaClient, cmd: &str) {
             match client.select(db).await {
                 Ok(_) => {
                     app.current_database = db.to_string();
+                    app.status_message = format!("✓ Switched to database: {}", db);
                     app.add_log("INFO", &format!("Switched to database: {}", db));
                 }
                 Err(e) => {
+                    app.status_message = format!("✗ Error: {:?}", e);
                     app.add_log("ERROR", &format!("Failed: {:?}", e));
                 }
             }
@@ -651,12 +642,24 @@ async fn execute_command(app: &mut App, client: &mut DoreaClient, cmd: &str) {
                 Ok((state, data)) => {
                     let result = String::from_utf8_lossy(&data).to_string();
                     if state == NetPacketState::OK {
-                        app.add_log("INFO", &format!("OK: {}", if result.len() > 50 { &result[..50] } else { &result }));
+                        let preview = if result.len() > 50 { 
+                            format!("{}...", &result[..47])
+                        } else { 
+                            result.clone()
+                        };
+                        app.status_message = format!("✓ {}", preview);
+                        app.add_log("INFO", &format!("OK: {}", preview));
+                        // 如果是 keys 相关命令，刷新键列表
+                        if cmd.starts_with("set ") || cmd.starts_with("delete ") {
+                            // 可选：自动刷新键列表
+                        }
                     } else {
+                        app.status_message = format!("✗ {}", result);
                         app.add_log("ERROR", &result);
                     }
                 }
                 Err(e) => {
+                    app.status_message = format!("✗ Error: {:?}", e);
                     app.add_log("ERROR", &format!("Error: {:?}", e));
                 }
             }
@@ -845,66 +848,125 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
 
 /// 渲染 Monitor Tab
 fn render_monitor_tab(f: &mut Frame, app: &mut App, area: Rect) {
-    // 使用两列布局
+    // 使用三行布局：顶部标题、中间信息、底部提示
     let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),  // 标题行
+            Constraint::Min(10),    // 信息区
+            Constraint::Length(3),  // 提示行
+        ])
         .split(area);
     
+    // 顶部标题 - 显示连接信息和当前数据库
+    let title_text = format!(
+        " {}:{}  │  DB: {} ",
+        app.hostname,
+        app.port,
+        if app.monitor.current_db.is_empty() { &app.current_database } else { &app.monitor.current_db }
+    );
+    let title = Paragraph::new(title_text)
+        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .alignment(ratatui::layout::Alignment::Center)
+        .block(Block::default().borders(Borders::ALL));
+    f.render_widget(title, chunks[0]);
+    
+    // 中间信息区 - 两列布局
+    let info_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(chunks[1]);
+    
     // 左侧 - 服务器信息
+    let server_version = if app.monitor.server_version.is_empty() { "-" } else { &app.monitor.server_version };
+    let uptime = if app.monitor.uptime.is_empty() { "-" } else { &app.monitor.uptime };
+    let connected = if app.monitor.connected_clients.is_empty() { "-" } else { &app.monitor.connected_clients };
+    
     let server_info = vec![
+        Line::from(""),
         Line::from(vec![
-            Span::styled("Server Version:  ", Style::default().fg(Color::DarkGray)),
-            Span::styled(&app.monitor.server_version, Style::default().fg(Color::White)),
+            Span::styled("  ● ", Style::default().fg(Color::Green)),
+            Span::styled("Server Version", Style::default().fg(Color::DarkGray)),
+        ]),
+        Line::from(vec![
+            Span::raw("    "),
+            Span::styled(server_version, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("Uptime:          ", Style::default().fg(Color::DarkGray)),
-            Span::styled(&app.monitor.uptime, Style::default().fg(Color::White)),
+            Span::styled("  ⏱ ", Style::default().fg(Color::Yellow)),
+            Span::styled("Uptime", Style::default().fg(Color::DarkGray)),
         ]),
         Line::from(vec![
-            Span::styled("Connected:       ", Style::default().fg(Color::DarkGray)),
-            Span::styled(&app.monitor.connected_clients, Style::default().fg(Color::Green)),
+            Span::raw("    "),
+            Span::styled(uptime, Style::default().fg(Color::White)),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("Last Updated:    ", Style::default().fg(Color::DarkGray)),
-            Span::styled(&app.monitor.last_updated, Style::default().fg(Color::Yellow)),
+            Span::styled("  ↻ ", Style::default().fg(Color::Cyan)),
+            Span::styled("Connections", Style::default().fg(Color::DarkGray)),
+        ]),
+        Line::from(vec![
+            Span::raw("    "),
+            Span::styled(connected, Style::default().fg(Color::Green)),
         ]),
     ];
     
     let left_panel = Paragraph::new(server_info)
         .block(Block::default()
             .borders(Borders::ALL)
-            .title(" Server Info ")
-            .title_style(Style::default().fg(Color::Cyan)));
-    f.render_widget(left_panel, chunks[0]);
+            .title(" Server ")
+            .title_style(Style::default().fg(Color::Yellow)));
+    f.render_widget(left_panel, info_chunks[0]);
     
     // 右侧 - 数据统计
+    let total_keys = if app.monitor.total_keys.is_empty() { "-" } else { &app.monitor.total_keys };
+    let total_indexes = if app.monitor.total_indexes.is_empty() { "-" } else { &app.monitor.total_indexes };
+    let last_updated = if app.monitor.last_updated.is_empty() { "-" } else { &app.monitor.last_updated };
+    
     let data_stats = vec![
+        Line::from(""),
         Line::from(vec![
-            Span::styled("Total Keys:      ", Style::default().fg(Color::DarkGray)),
-            Span::styled(&app.monitor.total_keys, Style::default().fg(Color::White)),
+            Span::styled("  🔑 ", Style::default().fg(Color::Magenta)),
+            Span::styled("Total Keys", Style::default().fg(Color::DarkGray)),
+        ]),
+        Line::from(vec![
+            Span::raw("    "),
+            Span::styled(total_keys, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("Memory Used:     ", Style::default().fg(Color::DarkGray)),
-            Span::styled(&app.monitor.memory_used, Style::default().fg(Color::Magenta)),
+            Span::styled("  📊 ", Style::default().fg(Color::Blue)),
+            Span::styled("Total Indexes", Style::default().fg(Color::DarkGray)),
         ]),
         Line::from(vec![
-            Span::styled("Total Commands:  ", Style::default().fg(Color::DarkGray)),
-            Span::styled(&app.monitor.total_commands, Style::default().fg(Color::White)),
+            Span::raw("    "),
+            Span::styled(total_indexes, Style::default().fg(Color::White)),
         ]),
         Line::from(""),
-        Line::from(Span::styled("Press r to refresh", Style::default().fg(Color::DarkGray))),
+        Line::from(vec![
+            Span::styled("  🕐 ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Last Update", Style::default().fg(Color::DarkGray)),
+        ]),
+        Line::from(vec![
+            Span::raw("    "),
+            Span::styled(last_updated, Style::default().fg(Color::Yellow)),
+        ]),
     ];
     
     let right_panel = Paragraph::new(data_stats)
         .block(Block::default()
             .borders(Borders::ALL)
-            .title(" Statistics ")
+            .title(" Stats ")
             .title_style(Style::default().fg(Color::Cyan)));
-    f.render_widget(right_panel, chunks[1]);
+    f.render_widget(right_panel, info_chunks[1]);
+    
+    // 底部提示
+    let hint = Paragraph::new(" Press [r] to refresh  │  [Tab] switch tab  │  [q] quit ")
+        .style(Style::default().fg(Color::DarkGray))
+        .alignment(ratatui::layout::Alignment::Center)
+        .block(Block::default().borders(Borders::ALL));
+    f.render_widget(hint, chunks[2]);
 }
 
 /// 渲染 Log Tab
