@@ -14,6 +14,11 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::process::exit;
 
+// TUI 模块
+#[cfg(feature = "client")]
+#[path = "../cli_tui.rs"]
+mod cli_tui;
+
 const DOREA_CLI_VERSION: &str = "0.5.0";
 
 /// 打印启动 Banner
@@ -719,6 +724,31 @@ pub async fn main() {
                         .default_value("default"),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("tui")
+                .about("Start TUI mode (Terminal User Interface)")
+                .arg(
+                    Arg::with_name("HOSTNAME")
+                        .short("h")
+                        .long("hostname")
+                        .takes_value(true)
+                        .default_value("127.0.0.1"),
+                )
+                .arg(
+                    Arg::with_name("PORT")
+                        .short("p")
+                        .long("port")
+                        .takes_value(true)
+                        .default_value("3450"),
+                )
+                .arg(
+                    Arg::with_name("PASSWORD")
+                        .short("a")
+                        .long("password")
+                        .takes_value(true)
+                        .default_value(""),
+                ),
+        )
         .get_matches();
 
     // 单次执行模式
@@ -753,6 +783,36 @@ pub async fn main() {
             print_err(&res.1);
         } else {
             smart_format(&res.1);
+        }
+        return;
+    }
+
+    // TUI 模式
+    if let Some(m) = matches.subcommand_matches("tui") {
+        let hostname = m.value_of("HOSTNAME").unwrap();
+        let port = m.value_of("PORT").unwrap();
+        let password = m.value_of("PASSWORD").unwrap();
+
+        let client = DoreaClient::connect(
+            (
+                Box::leak(hostname.to_string().into_boxed_str()),
+                port.parse::<u16>().unwrap_or(3450),
+            ),
+            password,
+        )
+        .await;
+
+        match client {
+            Ok(c) => {
+                if let Err(e) = cli_tui::run_tui(c, hostname.to_string(), port.parse().unwrap_or(3450)).await {
+                    eprintln!("TUI error: {:?}", e);
+                    exit(1);
+                }
+            }
+            Err(e) => {
+                print_err(&format!("Connection failed: {:?}", e));
+                exit(1);
+            }
         }
         return;
     }
@@ -799,6 +859,40 @@ pub async fn main() {
                 if cmd == "exit" || cmd == "quit" {
                     println!("\n  {} Bye! 👋\n", "✓".green().bold());
                     exit(0);
+                }
+                if cmd == "tui" {
+                    // 进入 TUI 模式（需要重新创建连接，因为 DoreaClient 不支持 Clone）
+                    println!("\n  {} Entering TUI mode...\n", "✓".green().bold());
+                    
+                    // 重新连接
+                    let tui_client = DoreaClient::connect(
+                        (
+                            Box::leak(hostname.to_string().into_boxed_str()),
+                            port.parse::<u16>().unwrap_or(3450),
+                        ),
+                        password,
+                    ).await;
+                    
+                    match tui_client {
+                        Ok(c) => {
+                            if let Err(e) = cli_tui::run_tui(c, hostname.to_string(), port.parse().unwrap_or(3450)).await {
+                                println!("  {} TUI error: {:?}\n", "✗".red().bold(), e);
+                            }
+                        }
+                        Err(e) => {
+                            println!("  {} Connection failed: {:?}\n", "✗".red().bold(), e);
+                        }
+                    }
+                    
+                    // TUI 退出后重新显示 banner
+                    print_banner();
+                    println!(
+                        "  {} Connected to {}:{}\n",
+                        "✓".green().bold(),
+                        hostname.white().bold(),
+                        port.white().bold()
+                    );
+                    continue;
                 }
                 if cmd.is_empty() {
                     continue;

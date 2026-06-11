@@ -47,7 +47,7 @@ server = [
 ]
 
 # client features: client manager tools.
-client = ["processor"]
+client = ["processor", "ratatui", "crossterm"]
 
 # processor feature: include [value, network] to io data and fmt it.
 processor = []
@@ -98,6 +98,10 @@ rand = "0.8"
 
 # Terminal Colors
 colored = "2.1"
+
+# TUI Framework (optional, for client feature)
+ratatui = { version = "0.28", optional = true }
+crossterm = { version = "0.28", optional = true }
 
 # Logger Library
 log = "0.4.14"
