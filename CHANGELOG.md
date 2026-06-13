@@ -25,6 +25,14 @@
 - **Pipeline 协议**：客户端告知服务端命令数量，服务端精准批量处理
 - **NetPacketState::PIPELINE**：新增协议状态码，标识 Pipeline 批量命令
 - **并发批量测试示例**：新增 `bulk_concurrent.rs` 示例，展示多客户端并发写入
+- **Search 命令增强**：支持 Value 内容搜索和简化匹配语法
+  - `search <pattern>` — 默认搜索 key + value（子串匹配）
+  - `search key <pattern>` — 仅搜索 key
+  - `search value <pattern>` — 仅搜索 value 内容
+  - `^` 前缀匹配 / `$` 后缀匹配 / `^...$` 精确匹配
+  - 无通配符时自动子串匹配，无需 `*word*`
+  - 保留 `*` / `?` 通配符支持
+- **移除旧 search 语法**：旧 `search <pattern> [limit]` 不再支持，需显式指定 `key`/`value`
 
 ### 🐛 修复
 
