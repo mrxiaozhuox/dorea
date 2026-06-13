@@ -100,21 +100,34 @@ A database that has never been created will also be automatically created when t
 
 ## `SEARCH` | Data Search
 
-!> This feature is under development and currently unavailable!
-
-Used for data search (including key fuzzy search):
+Used for data search (key and value content search):
 
 ```
-search <match> { source: key | value } [options]
+search <pattern>              # search key + value (default)
+search key <pattern> [limit]   # search key only
+search value <pattern> [limit] # search value content only
 ```
 
-- match: Match statement (needs to be wrapped with !)
-- source: Source, can be `Key` or `Value`
-- options: Some extended options
+### Matching Rules
+
+| Pattern | Meaning | Example |
+|---------|---------|---------|
+| `word` | substring | `admin` matches `user:admin`, `admin_config` |
+| `^word` | prefix | `^user` matches `user:xxx` |
+| `word$` | suffix | `.log$` matches `error.log` |
+| `*` `?` | wildcards | `user*:?dmin` |
+
+### Examples
 
 ```
-~> search !*.user! key
-[OK]: ["admin.user", "mrxzx.user", "foo.user"]
+~> search admin
+[OK]: ["user:admin", "admin_config"]
+
+~> search key ^user
+[OK]: ["user:admin", "user:mrxzx"]
+
+~> search value hello
+[OK]: ["key1", "test_key"]
 ```
 
 This command can be used to fuzzy search database information.
