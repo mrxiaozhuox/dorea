@@ -170,8 +170,8 @@ async fn process_response_body(
 ) -> Vec<u8> {
     match String::from_utf8_lossy(res_body).to_string().as_str() {
         "@[SERVER_STARTUP_TIME]" => startup_time.to_string().as_bytes().to_vec(),
-        val if val.len() > 14 && &val[0..14] == "@[PRELOAD_DB]:" => {
-            let db_name = String::from(&val[14..]);
+        val if val.starts_with("@[PRELOAD_DB]:") => {
+            let db_name = val[14..].to_string();
             let tmp_db_manager = database_manager.clone();
             let db_config = config.database.clone();
             tokio::spawn(async move {
