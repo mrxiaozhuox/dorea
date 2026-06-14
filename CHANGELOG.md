@@ -19,6 +19,11 @@
 - **Pipeline 批量写入**：新增 `DoreaClient::pipeline()` 方法，支持批量发送命令，吞吐量提升 **2.28x**
 - **文件句柄缓存**：缓存数据文件句柄，减少 `open()` 系统调用，单客户端写入提升 **27%**
 - **批量响应协议**：Pipeline 使用单次 `write_all` 发送所有响应，减少系统调用开销
+- **内存值缓存**：新增 `DataBase.value_cache` (DashMap)，缓存已读取的 DataValue
+  - `GET` 命中缓存时零磁盘 I/O
+  - `SEARCH value` 自动受益，后续搜索无需逐个读盘
+  - `SET` 时同步写入缓存，`DELETE`/`CLEAN` 时自动清理
+  - 过期键懒删除：缓存命中时校验过期时间
 
 ### ✨ 新功能
 

@@ -89,7 +89,10 @@ fn test_fuzzy_search() {
     assert!(!fuzzy_search("*.com", "mrxzx.info"));
     assert!(!fuzzy_search("?.com", "baidu.com"));
     assert!(!fuzzy_search("dorea-server", "dorea-ser"));
-    assert!(!fuzzy_search("dorea-ser", "dorea-server"));
+    // dorea-ser 是 dorea-server 的子串（新：默认子串匹配）
+    assert!(fuzzy_search("dorea-ser", "dorea-server"));
+    // 要用精确匹配请加 ^ 和 $
+    assert!(!fuzzy_search("^dorea-ser$", "dorea-server"));
     assert!(!fuzzy_search("dorea?", "dorea"));
     assert!(fuzzy_search("dorea*", "dorea"));
 
