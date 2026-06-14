@@ -490,12 +490,16 @@ impl DataBase {
     }
 
     pub async fn keys(&self) -> Vec<String> {
-        let mut temp = vec![];
-        for i in self.index.keys() {
-            temp.push(i.to_string());
-        }
-
-        temp
+        let now = chrono::Local::now().timestamp() as u64;
+        self.index
+            .iter()
+            .filter(|(_, info)| {
+                // 无过期时间 或 未过期
+                info.time_stamp.1 == 0
+                    || (info.time_stamp.0 as u64 + info.time_stamp.1) > now
+            })
+            .map(|(k, _)| k.clone())
+            .collect()
     }
 
     pub fn record_count(&self) -> usize {

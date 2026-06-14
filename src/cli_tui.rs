@@ -566,8 +566,19 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
                 key_info.size = format!("{}B", raw_value.len());
             }
         }
-        _ => {
-            app.current_value = Some("(error loading value)".to_string());
+        Ok((_, data)) => {
+            let err_msg = String::from_utf8_lossy(&data).to_string();
+            if err_msg.contains("Data Not Found") {
+                app.current_value = Some("(已过期或已删除)".to_string());
+            } else {
+                app.current_value = Some(format!("(加载失败: {})", err_msg));
+            }
+            app.current_value_raw = None;
+            app.current_value_type = None;
+            app.value_tree = None;
+        }
+        Err(_) => {
+            app.current_value = Some("(连接失败)".to_string());
             app.current_value_raw = None;
             app.current_value_type = None;
             app.value_tree = None;
