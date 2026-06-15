@@ -100,24 +100,35 @@ select <group> [options]
 
 ## `SEARCH` | 数据查找
 
-!> 本功能开发中，暂不可用哦！
-
-用于数据的查找（包括Key模糊查找）
+用于数据的查找（Key 和 Value 内容搜索）
 
 ```
-search <match> { source: key | value } [options]
+search <pattern>              # 搜索 key + value（默认）
+search key <pattern> [limit]   # 仅搜索 key
+search value <pattern> [limit] # 仅搜索 value 内容
 ```
 
-- match: 匹配语句（需要用!包裹起来）
-- source: 来源，可选为 `Key` 和 `Value`
-- options: 一些拓展选项
+### 匹配规则
+
+| 写法 | 含义 | 示例 |
+|------|------|------|
+| `word` | 子串匹配 | `admin` 匹配 `user:admin`、`admin_config` |
+| `^word` | 前缀匹配 | `^user` 匹配 `user:xxx` |
+| `word$` | 后缀匹配 | `.log$` 匹配 `error.log` |
+| `*` `?` | 通配符 | `user*:?dmin` |
+
+### 示例
 
 ```
-~> search !*.user! key
-[OK]: ["admin.user", "mrxzx.user", "foo.user"]
-```
+~> search admin
+[OK]: ["user:admin", "admin_config"]
 
-通过本命令可模糊查找数据库信息。
+~> search key ^user
+[OK]: ["user:admin", "user:mrxzx"]
+
+~> search value hello
+[OK]: ["key1", "test_key"]
+```
 
 ## `INFO` | 信息获取
 

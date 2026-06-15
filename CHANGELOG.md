@@ -19,17 +19,31 @@
 - **Pipeline 批量写入**：新增 `DoreaClient::pipeline()` 方法，支持批量发送命令，吞吐量提升 **2.28x**
 - **文件句柄缓存**：缓存数据文件句柄，减少 `open()` 系统调用，单客户端写入提升 **27%**
 - **批量响应协议**：Pipeline 使用单次 `write_all` 发送所有响应，减少系统调用开销
+- **内存值缓存**：新增 `DataBase.value_cache` (DashMap)，缓存已读取的 DataValue
+  - `GET` 命中缓存时零磁盘 I/O
+  - `SEARCH value` 自动受益，后续搜索无需逐个读盘
+  - `SET` 时同步写入缓存，`DELETE`/`CLEAN` 时自动清理
+  - 过期键懒删除：缓存命中时校验过期时间
 
 ### ✨ 新功能
 
 - **Pipeline 协议**：客户端告知服务端命令数量，服务端精准批量处理
 - **NetPacketState::PIPELINE**：新增协议状态码，标识 Pipeline 批量命令
 - **并发批量测试示例**：新增 `bulk_concurrent.rs` 示例，展示多客户端并发写入
+- **Search 命令增强**：支持 Value 内容搜索和简化匹配语法
+  - `search <pattern>` — 默认搜索 key + value（子串匹配）
+  - `search key <pattern>` — 仅搜索 key
+  - `search value <pattern>` — 仅搜索 value 内容
+  - `^` 前缀匹配 / `$` 后缀匹配 / `^...$` 精确匹配
+  - 无通配符时自动子串匹配，无需 `*word*`
+  - 保留 `*` / `?` 通配符支持
+- **移除旧 search 语法**：旧 `search <pattern> [limit]` 不再支持，需显式指定 `key`/`value`
 
 ### 🐛 修复
 
 - 修复服务启动时间别名错误（`stt` → `sst`）
 - 修复多个示例命令语法错误
+- **修复 TUI 过期 Key 显示问题**：`keys()` 过滤已过期 key，TUI 对过期 key 显示「已过期或已删除」
 
 ### 📚 文档与示例
 

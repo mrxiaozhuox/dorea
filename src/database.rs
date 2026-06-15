@@ -50,6 +50,9 @@ pub struct DataBase {
     timestamp: i64,
     location: PathBuf,
     file: DataFile,
+    /// 值内存缓存 (value, expiry_timestamp)
+    /// expiry_timestamp: 0 表示永不过期，否则为过期时间戳（秒）
+    value_cache: DashMap<String, (DataValue, i64)>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -346,6 +349,7 @@ impl DataBase {
             timestamp: chrono::Local::now().timestamp(),
             file: data_file,
             location,
+            value_cache: DashMap::new(),
         };
 
         let _ = obj.save_state_json().await;
@@ -393,10 +397,32 @@ impl DataBase {
             time_stamp: (chrono::Local::now().timestamp(), expire),
         };
 
-        self.file.write(data_node, &mut self.index).await
+        self.file.write(data_node, &mut self.index).await?;
+
+        // 更新内存缓存
+        let expires_at = if expire != 0 {
+            chrono::Local::now().timestamp() + expire as i64
+        } else {
+            0
+        };
+        self.value_cache
+            .insert(key.to_string(), (value, expires_at));
+
+        Ok(())
     }
 
     pub async fn get(&self, key: &str) -> Option<DataValue> {
+        // 先查内存缓存
+        if let Some(entry) = self.value_cache.get(key) {
+            let (ref cached_value, expires_at) = *entry;
+            if expires_at == 0 || expires_at > chrono::Local::now().timestamp() {
+                return Some(cached_value.clone());
+            }
+            // 缓存已过期，删除
+            drop(entry);
+            self.value_cache.remove(key);
+        }
+
         let res = self.file.read(key.to_string(), &self.index).await;
         match res {
             Some(d) => {
@@ -406,6 +432,15 @@ impl DataBase {
                 {
                     return Some(DataValue::None);
                 }
+
+                // 回填缓存
+                let expires_at = if d.time_stamp.1 != 0 {
+                    d.time_stamp.0 + d.time_stamp.1 as i64
+                } else {
+                    0
+                };
+                self.value_cache
+                    .insert(key.to_string(), (d.value.clone(), expires_at));
 
                 Some(d.value)
             }
@@ -418,6 +453,7 @@ impl DataBase {
     }
 
     pub async fn delete(&mut self, key: &str) -> Result<()> {
+        self.value_cache.remove(key);
         return match self.set(key, DataValue::None, 0).await {
             Ok(_) => {
                 TOTAL_INDEX_NUMBER.fetch_sub(1, Ordering::Relaxed);
@@ -433,6 +469,7 @@ impl DataBase {
     }
 
     pub async fn clean(&mut self) -> Result<()> {
+        self.value_cache.clear();
         TOTAL_INDEX_NUMBER.fetch_sub(self.index.len() as u32, Ordering::Relaxed);
         for entry in walkdir::WalkDir::new(&self.location)
             .into_iter()
@@ -453,12 +490,16 @@ impl DataBase {
     }
 
     pub async fn keys(&self) -> Vec<String> {
-        let mut temp = vec![];
-        for i in self.index.keys() {
-            temp.push(i.to_string());
-        }
-
-        temp
+        let now = chrono::Local::now().timestamp() as u64;
+        self.index
+            .iter()
+            .filter(|(_, info)| {
+                // 无过期时间 或 未过期
+                info.time_stamp.1 == 0
+                    || (info.time_stamp.0 as u64 + info.time_stamp.1) > now
+            })
+            .map(|(k, _)| k.clone())
+            .collect()
     }
 
     pub fn record_count(&self) -> usize {

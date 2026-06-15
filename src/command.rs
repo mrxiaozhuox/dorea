@@ -1238,29 +1238,65 @@ impl CommandManager {
             }
         }
 
-        // 暂时不支持具体内容查询
         if command == CommandList::SEARCH {
-            let expression: &str = slice.first().unwrap();
-
-            let mut limit = 0;
-
-            if slice.len() >= 2 {
-                limit = slice.get(1).unwrap().parse::<u16>().unwrap_or(0);
+            if slice.is_empty() {
+                return (NetPacketState::ERR, b"missing search pattern".to_vec());
             }
 
-            // 读锁执行搜索
+            let first = slice.first().unwrap().as_str();
+
+            // 解析 source: "key" | "value" | 其他 = 搜索模式
+            let (source, pattern, limit_pos) = match first {
+                "key" => {
+                    if slice.len() < 2 {
+                        return (NetPacketState::ERR, b"missing pattern for key search".to_vec());
+                    }
+                    ("key", slice.get(1).unwrap().as_str(), 2)
+                }
+                "value" => {
+                    if slice.len() < 2 {
+                        return (NetPacketState::ERR, b"missing pattern for value search".to_vec());
+                    }
+                    ("value", slice.get(1).unwrap().as_str(), 2)
+                }
+                _ => ("all", first, 1),
+            };
+
+            let mut limit: u16 = 0;
+            if slice.len() > limit_pos {
+                limit = slice.get(limit_pos).unwrap().parse::<u16>().unwrap_or(0);
+            }
+
             let db_arc = database_manager.db_list.get(current).unwrap().clone();
             let db = db_arc.read().await;
             let keys = db.keys().await;
-
             let mut result = vec![];
 
-            for item in keys {
-                if crate::tool::fuzzy_search(expression, &item) {
-                    result.push(item.clone());
-                    if (result.len() as u16) >= limit && limit != 0 {
-                        break;
+            let search_key = source == "key" || source == "all";
+            let search_val = source == "value" || source == "all";
+
+            for item in &keys {
+                if limit != 0 && (result.len() as u16) >= limit {
+                    break;
+                }
+
+                let mut matched = false;
+
+                if search_key && crate::tool::fuzzy_search(pattern, item) {
+                    matched = true;
+                }
+
+                if !matched && search_val {
+                    if let Some(val) = db.get(item).await {
+                        let text = val.to_string();
+                        if crate::tool::fuzzy_search(pattern, &text) {
+                            matched = true;
+                        }
                     }
+                }
+
+                if matched {
+                    result.push(item.clone());
                 }
             }
 
