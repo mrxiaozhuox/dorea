@@ -433,6 +433,7 @@ function inferType(value) {
         if (k === 'Boolean') return 'Boolean';
         if (k === 'Dict') return 'Dict';
         if (k === 'List') return 'List';
+        if (k === 'Tuple') return 'Tuple';
       }
       return 'Dict';
     }
@@ -467,6 +468,7 @@ function formatValue(obj) {
     if (keys.length === 1) {
       var k = keys[0];
       if (k === 'String' || k === 'Number' || k === 'Boolean') return formatValue(obj[k]);
+      if (k === 'Dict' || k === 'List') return formatValue(obj[k]);
     }
     // Pretty print dict
     var parts = [];
