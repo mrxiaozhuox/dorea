@@ -1081,8 +1081,15 @@ pub async fn total_index_number() -> (u32, u32) {
 
 /// 根据 Doson 序列化字符串推断实际类型
 /// Doson 格式: {"String":"..."}, {"Number":42}, {"Boolean":true}, {"Dict":{...}}, {"List":[...]}
+/// Binary: binary!(base64...) 或 {"Binary":...}
 pub fn infer_doson_type(raw: &str) -> String {
     let v = raw.trim();
+
+    // 检查 doson 文本格式的 Binary: binary!(base64...)
+    if v.starts_with("binary!(") {
+        return "Binary".to_string();
+    }
+
     if let Ok(obj) = serde_json::from_str::<serde_json::Value>(v) {
         if let Some(map) = obj.as_object() {
             if map.len() == 1 {
@@ -1094,6 +1101,7 @@ pub fn infer_doson_type(raw: &str) -> String {
                     "Dict" => return "Dict".to_string(),
                     "List" => return "List".to_string(),
                     "Tuple" => return "Tuple".to_string(),
+                    "Binary" => return "Binary".to_string(),
                     _ => {}
                 }
             }

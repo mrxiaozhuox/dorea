@@ -55,6 +55,8 @@ tr:hover td { background:rgba(88,166,255,.04); }
 .type-dict { background:rgba(163,113,247,.12); color:var(--purple); }
 .type-list { background:rgba(88,166,255,.12); color:var(--accent); }
 .type-bool { background:rgba(248,81,73,.12); color:var(--red); }
+.type-binary { background:rgba(0,210,210,.12); color:#00d2d2; }
+.type-tuple { background:rgba(255,133,37,.12); color:#ff8525; }
 
 .footer { height:28px; padding:0 20px; display:flex; align-items:center; font-size:10px; color:var(--dim); border-top:1px solid var(--border); flex-shrink:0; justify-content:space-between; }
 
@@ -440,6 +442,8 @@ function copyCurrent() {
 function inferType(value) {
   if (!value) return 'Empty';
   var v = value.trim();
+  // Doson binary format: binary!(base64...)
+  if (v.startsWith('binary!(')) return 'Binary';
   // Doson format: {"String":"hello"}, {"Number":42}, etc.
   try {
     var obj = JSON.parse(v);
@@ -453,6 +457,7 @@ function inferType(value) {
         if (k === 'Dict') return 'Dict';
         if (k === 'List') return 'List';
         if (k === 'Tuple') return 'Tuple';
+        if (k === 'Binary') return 'Binary';
       }
       return 'Dict';
     }
@@ -506,7 +511,7 @@ function renderValue(value, type, expire) {
 }
 
 function typeBadge(type) {
-  var map = { String:'type-string', Number:'type-number', Dict:'type-dict', List:'type-list', Boolean:'type-bool' };
+  var map = { String:'type-string', Number:'type-number', Dict:'type-dict', List:'type-list', Boolean:'type-bool', Binary:'type-binary', Tuple:'type-tuple' };
   var cls = map[type] || 'type-string';
   return '<span class="type-badge ' + cls + '">' + (type || 'String') + '</span>';
 }
