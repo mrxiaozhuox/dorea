@@ -119,6 +119,10 @@ pub struct App {
     value_tree: Option<ValueNode>,
     expand_state: ExpandState,
     
+    // Hex dump（Binary 类型专用）
+    hex_bytes: Option<Vec<u8>>,
+    hex_scroll_offset: usize,
+    
     // 命令输入
     command_input: String,
     command_mode: bool,
@@ -184,6 +188,8 @@ impl App {
             current_value_type: None,
             value_tree: None,
             expand_state: ExpandState::default(),
+            hex_bytes: None,
+            hex_scroll_offset: 0,
             command_input: String::new(),
             command_mode: false,
             command_result: None,
@@ -355,7 +361,15 @@ async fn handle_data_tab_keys(
     match key.code {
         // 导航 - 支持 j/k 和 上下方向键
         KeyCode::Char('j') | KeyCode::Down => {
-            if app.selected_key < app.keys.len().saturating_sub(1) {
+            // Hex dump 滚动
+            if app.focus == Focus::ValueView && app.current_value_type.as_deref() == Some("Binary") && app.value_mode == ValueViewMode::Pretty {
+                if let Some(bytes) = &app.hex_bytes {
+                    let hex_lines = (bytes.len() + 15) / 16 + 3; // header 3行 + 数据行
+                    if app.hex_scroll_offset < hex_lines.saturating_sub(1) {
+                        app.hex_scroll_offset += 1;
+                    }
+                }
+            } else if app.selected_key < app.keys.len().saturating_sub(1) {
                 app.selected_key += 1;
                 // 加载值 - 先 clone key 避免借用冲突
                 let key = app.keys.get(app.selected_key).map(|k| k.key.clone());
@@ -365,12 +379,33 @@ async fn handle_data_tab_keys(
             }
         }
         KeyCode::Char('k') | KeyCode::Up => {
-            if app.selected_key > 0 {
+            // Hex dump 滚动
+            if app.focus == Focus::ValueView && app.current_value_type.as_deref() == Some("Binary") && app.value_mode == ValueViewMode::Pretty {
+                if app.hex_scroll_offset > 0 {
+                    app.hex_scroll_offset -= 1;
+                }
+            } else if app.selected_key > 0 {
                 app.selected_key -= 1;
                 let key = app.keys.get(app.selected_key).map(|k| k.key.clone());
                 if let Some(key) = key {
                     load_key_value(app, client, &key).await;
                 }
+            }
+        }
+        // 支持 g/G 跳转
+        KeyCode::Char('g') => {
+            if app.focus == Focus::ValueView && app.current_value_type.as_deref() == Some("Binary") && app.value_mode == ValueViewMode::Pretty {
+                app.hex_scroll_offset = 0;
+            }
+        }
+        KeyCode::Char('G') => {
+            if app.focus == Focus::ValueView && app.current_value_type.as_deref() == Some("Binary") && app.value_mode == ValueViewMode::Pretty {
+                if let Some(bytes) = &app.hex_bytes {
+                    let hex_lines = (bytes.len() + 15) / 16 + 3;
+                    app.hex_scroll_offset = hex_lines.saturating_sub(1);
+                }
+            } else if !app.keys.is_empty() {
+                app.selected_key = app.keys.len() - 1;
             }
         }
         // 支持 h/l 和 左右方向键
@@ -382,11 +417,6 @@ async fn handle_data_tab_keys(
         KeyCode::Char('l') | KeyCode::Right => {
             if app.focus == Focus::KeyList {
                 app.focus = Focus::ValueView;
-            }
-        }
-        KeyCode::Char('G') => {
-            if !app.keys.is_empty() {
-                app.selected_key = app.keys.len() - 1;
             }
         }
         KeyCode::Char('r') => {
@@ -552,6 +582,7 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
                 app.current_value = Some("(key not found)".to_string());
                 app.current_value_raw = None;
                 app.current_value_type = None;
+                app.hex_bytes = None;
                 return;
             }
             
@@ -581,6 +612,14 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
                 }
             }
             app.expand_state = expand_state;
+            
+            // 解码 Binary 的 base64（两种格式）
+            if value_type == "Binary" {
+                app.hex_bytes = decode_binary_base64(&raw_value);
+                app.hex_scroll_offset = 0;
+            } else {
+                app.hex_bytes = None;
+            }
         }
         Ok((_, data)) => {
             let err_msg = String::from_utf8_lossy(&data).to_string();
@@ -592,12 +631,14 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
             app.current_value_raw = None;
             app.current_value_type = None;
             app.value_tree = None;
+            app.hex_bytes = None;
         }
         Err(_) => {
             app.current_value = Some("(连接失败)".to_string());
             app.current_value_raw = None;
             app.current_value_type = None;
             app.value_tree = None;
+            app.hex_bytes = None;
         }
     }
 }
@@ -811,6 +852,90 @@ fn infer_value_type(value: &str) -> String {
     } else {
         "String".to_string()
     }
+}
+
+/// 解码 binary!(base64...) 或 {"Binary":{"data":[...]}} 为原始字节
+fn decode_binary_base64(value: &str) -> Option<Vec<u8>> {
+    // Format 1: binary!(base64...)
+    let trimmed = value.trim();
+    if trimmed.starts_with("binary!(") && trimmed.ends_with(')') {
+        let b64 = &trimmed[8..trimmed.len()-1]; // strip "binary!(" prefix and ")" suffix
+        if !b64.is_empty() {
+            if let Ok(bytes) = base64::decode(b64) {
+                return Some(bytes);
+            }
+        }
+    }
+    // Format 2: {"Binary":{"data":[...]}}
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(value) {
+        if let Some(arr) = json.get("Binary").and_then(|b| b.get("data")).and_then(|d| d.as_array()) {
+            let bytes: Vec<u8> = arr.iter()
+                .filter_map(|v| v.as_u64().map(|n| n as u8))
+                .collect();
+            if !bytes.is_empty() {
+                return Some(bytes);
+            }
+        }
+    }
+    None
+}
+
+/// 渲染 Hex Dump（偏移 | hex bytes | ASCII）
+fn render_hex_dump(bytes: &[u8], _scroll_offset: usize) -> Vec<Line<'static>> {
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    let total = bytes.len();
+
+    if total == 0 {
+        lines.push(Line::from(Span::styled("(empty binary)", Style::default().fg(Color::DarkGray))));
+        return lines;
+    }
+
+    // Header
+    lines.push(Line::from(vec![
+        Span::raw(""),
+        Span::styled(
+            format!("{}", format_size(total)),
+            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+        ),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled(
+            "  Offset   00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F  ASCII",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]));
+    lines.push(Line::raw(""));
+
+    // 渲染所有行（TUI 窗口会自动滚动）
+    for offset in (0..total).step_by(16) {
+        let mut hex = String::with_capacity(48);
+        let mut ascii = String::with_capacity(16);
+
+        for i in 0..16 {
+            if offset + i < total {
+                let b = bytes[offset + i];
+                hex.push_str(&format!("{:02X} ", b));
+                if i == 7 {
+                    hex.push(' ');
+                }
+                ascii.push(if b >= 0x20 && b < 0x7F { b as char } else { '.' });
+            } else {
+                hex.push_str("   ");
+                ascii.push(' ');
+            }
+        }
+
+        let off_str = format!("{:08X}", offset);
+        lines.push(Line::from(vec![
+            Span::styled(format!("  {}", off_str), Style::default().fg(Color::DarkGray)),
+            Span::raw("  "),
+            Span::styled(hex, Style::default().fg(Color::Cyan)),
+            Span::raw(" "),
+            Span::styled(ascii, Style::default().fg(Color::White)),
+        ]));
+    }
+
+    lines
 }
 
 /// 加载 Monitor 数据
@@ -1119,15 +1244,38 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
     };
     
     let mode_hint = match app.value_mode {
-        ValueViewMode::Pretty => " [F2: Raw]",
-        ValueViewMode::Raw => " [F2: Pretty]",
+        ValueViewMode::Pretty => {
+            if app.current_value_type.as_deref() == Some("Binary") { " [F2: Base64]" } else { " [F2: Raw]" }
+        }
+        ValueViewMode::Raw => {
+            if app.current_value_type.as_deref() == Some("Binary") { " [F2: Hex]" } else { " [F2: Pretty]" }
+        }
     };
-    
+
     // 根据模式选择显示的值
     match app.value_mode {
         ValueViewMode::Pretty => {
-            // 使用组件化渲染
-            if let Some(tree) = &app.value_tree {
+            // Binary 类型使用 hex dump
+            if app.current_value_type.as_deref() == Some("Binary") {
+                if let Some(bytes) = &app.hex_bytes {
+                    let lines = render_hex_dump(bytes, app.hex_scroll_offset);
+                    let value_widget = Paragraph::new(lines)
+                        .block(Block::default()
+                            .borders(Borders::ALL)
+                            .title(value_title.clone() + mode_hint)
+                            .title_style(Style::default().fg(Color::Cyan)));
+                    f.render_widget(value_widget, chunks[1]);
+                } else {
+                    let text = app.current_value_raw.as_deref().unwrap_or("(no value)");
+                    let value_widget = Paragraph::new(text)
+                        .block(Block::default()
+                            .borders(Borders::ALL)
+                            .title(value_title.clone() + mode_hint)
+                            .title_style(Style::default().fg(Color::Cyan)));
+                    f.render_widget(value_widget, chunks[1]);
+                }
+            } else if let Some(tree) = &app.value_tree {
+                // 使用组件化渲染
                 let lines = render_value_tree(tree, &app.expand_state);
                 let value_widget = Paragraph::new(lines)
                     .block(Block::default()
@@ -1336,6 +1484,9 @@ fn render_help_tab(f: &mut Frame, app: &mut App, area: Rect) {
         Line::from("  Enter                 Expand/Collapse value tree"),
         Line::from("  r                     Refresh key list"),
         Line::from("  F2                    Toggle Pretty/Raw mode"),
+        Line::from("  F2 (Binary)           Toggle Hex/Base64 view"),
+        Line::from("  j/k (Hex)             Scroll hex dump"),
+        Line::from("  g/G (Hex)             Jump to top/bottom of hex"),
         Line::from(""),
         Line::from(Span::styled("Monitor Tab", Style::default().fg(Color::Yellow).bold())),
         Line::from("  r                     Refresh monitor data"),
