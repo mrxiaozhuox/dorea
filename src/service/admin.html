@@ -265,24 +265,26 @@ async function loadAll() {
 
     // Version (execute → data.reply)
     try {
-      const ver = await exec('info version');
-      document.getElementById('h-ver').textContent = 'v' + ver.trim();
+      var ver = (await exec('info version')).trim();
+      if (ver.charAt(0) === 'V' || ver.charAt(0) === 'v') ver = ver.slice(1);
+      document.getElementById('h-ver').textContent = 'v' + ver;
     } catch(e) { document.getElementById('h-ver').textContent = 'v--'; }
 
     // Uptime (execute → data.reply)
     try {
-      const ts = parseInt(await exec('info server-startup-time'), 10);
+      var tsStr = (await exec('info server-startup-time')).trim();
+      var ts = parseInt(tsStr, 10);
       if (ts > 0) {
-        const secs = Math.floor(Date.now()/1000) - ts;
+        var secs = Math.floor(Date.now() / 1000) - ts;
+        if (secs < 0) secs = 0;
         document.getElementById('s-uptime').textContent = formatUptime(secs);
+      } else {
+        document.getElementById('s-uptime').textContent = '--';
       }
     } catch(e) { document.getElementById('s-uptime').textContent = '--'; }
 
-    // Connections (execute → data.reply)
-    try {
-      const conn = (await exec('info current-connect-num')).trim();
-      document.getElementById('h-conn').textContent = conn + ' conn';
-    } catch(e) { document.getElementById('h-conn').textContent = '-- conn'; }
+    // Connections (API may not support, show --)
+    document.getElementById('h-conn').textContent = '--';
 
     renderTable(keys);
   } catch(e) {
@@ -333,7 +335,7 @@ async function viewKey(key) {
   try {
     const data = await api('/@' + currentDB + '/get', { key, style: 'json' });
     document.getElementById('valKey').textContent = key;
-    const type = data.type || 'Unknown';
+    var type = inferType(data.value);
     document.getElementById('valBody').innerHTML = renderValue(data.value, type);
 
     // Update table row
@@ -416,13 +418,69 @@ function copyCurrent() {
 }
 
 // ========== UTILS ==========
-function renderValue(value, type) {
-  var display = value || '';
+function inferType(value) {
+  if (!value) return 'Empty';
+  var v = value.trim();
+  // Doson format: {"String":"hello"}, {"Number":42}, etc.
   try {
-    var parsed = JSON.parse(value);
-    display = JSON.stringify(parsed, null, 2);
+    var obj = JSON.parse(v);
+    if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
+      var keys = Object.keys(obj);
+      if (keys.length === 1) {
+        var k = keys[0];
+        if (k === 'String') return 'String';
+        if (k === 'Number') return 'Number';
+        if (k === 'Boolean') return 'Boolean';
+        if (k === 'Dict') return 'Dict';
+        if (k === 'List') return 'List';
+      }
+      return 'Dict';
+    }
+    if (Array.isArray(obj)) return 'List';
+    if (typeof obj === 'number') return 'Number';
+    if (typeof obj === 'boolean') return 'Boolean';
+    if (typeof obj === 'string') return 'String';
   } catch(e) {}
-  return '<div style="font-size:10px;color:var(--dim);margin-bottom:8px">' + (type || 'String') + '</div><pre>' + esc(display) + '</pre>';
+  if (v === 'true' || v === 'false') return 'Boolean';
+  if (!isNaN(v) && v !== '') return 'Number';
+  return 'String';
+}
+
+function extractDisplay(value) {
+  if (!value) return '';
+  try {
+    var obj = JSON.parse(value);
+    return formatValue(obj);
+  } catch(e) {}
+  return value;
+}
+
+function formatValue(obj) {
+  if (typeof obj === 'string') return obj;
+  if (typeof obj === 'number' || typeof obj === 'boolean') return String(obj);
+  if (Array.isArray(obj)) {
+    return '[' + obj.map(formatValue).join(', ') + ']';
+  }
+  if (typeof obj === 'object' && obj !== null) {
+    var keys = Object.keys(obj);
+    // Unwrap Doson single-key wrappers
+    if (keys.length === 1) {
+      var k = keys[0];
+      if (k === 'String' || k === 'Number' || k === 'Boolean') return formatValue(obj[k]);
+    }
+    // Pretty print dict
+    var parts = [];
+    for (var i = 0; i < keys.length; i++) {
+      parts.push(JSON.stringify(keys[i]) + ': ' + formatValue(obj[keys[i]]));
+    }
+    return '{\n  ' + parts.join(',\n  ') + '\n}';
+  }
+  return String(obj);
+}
+
+function renderValue(value, type) {
+  var display = extractDisplay(value);
+  return '<div style="font-size:10px;color:var(--dim);margin-bottom:8px">' + type + '</div><pre>' + esc(display) + '</pre>';
 }
 
 function typeBadge(type) {
@@ -444,7 +502,7 @@ function formatBytes(b) {
 }
 
 function formatUptime(s) {
-  if (!s || s < 0) return '--';
+  if (s == null || s < 0) return '--';
   if (s < 60) return s + 's';
   if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
   if (s < 86400) return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
