@@ -465,12 +465,10 @@ async fn handle_help_tab_keys(
 
 /// 加载键列表
 async fn load_keys(app: &mut App, client: &mut DoreaClient) {
-    match client.execute("info keys").await {
+    match client.execute("info keys-meta").await {
         Ok((state, data)) if state == NetPacketState::OK => {
-            let result = String::from_utf8_lossy(&data).to_string();
-            // 解析键列表，保留已有 key 的缓存
-            let old_keys = std::mem::take(&mut app.keys);
-            app.keys = parse_key_list(&result, &old_keys);
+            let json_str = String::from_utf8_lossy(&data).to_string();
+            app.keys = parse_key_meta(&json_str);
             
             // 尝试保持选中状态
             if app.selected_key >= app.keys.len() {
@@ -479,7 +477,7 @@ async fn load_keys(app: &mut App, client: &mut DoreaClient) {
             
             app.status_message = format!("Loaded {} keys", app.keys.len());
             
-            // 加载当前选中键的值 - 先 clone key 避免借用冲突
+            // 加载当前选中键的值
             let selected_key = app.keys.get(app.selected_key).map(|k| k.key.clone());
             if let Some(key) = selected_key {
                 load_key_value(app, client, &key).await;
@@ -492,30 +490,54 @@ async fn load_keys(app: &mut App, client: &mut DoreaClient) {
     }
 }
 
-/// 解析键列表，保留已有 key 的缓存
-fn parse_key_list(data: &str, cached_keys: &[KeyInfo]) -> Vec<KeyInfo> {
-    let mut keys = Vec::new();
-    
-    // 简单解析 JSON 数组
-    let trimmed = data.trim();
-    if trimmed.starts_with('[') && trimmed.ends_with(']') {
-        let content = &trimmed[1..trimmed.len()-1];
-        for item in content.split(',') {
-            let key = item.trim().trim_matches('"').to_string();
-            if !key.is_empty() {
-                // 查找缓存
-                let cached = cached_keys.iter().find(|k| k.key == key);
-                keys.push(KeyInfo {
-                    key: key.clone(),
-                    key_type: cached.map(|k| k.key_type.clone()).unwrap_or_else(|| "-".to_string()),
-                    size: cached.map(|k| k.size.clone()).unwrap_or_else(|| "-".to_string()),
-                    ttl: cached.map(|k| k.ttl.clone()).unwrap_or_else(|| "-".to_string()),
-                });
-            }
-        }
+/// 解析 `info keys-meta` JSON 响应为 KeyInfo 列表
+fn parse_key_meta(json_str: &str) -> Vec<KeyInfo> {
+    #[derive(serde::Deserialize)]
+    struct RawKeyMeta {
+        key: String,
+        #[serde(rename = "type")]
+        key_type: String,
+        size: usize,
+        expire: u64,
     }
-    
-    keys
+
+    let Ok(items) = serde_json::from_str::<Vec<RawKeyMeta>>(json_str) else {
+        return Vec::new();
+    };
+
+    items
+        .into_iter()
+        .map(|m| KeyInfo {
+            key: m.key,
+            key_type: m.key_type,
+            size: format_size(m.size),
+            ttl: format_ttl(m.expire),
+        })
+        .collect()
+}
+
+fn format_size(bytes: usize) -> String {
+    if bytes < 1024 {
+        format!("{} B", bytes)
+    } else if bytes < 1048576 {
+        format!("{:.1} KB", bytes as f64 / 1024.0)
+    } else {
+        format!("{:.1} MB", bytes as f64 / 1048576.0)
+    }
+}
+
+fn format_ttl(expire: u64) -> String {
+    if expire == 0 {
+        "–".to_string()
+    } else if expire < 60 {
+        format!("{}s", expire)
+    } else if expire < 3600 {
+        format!("{}m", expire / 60)
+    } else if expire < 86400 {
+        format!("{}h", expire / 3600)
+    } else {
+        format!("{}d", expire / 86400)
+    }
 }
 
 /// 加载键的值
@@ -559,12 +581,6 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
                 }
             }
             app.expand_state = expand_state;
-            
-            // 更新键列表中的类型
-            if let Some(key_info) = app.keys.iter_mut().find(|k| k.key == key) {
-                key_info.key_type = value_type;
-                key_info.size = format!("{}B", raw_value.len());
-            }
         }
         Ok((_, data)) => {
             let err_msg = String::from_utf8_lossy(&data).to_string();
@@ -1072,19 +1088,21 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
                 Span::styled(&key.key, style.clone()),
                 Span::styled(&key.key_type, style.clone()),
                 Span::styled(&key.size, style.clone()),
+                Span::styled(&key.ttl, style.clone()),
             ])
         })
         .collect();
     
     let key_table = Table::new(
         key_rows,
-        [Constraint::Percentage(50), Constraint::Percentage(25), Constraint::Percentage(25)],
+        [Constraint::Percentage(35), Constraint::Percentage(20), Constraint::Percentage(20), Constraint::Percentage(25)],
     )
     .header(
         Row::new(vec![
             Span::styled("KEY", Style::default().fg(Color::Cyan).bold()),
             Span::styled("TYPE", Style::default().fg(Color::Cyan).bold()),
             Span::styled("SIZE", Style::default().fg(Color::Cyan).bold()),
+            Span::styled("TTL", Style::default().fg(Color::Cyan).bold()),
         ])
     )
     .block(Block::default()

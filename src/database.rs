@@ -63,6 +63,15 @@ pub struct DataNode {
     time_stamp: (i64, u64),
 }
 
+/// Key metadata for batch key listing
+#[derive(Debug, Clone)]
+pub struct KeyMeta {
+    pub key: String,
+    pub key_type: String,
+    pub size: usize,
+    pub expire: u64,
+}
+
 pub static DB_STATE: Lazy<Mutex<HashMap<String, DataBaseState>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
@@ -500,6 +509,41 @@ impl DataBase {
             })
             .map(|(k, _)| k.clone())
             .collect()
+    }
+
+    /// 返回所有 key 的元数据（type, size, expire），一次性加载
+    pub async fn keys_with_meta(&self) -> Vec<KeyMeta> {
+        let now = chrono::Local::now().timestamp() as u64;
+        let mut result = Vec::new();
+
+        for (key, info) in self.index.iter() {
+            // 跳过已过期 key
+            if info.time_stamp.1 != 0
+                && (info.time_stamp.0 as u64 + info.time_stamp.1) <= now
+            {
+                continue;
+            }
+
+            let expire = info.time_stamp.1;
+
+            let (key_type, size) = match self.get(key).await {
+                Some(v) => {
+                    let raw = v.to_string();
+                    let t = infer_doson_type(&raw);
+                    (t, raw.len())
+                }
+                None => ("–".to_string(), 0),
+            };
+
+            result.push(KeyMeta {
+                key: key.clone(),
+                key_type,
+                size,
+                expire,
+            });
+        }
+
+        result
     }
 
     pub fn record_count(&self) -> usize {
@@ -1033,4 +1077,46 @@ pub async fn total_index_number() -> (u32, u32) {
         TOTAL_INDEX_NUMBER.load(Ordering::Relaxed),
         MAX_INDEX_NUMBER.load(Ordering::Relaxed),
     )
+}
+
+/// 根据 Doson 序列化字符串推断实际类型
+/// Doson 格式: {"String":"..."}, {"Number":42}, {"Boolean":true}, {"Dict":{...}}, {"List":[...]}
+pub fn infer_doson_type(raw: &str) -> String {
+    let v = raw.trim();
+    if let Ok(obj) = serde_json::from_str::<serde_json::Value>(v) {
+        if let Some(map) = obj.as_object() {
+            if map.len() == 1 {
+                let (k, _) = map.iter().next().unwrap();
+                match k.as_str() {
+                    "String" => return "String".to_string(),
+                    "Number" => return "Number".to_string(),
+                    "Boolean" => return "Boolean".to_string(),
+                    "Dict" => return "Dict".to_string(),
+                    "List" => return "List".to_string(),
+                    "Tuple" => return "Tuple".to_string(),
+                    _ => {}
+                }
+            }
+            return "Dict".to_string();
+        }
+        if obj.is_array() {
+            return "List".to_string();
+        }
+        if obj.is_number() {
+            return "Number".to_string();
+        }
+        if obj.is_boolean() {
+            return "Boolean".to_string();
+        }
+        if obj.is_string() {
+            return "String".to_string();
+        }
+    }
+    if v == "true" || v == "false" {
+        return "Boolean".to_string();
+    }
+    if v.parse::<f64>().is_ok() {
+        return "Number".to_string();
+    }
+    "String".to_string()
 }
