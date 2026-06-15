@@ -444,7 +444,7 @@ impl CommandManager {
             }
 
             // `info keys-meta` — return full metadata (type, size, expire) for all keys
-            if argument == "keys-meta" || argument == "keys_meta" {
+            if argument == "keys-meta" {
                 let db_arc = database_manager.db_list.get(current).unwrap().clone();
                 let db = db_arc.read().await;
 

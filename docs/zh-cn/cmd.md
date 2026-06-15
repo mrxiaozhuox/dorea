@@ -183,7 +183,6 @@ info keys
 
 ```
 info keys-meta
-info keys_meta
 ```
 
 获取当前数据库下的 `key` 列表及其元数据（type、size、expire）：

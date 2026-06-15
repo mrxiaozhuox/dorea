@@ -185,7 +185,6 @@ The time complexity is *O(n)* (time complexity optimization will be on the agend
 
 ```
 info keys-meta
-info keys_meta
 ```
 
 Get the list of `keys` in the current database with metadata (type, size, expire):
