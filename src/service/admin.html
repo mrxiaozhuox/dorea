@@ -103,6 +103,16 @@ tr:hover td { background:rgba(88,166,255,.04); }
 #newdb-input { display:none; background:var(--bg); border:1px solid var(--accent); border-radius:4px; color:var(--text); font-size:12px; font-family:inherit; padding:3px 8px; width:100px; outline:none; }
 .db-new-btn { background:transparent; border:1px solid var(--border); border-radius:4px; color:var(--dim); font-size:14px; cursor:pointer; padding:2px 6px; line-height:1; }
 .db-new-btn:hover { color:var(--accent); border-color:var(--accent); }
+
+/* Hex dump */
+.hex-view { font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; font-size: 11px; line-height: 1.5; }
+.hex-header { display:flex; gap:20px; padding:8px 0; border-bottom:1px solid var(--border); margin-bottom:8px; color:var(--dim); font-size:10px; }
+.hex-header span { color:var(--green); }
+.hex-line { display:flex; gap:12px; }
+.hex-offset { color:var(--dim); min-width:70px; text-align:right; }
+.hex-bytes { color:var(--accent); letter-spacing:1px; }
+.hex-ascii { color:var(--text); }
+.hex-ascii .dot { color:var(--dim); }
 </style>
 </head>
 <body>
@@ -563,9 +573,63 @@ function formatValue(obj) {
 }
 
 function renderValue(value, type, expire) {
-  var display = extractDisplay(value);
   var ttlHtml = (expire > 0) ? '<span style="font-size:10px;color:var(--warn);margin-left:10px">TTL: ' + formatTTL(expire) + '</span>' : '';
+
+  if (type === 'Binary') {
+    return '<div style="font-size:10px;color:var(--dim);margin-bottom:8px">Binary ' + ttlHtml + '</div>' + renderHexDump(value);
+  }
+
+  var display = extractDisplay(value);
   return '<div style="font-size:10px;color:var(--dim);margin-bottom:8px">' + type + ttlHtml + '</div><pre>' + esc(display) + '</pre>';
+}
+
+// Base64 → hex dump (handles both binary!(...) and {"Binary":{"data":[...]}})
+function renderHexDump(value) {
+  var bytes = '';
+
+  // Format 1: binary!(base64...)
+  var m = (value || '').match(/binary!\((.+)\)/);
+  if (m) {
+    try { bytes = atob(m[1]); } catch(e) {}
+  }
+
+  // Format 2: {"Binary":{"data":[1,2,3,...]}}
+  if (!bytes) {
+    try {
+      var obj = JSON.parse(value);
+      var arr = (obj.Binary || obj).data;
+      if (Array.isArray(arr)) {
+        bytes = arr.map(function(c) { return String.fromCharCode(c); }).join('');
+      }
+    } catch(e) {}
+  }
+
+  if (!bytes) return '<pre>' + esc(value) + '</pre>';
+  if (!bytes.length) return '<pre>(empty binary)</pre>';
+
+  var size = bytes.length;
+  var b64Preview = m ? m[1].substring(0, 40) : '';
+  var lines = [];
+  lines.push('<div class="hex-header"><span>' + formatBytes(size) + '</span>' + (b64Preview ? '  base64: ' + esc(b64Preview) + (m[1].length>40?'...':'') : '') + '</div>');
+
+  for (var offset = 0; offset < size; offset += 16) {
+    var hex = '', ascii = '';
+    for (var i = 0; i < 16; i++) {
+      if (offset + i < size) {
+        var b = bytes.charCodeAt(offset + i);
+        hex += (b < 16 ? '0' : '') + b.toString(16) + ' ';
+        if (i === 7) hex += ' ';
+        ascii += (b >= 32 && b < 127) ? bytes.charAt(offset + i) : '.';
+      } else {
+        hex += '   ';
+        ascii += ' ';
+      }
+    }
+    var off = ('00000000' + offset.toString(16)).slice(-8);
+    lines.push('<div class="hex-line"><span class="hex-offset">' + off + '</span><span class="hex-bytes">' + hex + '</span><span class="hex-ascii">' + esc(ascii) + '</span></div>');
+  }
+
+  return '<div class="hex-view">' + lines.join('') + '</div>';
 }
 
 function typeBadge(type) {
