@@ -4,7 +4,7 @@ use tokio::net::TcpStream;
 // 协议常量
 pub const MAGIC: [u8; 2] = [0xD0, 0x9A];
 pub const PROTOCOL_VERSION: u8 = 0x01;
-const MAX_PAYLOAD_LEN: u32 = 0xFFFFFF; // 16MB
+const MAX_PAYLOAD_LEN: u32 = 0x2000000; // 32MB
 const HEADER_SIZE: usize = 8;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
