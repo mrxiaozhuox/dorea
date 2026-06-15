@@ -60,6 +60,9 @@
 - 修复 `DoreaServer.startup_time` 错误偏移（+100 秒），导致 Web Admin 运行时间显示异常
 - 修复 Web Admin 值类型推断：正确处理 Doson 包装格式（`{"String":...}` 等）
 - Web Admin GET API 新增 `expire` 字段，前端支持 TTL 显示
+- **修复大 Binary 值读取 404**：`read_with_index_info()` 使用 `read()` 而非 `read_exact()`，>500KB 文件磁盘读取不完整导致 JSON 解析失败 (#29)
+- 修复 `binary!()` 格式值路径处理：routes / command / client 三层统一识别 Binary 原生类型 (#29)
+- **网络协议 payload 上限提升**：`MAX_PAYLOAD_LEN` 16MB → 32MB，支持约 24MB 原始 binary 值上传 (#30)
 
 ### 📚 文档与示例
 
