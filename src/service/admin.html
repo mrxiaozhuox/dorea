@@ -306,13 +306,23 @@ async function doSearch() {
   try {
     const cmd = q.includes(' ') ? ('search value ' + q) : ('search ' + q);
     const raw = await exec(cmd);
-    let keys = [];
-    try { keys = JSON.parse(raw); } catch(e) {
-      keys = raw.replace(/[\[\]" ]/g, '').split(',').filter(Boolean);
+    let keyNames = [];
+    try { keyNames = JSON.parse(raw); } catch(e) {
+      keyNames = raw.replace(/[\[\]" ]/g, '').split(',').filter(Boolean);
     }
-    document.getElementById('key-count').textContent = keys.length + ' keys (filtered)';
-    document.getElementById('footer-info').textContent = keys.length + ' keys · search: ' + q;
-    renderTable(Array.isArray(keys) ? keys : []);
+    document.getElementById('key-count').textContent = keyNames.length + ' keys (filtered)';
+    document.getElementById('footer-info').textContent = keyNames.length + ' keys · search: ' + q;
+
+    // Get full metadata to show type/size/TTL for search results
+    const nameSet = {};
+    for (var i = 0; i < keyNames.length; i++) { nameSet[keyNames[i]] = true; }
+    const info = await api('/@' + currentDB + '/info');
+    const allKeys = info.keys || [];
+    const matched = [];
+    for (var i = 0; i < allKeys.length; i++) {
+      if (nameSet[allKeys[i].key]) matched.push(allKeys[i]);
+    }
+    renderTable(matched);
   } catch(e) { toast(e.message, false); }
   finally { showSpinner(false); }
 }
@@ -499,12 +509,6 @@ function typeBadge(type) {
   var map = { String:'type-string', Number:'type-number', Dict:'type-dict', List:'type-list', Boolean:'type-bool' };
   var cls = map[type] || 'type-string';
   return '<span class="type-badge ' + cls + '">' + (type || 'String') + '</span>';
-}
-
-function calcSize(keys) {
-  var n = keys ? keys.length : 0;
-  if (!n) return '0 B';
-  return formatBytes(n * 200);
 }
 
 function formatBytes(b) {
