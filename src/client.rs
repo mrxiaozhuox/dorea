@@ -1,5 +1,7 @@
 use tokio::net::TcpStream;
 
+use doson::binary::Binary;
+
 use crate::{
     network::{self, Frame, NetPacket, NetPacketState},
     value::DataValue,
@@ -100,6 +102,13 @@ impl DoreaClient {
 
         if v.0 == NetPacketState::OK {
             let info = String::from_utf8_lossy(&v.1).to_string();
+            // 检测 binary!(...) 格式，还原为原生 Binary 类型
+            if info.starts_with("binary!(") && info.ends_with(')') {
+                let b64 = &info[8..info.len() - 1];
+                if let Ok(bytes) = base64::decode(b64) {
+                    return Some(DataValue::Binary(Binary::build(bytes)));
+                }
+            }
             return Some(DataValue::from(&info));
         }
 

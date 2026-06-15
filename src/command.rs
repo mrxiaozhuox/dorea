@@ -8,6 +8,8 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+use doson::binary::Binary;
+
 use crate::{
     configure::DoreaFileConfig,
     database::DataBaseManager,
@@ -243,7 +245,17 @@ impl CommandManager {
             let key = slice.first().unwrap();
             let value = slice.get(1).unwrap();
 
-            let data_value = DataValue::from(value);
+            // 检测 binary!(base64...) 格式，使用原生 Binary 类型
+            // 避免 DataValue::from 序列化为巨大 JSON 数组导致读取失败
+            let data_value = if value.starts_with("binary!(") && value.ends_with(')') {
+                let b64 = &value[8..value.len() - 1];
+                match base64::decode(b64) {
+                    Ok(bytes) => DataValue::Binary(Binary::build(bytes)),
+                    Err(_) => DataValue::from(value),
+                }
+            } else {
+                DataValue::from(value)
+            };
 
             if data_value == DataValue::None {
                 return (
