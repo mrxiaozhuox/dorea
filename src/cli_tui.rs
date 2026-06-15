@@ -701,27 +701,43 @@ fn json_to_node(value: &serde_json::Value) -> ValueNode {
     }
 }
 
-/// 渲染值树为可滚动的 Lines
+/// 渲染值树为可滚动的 Lines（带路径映射）
 fn render_value_tree(node: &ValueNode, expand_state: &ExpandState) -> Vec<Line<'static>> {
-    let mut lines = Vec::new();
-    render_node(node, "", 0, true, expand_state, &mut lines);
-    if lines.is_empty() {
-        lines.push(Line::from("(empty)"));
-    }
+    let (lines, _) = render_value_tree_with_paths(node, expand_state);
     lines
 }
 
-/// 递归渲染节点
-fn render_node(
+/// 渲染值树并返回每行对应的节点路径
+fn render_value_tree_with_paths(node: &ValueNode, expand_state: &ExpandState) -> (Vec<Line<'static>>, Vec<Option<String>>) {
+    let mut lines = Vec::new();
+    let mut paths = Vec::new();
+    render_node_with_paths(node, "", 0, true, expand_state, &mut lines, &mut paths);
+    if lines.is_empty() {
+        lines.push(Line::from("(empty)"));
+        paths.push(Some("".to_string()));
+    }
+    (lines, paths)
+}
+
+/// 根据光标行号找到值树中对应的节点路径
+fn find_path_at_cursor(node: &ValueNode, expand_state: &ExpandState, target: usize) -> Option<String> {
+    let (_, paths) = render_value_tree_with_paths(node, expand_state);
+    paths.get(target).and_then(|p| p.clone())
+}
+
+/// 递归渲染节点（带路径映射）
+fn render_node_with_paths(
     node: &ValueNode,
     path: &str,
     depth: usize,
     is_last: bool,
     expand_state: &ExpandState,
     lines: &mut Vec<Line<'static>>,
+    paths: &mut Vec<Option<String>>,
 ) {
     let indent = "  ".repeat(depth);
     let prefix = if depth == 0 { "" } else if is_last { "└─" } else { "├─" };
+    let cur_path = Some(path.to_string());
     
     match node {
         ValueNode::String(s) => {
@@ -734,12 +750,14 @@ fn render_node(
                 Span::raw(format!("{}{}", indent, prefix)),
                 Span::styled(display, Style::default().fg(Color::Green)),
             ]));
+            paths.push(cur_path);
         }
         ValueNode::Number(n) => {
             lines.push(Line::from(vec![
                 Span::raw(format!("{}{}", indent, prefix)),
                 Span::styled(n.clone(), Style::default().fg(Color::Yellow)),
             ]));
+            paths.push(cur_path);
         }
         ValueNode::Boolean(b) => {
             let text = if *b { "true" } else { "false" };
@@ -747,12 +765,14 @@ fn render_node(
                 Span::raw(format!("{}{}", indent, prefix)),
                 Span::styled(text, Style::default().fg(Color::Magenta)),
             ]));
+            paths.push(cur_path);
         }
         ValueNode::Null => {
             lines.push(Line::from(vec![
                 Span::raw(format!("{}{}", indent, prefix)),
                 Span::styled("null", Style::default().fg(Color::DarkGray)),
             ]));
+            paths.push(cur_path);
         }
         ValueNode::Array(arr) => {
             let is_expanded = expand_state.expanded.contains(path);
@@ -763,12 +783,13 @@ fn render_node(
                 Span::raw(format!("{}{}", indent, prefix)),
                 Span::styled(format!("{} [{} items]", icon, count), Style::default().fg(Color::Cyan)),
             ]));
+            paths.push(cur_path);
             
             if is_expanded {
                 for (i, item) in arr.iter().enumerate() {
                     let item_path = format!("{}[{}]", path, i);
                     let item_is_last = i == arr.len() - 1;
-                    render_node(item, &item_path, depth + 1, item_is_last, expand_state, lines);
+                    render_node_with_paths(item, &item_path, depth + 1, item_is_last, expand_state, lines, paths);
                 }
             }
         }
@@ -781,13 +802,13 @@ fn render_node(
                 Span::raw(format!("{}{}", indent, prefix)),
                 Span::styled(format!("{} {{{}}} keys", icon, count), Style::default().fg(Color::Cyan)),
             ]));
+            paths.push(cur_path);
             
             if is_expanded {
                 for (i, (key, value)) in map.iter().enumerate() {
                     let item_path = format!("{}.{}", path, key);
                     let item_is_last = i == map.len() - 1;
                     
-                    // 先渲染 key
                     let key_indent = "  ".repeat(depth + 1);
                     let key_prefix = if item_is_last { "└─" } else { "├─" };
                     
@@ -804,6 +825,7 @@ fn render_node(
                                 Span::raw(": "),
                                 Span::styled(display, Style::default().fg(Color::Green)),
                             ]));
+                            paths.push(Some(item_path));
                         }
                         ValueNode::Number(n) => {
                             lines.push(Line::from(vec![
@@ -812,6 +834,7 @@ fn render_node(
                                 Span::raw(": "),
                                 Span::styled(n.clone(), Style::default().fg(Color::Yellow)),
                             ]));
+                            paths.push(Some(item_path));
                         }
                         ValueNode::Boolean(b) => {
                             let text = if *b { "true" } else { "false" };
@@ -821,6 +844,7 @@ fn render_node(
                                 Span::raw(": "),
                                 Span::styled(text, Style::default().fg(Color::Magenta)),
                             ]));
+                            paths.push(Some(item_path));
                         }
                         ValueNode::Null => {
                             lines.push(Line::from(vec![
@@ -829,6 +853,7 @@ fn render_node(
                                 Span::raw(": "),
                                 Span::styled("null", Style::default().fg(Color::DarkGray)),
                             ]));
+                            paths.push(Some(item_path));
                         }
                         _ => {
                             // 复合类型，递归
@@ -837,7 +862,8 @@ fn render_node(
                                 Span::styled(key.clone(), Style::default().fg(Color::Blue)),
                                 Span::raw(": "),
                             ]));
-                            render_node(value, &item_path, depth + 2, item_is_last, expand_state, lines);
+                            paths.push(Some(item_path.clone()));
+                            render_node_with_paths(value, &item_path, depth + 2, item_is_last, expand_state, lines, paths);
                         }
                     }
                 }
@@ -949,53 +975,6 @@ fn render_hex_dump_items(bytes: &[u8]) -> Vec<ListItem<'static>> {
     }
 
     items
-}
-
-/// 根据光标行号找到值树中对应的节点路径
-fn find_path_at_cursor(node: &ValueNode, expand_state: &ExpandState, target: usize) -> Option<String> {
-    let mut counter = 0;
-    find_path_recursive(node, "", &mut counter, expand_state, target)
-}
-
-fn find_path_recursive(
-    node: &ValueNode,
-    path: &str,
-    counter: &mut usize,
-    expand_state: &ExpandState,
-    target: usize,
-) -> Option<String> {
-    if *counter == target {
-        return Some(path.to_string());
-    }
-    *counter += 1;
-
-    let is_expanded = expand_state.expanded.contains(path);
-    if !is_expanded {
-        return None;
-    }
-
-    match node {
-        ValueNode::Array(arr) => {
-            for (i, item) in arr.iter().enumerate() {
-                let child_path = format!("{}[{}]", path, i);
-                match find_path_recursive(item, &child_path, counter, expand_state, target) {
-                    Some(p) => return Some(p),
-                    None => continue,
-                }
-            }
-        }
-        ValueNode::Object(map) => {
-            for (key, value) in map.iter() {
-                let child_path = format!("{}.{}", path, key);
-                match find_path_recursive(value, &child_path, counter, expand_state, target) {
-                    Some(p) => return Some(p),
-                    None => continue,
-                }
-            }
-        }
-        _ => {}
-    }
-    None
 }
 
 /// 加载 Monitor 数据
@@ -1329,7 +1308,7 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
                         Span::styled(format!(" {}", format_size(bytes.len())), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
                     ]);
                     let header_line = Line::from(Span::styled(
-                        "Offset   00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F  ASCII",
+                        "  Offset   00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F  ASCII",
                         Style::default().fg(Color::DarkGray),
                     ));
                     let data_items = render_hex_dump_items(bytes);
@@ -1339,6 +1318,10 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
                     all_items.extend(data_items);
                     
                     let list = List::new(all_items)
+                        .block(Block::default()
+                            .borders(Borders::ALL)
+                            .title(value_title.clone() + mode_hint)
+                            .title_style(Style::default().fg(Color::Cyan)))
                         .highlight_style(highlight)
                         .highlight_symbol(">");
                     let mut state = ListState::default();
@@ -1358,6 +1341,10 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
                 let lines = render_value_tree(tree, &app.expand_state);
                 let items: Vec<ListItem> = lines.into_iter().map(ListItem::new).collect();
                 let list = List::new(items)
+                    .block(Block::default()
+                        .borders(Borders::ALL)
+                        .title(value_title.clone() + mode_hint)
+                        .title_style(Style::default().fg(Color::Cyan)))
                     .highlight_style(highlight)
                     .highlight_symbol(">");
                 let mut state = ListState::default();
