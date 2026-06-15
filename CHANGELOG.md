@@ -27,6 +27,13 @@
 
 ### ✨ 新功能
 
+- **Web Admin 管理面板**：嵌入式 Web 管理界面 `/admin`
+  - 身份认证登录（JWT Token）
+  - Key 浏览器：列表展示、搜索过滤
+  - 值查看器：点击 Key 展开 JSON/Doson 值
+  - 数据编辑：新建 / 编辑 / 删除 Key
+  - 运行状态：Keys 数量、运行时间、连接数
+  - 零依赖纯前端：HTML + JS + CSS 单文件嵌入
 - **Pipeline 协议**：客户端告知服务端命令数量，服务端精准批量处理
 - **NetPacketState::PIPELINE**：新增协议状态码，标识 Pipeline 批量命令
 - **并发批量测试示例**：新增 `bulk_concurrent.rs` 示例，展示多客户端并发写入
