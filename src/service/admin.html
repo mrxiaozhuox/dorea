@@ -55,6 +55,8 @@ tr:hover td { background:rgba(88,166,255,.04); }
 .type-dict { background:rgba(163,113,247,.12); color:var(--purple); }
 .type-list { background:rgba(88,166,255,.12); color:var(--accent); }
 .type-bool { background:rgba(248,81,73,.12); color:var(--red); }
+.type-binary { background:rgba(0,210,210,.12); color:#00d2d2; }
+.type-tuple { background:rgba(255,133,37,.12); color:#ff8525; }
 
 .footer { height:28px; padding:0 20px; display:flex; align-items:center; font-size:10px; color:var(--dim); border-top:1px solid var(--border); flex-shrink:0; justify-content:space-between; }
 
@@ -90,9 +92,35 @@ tr:hover td { background:rgba(88,166,255,.04); }
 .modal-actions { display:flex; gap:8px; margin-top:12px; justify-content:flex-end; }
 .modal-box label { display:block; font-size:11px; color:var(--dim); margin-bottom:4px; margin-top:8px; }
 .modal-box input { width:100%; padding:6px 10px; background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:12px; font-family:inherit; outline:none; }
+.file-upload { display:flex; gap:6px; align-items:center; }
+.file-upload input[type=file] { display:none; }
+.file-upload .file-btn { padding:4px 12px; border-radius:4px; font-size:11px; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--accent); font-family:inherit; }
+.file-upload .file-btn:hover { border-color:var(--accent); background:rgba(88,166,255,.06); }
+.file-upload .file-name { font-size:11px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px; }
+.file-upload .file-clear { color:var(--dim); cursor:pointer; font-size:14px; background:none; border:none; padding:0 4px; }
+.file-upload .file-clear:hover { color:var(--red); }
+#editValue[readonly] { opacity:0.6; }
 
 .spinner { display:none; width:16px; height:16px; border:2px solid var(--border); border-top:2px solid var(--accent); border-radius:50%; animation:spin .6s linear infinite; margin:2px 0 0 8px; }
 @keyframes spin { to{transform:rotate(360deg)} }
+
+/* DB Selector */
+.db-select { background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--green); font-size:12px; font-family:inherit; padding:3px 8px; cursor:pointer; outline:none; max-width:140px; }
+.db-select:focus { border-color:var(--accent); }
+.db-select option { background:var(--panel); color:var(--text); }
+#newdb-input { display:none; background:var(--bg); border:1px solid var(--accent); border-radius:4px; color:var(--text); font-size:12px; font-family:inherit; padding:3px 8px; width:100px; outline:none; }
+.db-new-btn { background:transparent; border:1px solid var(--border); border-radius:4px; color:var(--dim); font-size:14px; cursor:pointer; padding:2px 6px; line-height:1; }
+.db-new-btn:hover { color:var(--accent); border-color:var(--accent); }
+
+/* Hex dump */
+.hex-view { font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; font-size: 11px; line-height: 1.5; }
+.hex-header { display:flex; gap:20px; padding:8px 0; border-bottom:1px solid var(--border); margin-bottom:8px; color:var(--dim); font-size:10px; }
+.hex-header span { color:var(--green); }
+.hex-line { display:flex; gap:12px; }
+.hex-offset { color:var(--dim); min-width:70px; text-align:right; }
+.hex-bytes { color:var(--accent); letter-spacing:1px; }
+.hex-ascii { color:var(--text); }
+.hex-ascii .dot { color:var(--dim); }
 </style>
 </head>
 <body>
@@ -115,7 +143,9 @@ tr:hover td { background:rgba(88,166,255,.04); }
     <div class="logo">DOREA Admin</div>
     <div class="header-right">
       <span id="h-conn" class="dim">--</span>
-      <span id="h-db" class="dim">@default</span>
+      <select id="db-select" class="db-select" onchange="switchDatabase(this.value)"></select>
+      <input id="newdb-input" placeholder="db name" onkeydown="if(event.key==='Enter')createDatabase(this.value)" onblur="cancelNewDb()">
+      <button class="db-new-btn" onclick="showNewDbInput()" title="New Database">+</button>
       <span id="h-ver" class="dim">v--</span>
       <span style="color:var(--red);cursor:pointer;font-size:12px" onclick="logout()">Logout</span>
     </div>
@@ -169,6 +199,13 @@ tr:hover td { background:rgba(88,166,255,.04); }
     <h3 id="modalTitle">Edit Key</h3>
     <label>Key</label>
     <input id="editKey" placeholder="key name">
+    <label>Upload File (optional)</label>
+    <div class="file-upload">
+      <input type="file" id="editFile" onchange="onFileSelected()">
+      <button class="file-btn" onclick="document.getElementById('editFile').click()">📁 Choose File</button>
+      <span class="file-name" id="fileName"></span>
+      <button class="file-clear" id="fileClear" style="display:none" onclick="clearFile()" title="Clear file">✕</button>
+    </div>
     <label>Value (JSON / Doson)</label>
     <textarea id="editValue" placeholder='"hello" or {"name":"admin"}'></textarea>
     <label>TTL (seconds, 0 = forever)</label>
@@ -187,6 +224,7 @@ tr:hover td { background:rgba(88,166,255,.04); }
 let token = localStorage.getItem('dorea_token') || '';
 let currentDB = 'default';
 let currentKey = '';
+let currentValueRaw = '';
 
 // ========== API HELPERS ==========
 async function api(path, body) {
@@ -258,6 +296,19 @@ async function loadAll() {
     const info = await api('/@' + currentDB + '/info');
     const keys = info.keys || [];
     const keyNames = info.key_list || [];
+    const dbList = info.db_list || [];
+
+    // Populate database selector
+    const sel = document.getElementById('db-select');
+    sel.innerHTML = '';
+    for (var i = 0; i < dbList.length; i++) {
+      var opt = document.createElement('option');
+      opt.value = dbList[i];
+      opt.textContent = '@' + dbList[i];
+      if (dbList[i] === currentDB) opt.selected = true;
+      sel.appendChild(opt);
+    }
+
     document.getElementById('s-keys').textContent = keyNames.length;
     document.getElementById('s-db').textContent = '@' + currentDB;
     document.getElementById('key-count').textContent = keyNames.length + ' keys';
@@ -299,6 +350,41 @@ async function loadAll() {
   finally { showSpinner(false); }
 }
 
+async function switchDatabase(db) {
+  if (db === currentDB) return;
+  currentDB = db;
+  currentKey = '';
+  closeValue();
+  await loadAll();
+}
+
+function showNewDbInput() {
+  var inp = document.getElementById('newdb-input');
+  inp.style.display = 'inline-block';
+  inp.value = '';
+  inp.focus();
+}
+
+function cancelNewDb() {
+  document.getElementById('newdb-input').style.display = 'none';
+}
+
+async function createDatabase(name) {
+  name = (name || '').trim();
+  if (!name) return cancelNewDb();
+  try {
+    await exec('select ' + name);
+    cancelNewDb();
+    currentDB = name;
+    currentKey = '';
+    closeValue();
+    await loadAll();
+    toast('Switched to @' + name, true);
+  } catch(e) {
+    toast(e.message, false);
+  }
+}
+
 async function doSearch() {
   const q = document.getElementById('search-input').value.trim();
   if (!q) return loadAll();
@@ -306,13 +392,23 @@ async function doSearch() {
   try {
     const cmd = q.includes(' ') ? ('search value ' + q) : ('search ' + q);
     const raw = await exec(cmd);
-    let keys = [];
-    try { keys = JSON.parse(raw); } catch(e) {
-      keys = raw.replace(/[\[\]" ]/g, '').split(',').filter(Boolean);
+    let keyNames = [];
+    try { keyNames = JSON.parse(raw); } catch(e) {
+      keyNames = raw.replace(/[\[\]" ]/g, '').split(',').filter(Boolean);
     }
-    document.getElementById('key-count').textContent = keys.length + ' keys (filtered)';
-    document.getElementById('footer-info').textContent = keys.length + ' keys · search: ' + q;
-    renderTable(Array.isArray(keys) ? keys : []);
+    document.getElementById('key-count').textContent = keyNames.length + ' keys (filtered)';
+    document.getElementById('footer-info').textContent = keyNames.length + ' keys · search: ' + q;
+
+    // Get full metadata to show type/size/TTL for search results
+    const nameSet = {};
+    for (var i = 0; i < keyNames.length; i++) { nameSet[keyNames[i]] = true; }
+    const info = await api('/@' + currentDB + '/info');
+    const allKeys = info.keys || [];
+    const matched = [];
+    for (var i = 0; i < allKeys.length; i++) {
+      if (nameSet[allKeys[i].key]) matched.push(allKeys[i]);
+    }
+    renderTable(matched);
   } catch(e) { toast(e.message, false); }
   finally { showSpinner(false); }
 }
@@ -343,6 +439,7 @@ async function viewKey(key) {
   showSpinner(true);
   try {
     const data = await api('/@' + currentDB + '/get', { key, style: 'json' });
+    currentValueRaw = data.value || '';
     document.getElementById('valKey').textContent = key;
     var type = inferType(data.value);
     document.getElementById('valBody').innerHTML = renderValue(data.value, type, data.expire);
@@ -366,6 +463,7 @@ async function viewKey(key) {
 function closeValue() {
   document.getElementById('valuePanel').classList.remove('open');
   currentKey = '';
+  currentValueRaw = '';
 }
 
 // ========== CRUD ==========
@@ -374,7 +472,9 @@ function openNewKey() {
   document.getElementById('editKey').value = '';
   document.getElementById('editKey').disabled = false;
   document.getElementById('editValue').value = '';
+  document.getElementById('editValue').readOnly = false;
   document.getElementById('editTTL').value = '0';
+  clearFile();
   document.getElementById('editModal').classList.add('open');
 }
 
@@ -382,15 +482,60 @@ function editCurrent() {
   if (!currentKey) return toast('Select a key first', false);
   var pre = document.getElementById('valBody').querySelector('pre');
   var valText = pre ? pre.textContent : '';
+  var hexBody = document.getElementById('valBody').querySelector('.hex-view');
+  if (!valText && hexBody) {
+    // Binary key — get the raw binary!(...) representation
+    valText = currentValueRaw || '';
+  }
   document.getElementById('modalTitle').textContent = 'Edit: ' + currentKey;
   document.getElementById('editKey').value = currentKey;
   document.getElementById('editKey').disabled = true;
   document.getElementById('editValue').value = valText;
+  document.getElementById('editValue').readOnly = false;
   document.getElementById('editTTL').value = '0';
+  clearFile();
   document.getElementById('editModal').classList.add('open');
 }
 
 function closeModal() { document.getElementById('editModal').classList.remove('open'); }
+
+// ===== FILE UPLOAD =====
+function onFileSelected() {
+  var file = document.getElementById('editFile').files[0];
+  if (!file) return;
+
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileClear').style.display = 'inline';
+
+  // Auto-fill key name if empty
+  var keyInput = document.getElementById('editKey');
+  if (!keyInput.value.trim()) {
+    keyInput.value = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  }
+
+  var reader = new FileReader();
+  reader.onload = function() {
+    var bytes = new Uint8Array(reader.result);
+    var binary = '';
+    for (var i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    var base64 = btoa(binary);
+    var valInput = document.getElementById('editValue');
+    valInput.value = 'binary!(' + base64 + ')';
+    valInput.readOnly = true;
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function clearFile() {
+  document.getElementById('editFile').value = '';
+  document.getElementById('fileName').textContent = '';
+  document.getElementById('fileClear').style.display = 'none';
+  var valInput = document.getElementById('editValue');
+  valInput.value = '';
+  valInput.readOnly = false;
+}
 
 async function saveEdit() {
   var key = document.getElementById('editKey').value.trim();
@@ -430,6 +575,8 @@ function copyCurrent() {
 function inferType(value) {
   if (!value) return 'Empty';
   var v = value.trim();
+  // Doson binary format: binary!(base64...)
+  if (v.startsWith('binary!(')) return 'Binary';
   // Doson format: {"String":"hello"}, {"Number":42}, etc.
   try {
     var obj = JSON.parse(v);
@@ -443,6 +590,7 @@ function inferType(value) {
         if (k === 'Dict') return 'Dict';
         if (k === 'List') return 'List';
         if (k === 'Tuple') return 'Tuple';
+        if (k === 'Binary') return 'Binary';
       }
       return 'Dict';
     }
@@ -490,21 +638,69 @@ function formatValue(obj) {
 }
 
 function renderValue(value, type, expire) {
-  var display = extractDisplay(value);
   var ttlHtml = (expire > 0) ? '<span style="font-size:10px;color:var(--warn);margin-left:10px">TTL: ' + formatTTL(expire) + '</span>' : '';
+
+  if (type === 'Binary') {
+    return '<div style="font-size:10px;color:var(--dim);margin-bottom:8px">Binary ' + ttlHtml + '</div>' + renderHexDump(value);
+  }
+
+  var display = extractDisplay(value);
   return '<div style="font-size:10px;color:var(--dim);margin-bottom:8px">' + type + ttlHtml + '</div><pre>' + esc(display) + '</pre>';
 }
 
-function typeBadge(type) {
-  var map = { String:'type-string', Number:'type-number', Dict:'type-dict', List:'type-list', Boolean:'type-bool' };
-  var cls = map[type] || 'type-string';
-  return '<span class="type-badge ' + cls + '">' + (type || 'String') + '</span>';
+// Base64 → hex dump (handles both binary!(...) and {"Binary":{"data":[...]}})
+function renderHexDump(value) {
+  var bytes = '';
+
+  // Format 1: binary!(base64...)
+  var m = (value || '').match(/binary!\((.+)\)/);
+  if (m) {
+    try { bytes = atob(m[1]); } catch(e) {}
+  }
+
+  // Format 2: {"Binary":{"data":[1,2,3,...]}}
+  if (!bytes) {
+    try {
+      var obj = JSON.parse(value);
+      var arr = (obj.Binary || obj).data;
+      if (Array.isArray(arr)) {
+        bytes = arr.map(function(c) { return String.fromCharCode(c); }).join('');
+      }
+    } catch(e) {}
+  }
+
+  if (!bytes) return '<pre>' + esc(value) + '</pre>';
+  if (!bytes.length) return '<pre>(empty binary)</pre>';
+
+  var size = bytes.length;
+  var b64Preview = m ? m[1].substring(0, 40) : '';
+  var lines = [];
+  lines.push('<div class="hex-header"><span>' + formatBytes(size) + '</span>' + (b64Preview ? '  base64: ' + esc(b64Preview) + (m[1].length>40?'...':'') : '') + '</div>');
+
+  for (var offset = 0; offset < size; offset += 16) {
+    var hex = '', ascii = '';
+    for (var i = 0; i < 16; i++) {
+      if (offset + i < size) {
+        var b = bytes.charCodeAt(offset + i);
+        hex += (b < 16 ? '0' : '') + b.toString(16) + ' ';
+        if (i === 7) hex += ' ';
+        ascii += (b >= 32 && b < 127) ? bytes.charAt(offset + i) : '.';
+      } else {
+        hex += '   ';
+        ascii += ' ';
+      }
+    }
+    var off = ('00000000' + offset.toString(16)).slice(-8);
+    lines.push('<div class="hex-line"><span class="hex-offset">' + off + '</span><span class="hex-bytes">' + hex + '</span><span class="hex-ascii">' + esc(ascii) + '</span></div>');
+  }
+
+  return '<div class="hex-view">' + lines.join('') + '</div>';
 }
 
-function calcSize(keys) {
-  var n = keys ? keys.length : 0;
-  if (!n) return '0 B';
-  return formatBytes(n * 200);
+function typeBadge(type) {
+  var map = { String:'type-string', Number:'type-number', Dict:'type-dict', List:'type-list', Boolean:'type-bool', Binary:'type-binary', Tuple:'type-tuple' };
+  var cls = map[type] || 'type-string';
+  return '<span class="type-badge ' + cls + '">' + (type || 'String') + '</span>';
 }
 
 function formatBytes(b) {
