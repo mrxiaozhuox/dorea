@@ -16,7 +16,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Table, Row, Tabs, Clear},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Table, Row, Tabs, Clear},
     Frame, Terminal,
 };
 use std::io;
@@ -118,10 +118,11 @@ pub struct App {
     // 值树（Pretty 模式用）
     value_tree: Option<ValueNode>,
     expand_state: ExpandState,
+    tree_cursor: usize,
     
     // Hex dump（Binary 类型专用）
     hex_bytes: Option<Vec<u8>>,
-    hex_scroll_offset: usize,
+    hex_cursor: usize,
     
     // 命令输入
     command_input: String,
@@ -188,8 +189,9 @@ impl App {
             current_value_type: None,
             value_tree: None,
             expand_state: ExpandState::default(),
+            tree_cursor: 0,
             hex_bytes: None,
-            hex_scroll_offset: 0,
+            hex_cursor: 0,
             command_input: String::new(),
             command_mode: false,
             command_result: None,
@@ -361,17 +363,21 @@ async fn handle_data_tab_keys(
     match key.code {
         // 导航 - 支持 j/k 和 上下方向键
         KeyCode::Char('j') | KeyCode::Down => {
-            // Hex dump 滚动
-            if app.focus == Focus::ValueView && app.current_value_type.as_deref() == Some("Binary") && app.value_mode == ValueViewMode::Pretty {
-                if let Some(bytes) = &app.hex_bytes {
-                    let hex_lines = (bytes.len() + 15) / 16 + 3; // header 3行 + 数据行
-                    if app.hex_scroll_offset < hex_lines.saturating_sub(1) {
-                        app.hex_scroll_offset += 1;
+            if app.focus == Focus::ValueView && app.value_mode == ValueViewMode::Pretty {
+                // Hex dump 光标下移
+                if app.current_value_type.as_deref() == Some("Binary") {
+                    if let Some(bytes) = &app.hex_bytes {
+                        let data_lines = (bytes.len() + 15) / 16;
+                        if app.hex_cursor < data_lines.saturating_sub(1) {
+                            app.hex_cursor += 1;
+                        }
                     }
+                } else {
+                    // 值树光标下移（估算行数，不超过安全边界）
+                    app.tree_cursor += 1;
                 }
             } else if app.selected_key < app.keys.len().saturating_sub(1) {
                 app.selected_key += 1;
-                // 加载值 - 先 clone key 避免借用冲突
                 let key = app.keys.get(app.selected_key).map(|k| k.key.clone());
                 if let Some(key) = key {
                     load_key_value(app, client, &key).await;
@@ -379,10 +385,14 @@ async fn handle_data_tab_keys(
             }
         }
         KeyCode::Char('k') | KeyCode::Up => {
-            // Hex dump 滚动
-            if app.focus == Focus::ValueView && app.current_value_type.as_deref() == Some("Binary") && app.value_mode == ValueViewMode::Pretty {
-                if app.hex_scroll_offset > 0 {
-                    app.hex_scroll_offset -= 1;
+            if app.focus == Focus::ValueView && app.value_mode == ValueViewMode::Pretty {
+                // Hex dump 光标上移
+                if app.current_value_type.as_deref() == Some("Binary") {
+                    if app.hex_cursor > 0 {
+                        app.hex_cursor -= 1;
+                    }
+                } else if app.tree_cursor > 0 {
+                    app.tree_cursor -= 1;
                 }
             } else if app.selected_key > 0 {
                 app.selected_key -= 1;
@@ -394,16 +404,23 @@ async fn handle_data_tab_keys(
         }
         // 支持 g/G 跳转
         KeyCode::Char('g') => {
-            if app.focus == Focus::ValueView && app.current_value_type.as_deref() == Some("Binary") && app.value_mode == ValueViewMode::Pretty {
-                app.hex_scroll_offset = 0;
+            if app.focus == Focus::ValueView && app.value_mode == ValueViewMode::Pretty {
+                if app.current_value_type.as_deref() == Some("Binary") {
+                    app.hex_cursor = 0;
+                } else {
+                    app.tree_cursor = 0;
+                }
             }
         }
         KeyCode::Char('G') => {
-            if app.focus == Focus::ValueView && app.current_value_type.as_deref() == Some("Binary") && app.value_mode == ValueViewMode::Pretty {
-                if let Some(bytes) = &app.hex_bytes {
-                    let hex_lines = (bytes.len() + 15) / 16 + 3;
-                    app.hex_scroll_offset = hex_lines.saturating_sub(1);
+            if app.focus == Focus::ValueView && app.value_mode == ValueViewMode::Pretty {
+                if app.current_value_type.as_deref() == Some("Binary") {
+                    if let Some(bytes) = &app.hex_bytes {
+                        let data_lines = (bytes.len() + 15) / 16;
+                        app.hex_cursor = data_lines.saturating_sub(1);
+                    }
                 }
+                // 值树 G 暂不处理（行数不确定）
             } else if !app.keys.is_empty() {
                 app.selected_key = app.keys.len() - 1;
             }
@@ -438,11 +455,22 @@ async fn handle_data_tab_keys(
         // Enter 键展开/折叠值树节点
         KeyCode::Enter => {
             if app.focus == Focus::ValueView && app.value_mode == ValueViewMode::Pretty {
-                // 切换根节点展开状态
-                if app.expand_state.expanded.contains("") {
-                    app.expand_state.expanded.remove("");
-                } else {
-                    app.expand_state.expanded.insert("".to_string());
+                // Binary 类型不处理 Enter
+                if app.current_value_type.as_deref() == Some("Binary") {
+                    return Ok(());
+                }
+                // 找到当前光标行对应的节点路径并切换
+                if let Some(tree) = &app.value_tree {
+                    let path = find_path_at_cursor(tree, &app.expand_state, app.tree_cursor);
+                    match path {
+                        Some(p) if app.expand_state.expanded.contains(&p) => {
+                            app.expand_state.expanded.remove(&p);
+                        }
+                        Some(p) => {
+                            app.expand_state.expanded.insert(p);
+                        }
+                        None => {}
+                    }
                 }
             }
         }
@@ -616,9 +644,10 @@ async fn load_key_value(app: &mut App, client: &mut DoreaClient, key: &str) {
             // 解码 Binary 的 base64（两种格式）
             if value_type == "Binary" {
                 app.hex_bytes = decode_binary_base64(&raw_value);
-                app.hex_scroll_offset = 0;
+                app.hex_cursor = 0;
             } else {
                 app.hex_bytes = None;
+                app.tree_cursor = 0;
             }
         }
         Ok((_, data)) => {
@@ -880,36 +909,20 @@ fn decode_binary_base64(value: &str) -> Option<Vec<u8>> {
     None
 }
 
-/// 渲染 Hex Dump（偏移 | hex bytes | ASCII）
-fn render_hex_dump(bytes: &[u8], _scroll_offset: usize) -> Vec<Line<'static>> {
-    let mut lines: Vec<Line<'static>> = Vec::new();
+/// 渲染 Hex Dump 为 ListItem（支持行选中）
+fn render_hex_dump_items(bytes: &[u8]) -> Vec<ListItem<'static>> {
+    let mut items: Vec<ListItem<'static>> = Vec::new();
     let total = bytes.len();
 
     if total == 0 {
-        lines.push(Line::from(Span::styled("(empty binary)", Style::default().fg(Color::DarkGray))));
-        return lines;
+        items.push(ListItem::new(Line::from(Span::styled("(empty binary)", Style::default().fg(Color::DarkGray)))));
+        return items;
     }
 
-    // Header
-    lines.push(Line::from(vec![
-        Span::raw(""),
-        Span::styled(
-            format!("{}", format_size(total)),
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
-        ),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled(
-            "  Offset   00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F  ASCII",
-            Style::default().fg(Color::DarkGray),
-        ),
-    ]));
-    lines.push(Line::raw(""));
-
-    // 渲染所有行（TUI 窗口会自动滚动）
+    // 渲染所有数据行
     for offset in (0..total).step_by(16) {
         let mut hex = String::with_capacity(48);
-        let mut ascii = String::with_capacity(16);
+        let mut ascii_str = String::with_capacity(16);
 
         for i in 0..16 {
             if offset + i < total {
@@ -918,24 +931,71 @@ fn render_hex_dump(bytes: &[u8], _scroll_offset: usize) -> Vec<Line<'static>> {
                 if i == 7 {
                     hex.push(' ');
                 }
-                ascii.push(if b >= 0x20 && b < 0x7F { b as char } else { '.' });
+                ascii_str.push(if b >= 0x20 && b < 0x7F { b as char } else { '.' });
             } else {
                 hex.push_str("   ");
-                ascii.push(' ');
+                ascii_str.push(' ');
             }
         }
 
         let off_str = format!("{:08X}", offset);
-        lines.push(Line::from(vec![
-            Span::styled(format!("  {}", off_str), Style::default().fg(Color::DarkGray)),
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled(format!(" {}", off_str), Style::default().fg(Color::DarkGray)),
             Span::raw("  "),
             Span::styled(hex, Style::default().fg(Color::Cyan)),
             Span::raw(" "),
-            Span::styled(ascii, Style::default().fg(Color::White)),
-        ]));
+            Span::styled(ascii_str, Style::default().fg(Color::White)),
+        ])));
     }
 
-    lines
+    items
+}
+
+/// 根据光标行号找到值树中对应的节点路径
+fn find_path_at_cursor(node: &ValueNode, expand_state: &ExpandState, target: usize) -> Option<String> {
+    let mut counter = 0;
+    find_path_recursive(node, "", &mut counter, expand_state, target)
+}
+
+fn find_path_recursive(
+    node: &ValueNode,
+    path: &str,
+    counter: &mut usize,
+    expand_state: &ExpandState,
+    target: usize,
+) -> Option<String> {
+    if *counter == target {
+        return Some(path.to_string());
+    }
+    *counter += 1;
+
+    let is_expanded = expand_state.expanded.contains(path);
+    if !is_expanded {
+        return None;
+    }
+
+    match node {
+        ValueNode::Array(arr) => {
+            for (i, item) in arr.iter().enumerate() {
+                let child_path = format!("{}[{}]", path, i);
+                match find_path_recursive(item, &child_path, counter, expand_state, target) {
+                    Some(p) => return Some(p),
+                    None => continue,
+                }
+            }
+        }
+        ValueNode::Object(map) => {
+            for (key, value) in map.iter() {
+                let child_path = format!("{}.{}", path, key);
+                match find_path_recursive(value, &child_path, counter, expand_state, target) {
+                    Some(p) => return Some(p),
+                    None => continue,
+                }
+            }
+        }
+        _ => {}
+    }
+    None
 }
 
 /// 加载 Monitor 数据
@@ -1252,19 +1312,38 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
         }
     };
 
+    // 焦点高亮样式
+    let highlight = if app.focus == Focus::ValueView {
+        Style::default().bg(Color::DarkGray).fg(Color::Yellow).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().bg(Color::DarkGray).fg(Color::White)
+    };
+
     // 根据模式选择显示的值
     match app.value_mode {
         ValueViewMode::Pretty => {
-            // Binary 类型使用 hex dump
+            // Binary 类型使用 hex dump 列表
             if app.current_value_type.as_deref() == Some("Binary") {
                 if let Some(bytes) = &app.hex_bytes {
-                    let lines = render_hex_dump(bytes, app.hex_scroll_offset);
-                    let value_widget = Paragraph::new(lines)
-                        .block(Block::default()
-                            .borders(Borders::ALL)
-                            .title(value_title.clone() + mode_hint)
-                            .title_style(Style::default().fg(Color::Cyan)));
-                    f.render_widget(value_widget, chunks[1]);
+                    let size_line = Line::from(vec![
+                        Span::styled(format!(" {}", format_size(bytes.len())), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                    ]);
+                    let header_line = Line::from(Span::styled(
+                        "Offset   00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F  ASCII",
+                        Style::default().fg(Color::DarkGray),
+                    ));
+                    let data_items = render_hex_dump_items(bytes);
+                    let mut all_items: Vec<ListItem> = Vec::new();
+                    all_items.push(ListItem::new(size_line));
+                    all_items.push(ListItem::new(header_line));
+                    all_items.extend(data_items);
+                    
+                    let list = List::new(all_items)
+                        .highlight_style(highlight)
+                        .highlight_symbol(">");
+                    let mut state = ListState::default();
+                    state.select(Some(app.hex_cursor + 2)); // +2 for size+header
+                    f.render_stateful_widget(list, chunks[1], &mut state);
                 } else {
                     let text = app.current_value_raw.as_deref().unwrap_or("(no value)");
                     let value_widget = Paragraph::new(text)
@@ -1275,14 +1354,15 @@ fn render_data_tab(f: &mut Frame, app: &mut App, area: Rect) {
                     f.render_widget(value_widget, chunks[1]);
                 }
             } else if let Some(tree) = &app.value_tree {
-                // 使用组件化渲染
+                // 使用 List 组件化渲染（支持行选中）
                 let lines = render_value_tree(tree, &app.expand_state);
-                let value_widget = Paragraph::new(lines)
-                    .block(Block::default()
-                        .borders(Borders::ALL)
-                        .title(value_title.clone() + mode_hint)
-                        .title_style(Style::default().fg(Color::Cyan)));
-                f.render_widget(value_widget, chunks[1]);
+                let items: Vec<ListItem> = lines.into_iter().map(ListItem::new).collect();
+                let list = List::new(items)
+                    .highlight_style(highlight)
+                    .highlight_symbol(">");
+                let mut state = ListState::default();
+                state.select(Some(app.tree_cursor));
+                f.render_stateful_widget(list, chunks[1], &mut state);
             } else {
                 // 没有值树，显示简单文本
                 let text = app.current_value.as_deref().unwrap_or("(no value)");
@@ -1481,12 +1561,12 @@ fn render_help_tab(f: &mut Frame, app: &mut App, area: Rect) {
         Line::from("  g                     Jump to top"),
         Line::from(""),
         Line::from(Span::styled("Data Tab", Style::default().fg(Color::Yellow).bold())),
-        Line::from("  Enter                 Expand/Collapse value tree"),
+        Line::from("  Enter                 Expand/Collapse node at cursor"),
         Line::from("  r                     Refresh key list"),
         Line::from("  F2                    Toggle Pretty/Raw mode"),
         Line::from("  F2 (Binary)           Toggle Hex/Base64 view"),
-        Line::from("  j/k (Hex)             Scroll hex dump"),
-        Line::from("  g/G (Hex)             Jump to top/bottom of hex"),
+        Line::from("  j/k (Value)           Move cursor in value panel"),
+        Line::from("  g/G (Hex)             Jump to top/bottom"),
         Line::from(""),
         Line::from(Span::styled("Monitor Tab", Style::default().fg(Color::Yellow).bold())),
         Line::from("  r                     Refresh monitor data"),
