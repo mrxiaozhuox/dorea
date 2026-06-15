@@ -187,22 +187,27 @@ tr:hover td { background:rgba(88,166,255,.04); }
 let token = localStorage.getItem('dorea_token') || '';
 let currentDB = 'default';
 let currentKey = '';
-let keysData = [];
 
 // ========== API HELPERS ==========
 async function api(path, body) {
   const headers = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (token) headers['Authorization'] = 'Bearer ' + token;
   if (body) {
     headers['Content-Type'] = 'application/x-www-form-urlencoded';
-    const params = new URLSearchParams();
-    for (const [k,v] of Object.entries(body)) if (v !== undefined) params.append(k, v);
-    body = params.toString();
+    const p = new URLSearchParams();
+    for (const [k,v] of Object.entries(body)) if (v !== undefined) p.append(k, v);
+    body = p.toString();
   }
   const r = await fetch(path, { method: 'POST', headers, body });
   const data = await r.json();
   if (data.alpha !== 'OK') throw new Error(data.message || 'API Error');
   return data.data;
+}
+
+// execute 返回 {reply: "..."}
+async function exec(query) {
+  const data = await api('/@' + currentDB + '/execute', { query, style: 'json' });
+  return data.reply || '';
 }
 
 function showSpinner(s) { document.getElementById('spinner').style.display = s ? 'block' : 'none'; }
@@ -211,7 +216,7 @@ function toast(msg, ok) {
   t.className = 'toast ' + (ok ? 'ok' : 'err');
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2000);
+  setTimeout(function() { t.remove(); }, 2000);
 }
 
 // ========== AUTH ==========
@@ -225,7 +230,7 @@ async function doLogin() {
     const r = await fetch('/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`
+      body: 'username=' + encodeURIComponent(u) + '&password=' + encodeURIComponent(p)
     });
     const data = await r.json();
     if (data.alpha !== 'OK') throw new Error(data.message || 'Login failed');
@@ -234,11 +239,8 @@ async function doLogin() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-screen').style.display = 'flex';
     await loadAll();
-  } catch(e) {
-    err.textContent = e.message;
-  } finally {
-    showSpinner(false);
-  }
+  } catch(e) { err.textContent = e.message; }
+  finally { showSpinner(false); }
 }
 
 function logout() {
@@ -252,40 +254,42 @@ function logout() {
 async function loadAll() {
   showSpinner(true);
   try {
-    // Load stats
-    const [version, keysResult] = await Promise.all([
-      api('/@default/execute', { query: 'info version', style: 'json' }).catch(() => '--'),
-      api('/@default/info')
-    ]);
-
-    keysData = keysResult.key_list || [];
-    document.getElementById('h-ver').textContent = 'v' + (typeof version === 'string' ? version : (version?.toString() || '--'));
-    document.getElementById('s-keys').textContent = keysData.length;
+    // Keys list
+    const info = await api('/@' + currentDB + '/info');
+    const keys = info.key_list || [];
+    document.getElementById('s-keys').textContent = keys.length;
     document.getElementById('s-db').textContent = '@' + currentDB;
-    document.getElementById('key-count').textContent = keysData.length + ' keys';
-    document.getElementById('s-size').textContent = calcSize();
-    document.getElementById('footer-info').textContent = keysData.length + ' keys · @' + currentDB;
+    document.getElementById('key-count').textContent = keys.length + ' keys';
+    document.getElementById('s-size').textContent = calcSize(keys);
+    document.getElementById('footer-info').textContent = keys.length + ' keys · @' + currentDB;
 
-    // Uptime
+    // Version (execute → data.reply)
     try {
-      const ts = await api('/@default/execute', { query: 'info server-startup-time', style: 'json' });
-      const secs = Math.floor(Date.now()/1000) - parseInt(ts);
-      document.getElementById('s-uptime').textContent = formatUptime(secs);
+      const ver = await exec('info version');
+      document.getElementById('h-ver').textContent = 'v' + ver.trim();
+    } catch(e) { document.getElementById('h-ver').textContent = 'v--'; }
+
+    // Uptime (execute → data.reply)
+    try {
+      const ts = parseInt(await exec('info server-startup-time'), 10);
+      if (ts > 0) {
+        const secs = Math.floor(Date.now()/1000) - ts;
+        document.getElementById('s-uptime').textContent = formatUptime(secs);
+      }
     } catch(e) { document.getElementById('s-uptime').textContent = '--'; }
 
-    // Connections
+    // Connections (execute → data.reply)
     try {
-      const conn = await api('/@default/execute', { query: 'info current-connect-num', style: 'json' });
+      const conn = (await exec('info current-connect-num')).trim();
       document.getElementById('h-conn').textContent = conn + ' conn';
-    } catch(e) { document.getElementById('h-conn').textContent = '--'; }
+    } catch(e) { document.getElementById('h-conn').textContent = '-- conn'; }
 
-    renderTable();
+    renderTable(keys);
   } catch(e) {
-    if (e.message.includes('401') || e.message.includes('jwt')) { logout(); return; }
+    if (e.message.indexOf('401') >= 0 || e.message.indexOf('jwt') >= 0) { logout(); return; }
     toast(e.message, false);
-  } finally {
-    showSpinner(false);
   }
+  finally { showSpinner(false); }
 }
 
 async function doSearch() {
@@ -293,37 +297,33 @@ async function doSearch() {
   if (!q) return loadAll();
   showSpinner(true);
   try {
-    // Use search command
-    const cmd = q.includes(' ') ? `search value ${q}` : `search ${q}`;
-    const result = await api('/@default/execute', { query: cmd, style: 'json' });
-    // Parse result - it returns a JSON array as string
-    let parsed;
-    try { parsed = JSON.parse(result); } catch(e) {
-      parsed = result.replace(/[\[\]" ]/g, '').split(',').filter(Boolean);
+    const cmd = q.includes(' ') ? ('search value ' + q) : ('search ' + q);
+    const raw = await exec(cmd);
+    let keys = [];
+    try { keys = JSON.parse(raw); } catch(e) {
+      keys = raw.replace(/[\[\]" ]/g, '').split(',').filter(Boolean);
     }
-    keysData = Array.isArray(parsed) ? parsed : [];
-    document.getElementById('key-count').textContent = keysData.length + ' keys (filtered)';
-    document.getElementById('footer-info').textContent = keysData.length + ' keys · search: ' + q;
-    renderTable();
+    document.getElementById('key-count').textContent = keys.length + ' keys (filtered)';
+    document.getElementById('footer-info').textContent = keys.length + ' keys · search: ' + q;
+    renderTable(Array.isArray(keys) ? keys : []);
   } catch(e) { toast(e.message, false); }
   finally { showSpinner(false); }
 }
 
 // ========== RENDER ==========
-function renderTable() {
+function renderTable(keys) {
   const tbody = document.getElementById('key-table');
-  if (!keysData.length) {
+  if (!keys || !keys.length) {
     tbody.innerHTML = '<tr><td colspan="4" style="color:var(--dim);text-align:center;padding:40px">No keys</td></tr>';
     return;
   }
-  tbody.innerHTML = keysData.map(k => {
-    // Just show key name, type/size load on click
-    return `<tr>
-      <td><span class="key-name" onclick="viewKey('${esc(k)}')">${esc(k)}</span></td>
-      <td><span style="color:var(--dim)">–</span></td>
-      <td style="color:var(--dim)">–</td>
-      <td style="color:var(--dim)">–</td>
-    </tr>`;
+  tbody.innerHTML = keys.map(function(k) {
+    return '<tr>'
+      + '<td><span class="key-name" onclick="viewKey(\'' + esc(k) + '\')">' + esc(k) + '</span></td>'
+      + '<td><span style="color:var(--dim)">–</span></td>'
+      + '<td style="color:var(--dim)">–</td>'
+      + '<td style="color:var(--dim)">–</td>'
+      + '</tr>';
   }).join('');
 }
 
@@ -331,24 +331,22 @@ async function viewKey(key) {
   currentKey = key;
   showSpinner(true);
   try {
-    const data = await api('/@default/get', { key, style: 'json' });
+    const data = await api('/@' + currentDB + '/get', { key, style: 'json' });
     document.getElementById('valKey').textContent = key;
-    document.getElementById('valBody').innerHTML = renderValue(data.value, data.type);
-    
+    const type = data.type || 'Unknown';
+    document.getElementById('valBody').innerHTML = renderValue(data.value, type);
+
     // Update table row
-    const tbody = document.getElementById('key-table');
-    const rows = tbody.querySelectorAll('tr');
-    for (const row of rows) {
-      if (row.querySelector('.key-name')?.textContent === key) {
-        const badge = typeBadge(data.type);
-        const size = new Blob([data.value]).size;
-        row.cells[1].innerHTML = badge;
-        row.cells[2].textContent = formatBytes(size);
-        row.cells[3].textContent = '–';
+    const rows = document.getElementById('key-table').querySelectorAll('tr');
+    for (var i = 0; i < rows.length; i++) {
+      var cell = rows[i].querySelector('.key-name');
+      if (cell && cell.textContent === key) {
+        rows[i].cells[1].innerHTML = typeBadge(type);
+        rows[i].cells[2].textContent = formatBytes(new Blob([data.value || '']).size);
+        rows[i].cells[3].textContent = '–';
         break;
       }
     }
-    
     document.getElementById('valuePanel').classList.add('open');
   } catch(e) { toast(e.message, false); }
   finally { showSpinner(false); }
@@ -371,7 +369,8 @@ function openNewKey() {
 
 function editCurrent() {
   if (!currentKey) return toast('Select a key first', false);
-  const valText = document.getElementById('valBody').querySelector('pre')?.textContent || '';
+  var pre = document.getElementById('valBody').querySelector('pre');
+  var valText = pre ? pre.textContent : '';
   document.getElementById('modalTitle').textContent = 'Edit: ' + currentKey;
   document.getElementById('editKey').value = currentKey;
   document.getElementById('editKey').disabled = true;
@@ -383,28 +382,26 @@ function editCurrent() {
 function closeModal() { document.getElementById('editModal').classList.remove('open'); }
 
 async function saveEdit() {
-  const key = document.getElementById('editKey').value.trim();
-  const value = document.getElementById('editValue').value.trim();
-  const ttl = parseInt(document.getElementById('editTTL').value) || 0;
+  var key = document.getElementById('editKey').value.trim();
+  var value = document.getElementById('editValue').value.trim();
+  var ttl = parseInt(document.getElementById('editTTL').value, 10) || 0;
   if (!key || !value) return toast('Key and value required', false);
-  
   showSpinner(true);
   try {
-    await api('/@default/set', { key, value, expire: ttl });
+    await api('/@' + currentDB + '/set', { key: key, value: value, expire: ttl });
     toast('Saved: ' + key, true);
     closeModal();
     await loadAll();
-    if (document.getElementById('valKey').textContent === key) viewKey(key);
   } catch(e) { toast(e.message, false); }
   finally { showSpinner(false); }
 }
 
 async function deleteCurrent() {
   if (!currentKey) return toast('Select a key first', false);
-  if (!confirm(`Delete "${currentKey}"?`)) return;
+  if (!confirm('Delete "' + currentKey + '"?')) return;
   showSpinner(true);
   try {
-    await api('/@default/delete', { key: currentKey });
+    await api('/@' + currentDB + '/delete', { key: currentKey });
     toast('Deleted: ' + currentKey, true);
     closeValue();
     await loadAll();
@@ -413,29 +410,31 @@ async function deleteCurrent() {
 }
 
 function copyCurrent() {
-  const val = document.getElementById('valBody').querySelector('pre')?.textContent || '';
-  navigator.clipboard.writeText(val).then(() => toast('Copied!', true));
+  var pre = document.getElementById('valBody').querySelector('pre');
+  var val = pre ? pre.textContent : '';
+  navigator.clipboard.writeText(val).then(function() { toast('Copied!', true); });
 }
 
 // ========== UTILS ==========
 function renderValue(value, type) {
+  var display = value || '';
   try {
-    const parsed = JSON.parse(value);
-    value = JSON.stringify(parsed, null, 2);
+    var parsed = JSON.parse(value);
+    display = JSON.stringify(parsed, null, 2);
   } catch(e) {}
-  return `<div style="font-size:10px;color:var(--dim);margin-bottom:8px">${type || 'String'}</div><pre>${esc(value)}</pre>`;
+  return '<div style="font-size:10px;color:var(--dim);margin-bottom:8px">' + (type || 'String') + '</div><pre>' + esc(display) + '</pre>';
 }
 
 function typeBadge(type) {
-  const map = { String:'type-string', Number:'type-number', Dict:'type-dict', List:'type-list', Boolean:'type-bool' };
-  const cls = map[type] || 'type-string';
-  return `<span class="type-badge ${cls}">${type || 'String'}</span>`;
+  var map = { String:'type-string', Number:'type-number', Dict:'type-dict', List:'type-list', Boolean:'type-bool' };
+  var cls = map[type] || 'type-string';
+  return '<span class="type-badge ' + cls + '">' + (type || 'String') + '</span>';
 }
 
-function calcSize() {
-  if (!keysData.length) return '0 B';
-  const est = keysData.length * 200;
-  return formatBytes(est);
+function calcSize(keys) {
+  var n = keys ? keys.length : 0;
+  if (!n) return '0 B';
+  return formatBytes(n * 200);
 }
 
 function formatBytes(b) {
@@ -445,20 +444,21 @@ function formatBytes(b) {
 }
 
 function formatUptime(s) {
+  if (!s || s < 0) return '--';
   if (s < 60) return s + 's';
-  if (s < 3600) return Math.floor(s/60) + 'm';
-  if (s < 86400) return Math.floor(s/3600) + 'h';
+  if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
+  if (s < 86400) return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
   return Math.floor(s/86400) + 'd ' + Math.floor((s%86400)/3600) + 'h';
 }
 
 function esc(s) {
-  const d = document.createElement('div');
+  var d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
 }
 
 // ========== KEYBOARD ==========
-document.addEventListener('keydown', e => {
+document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeValue();
   if (e.key === 'r' && !e.target.closest('input,textarea')) loadAll();
   if (e.key === '/' && !e.target.closest('input,textarea')) { e.preventDefault(); document.getElementById('search-input').focus(); }
@@ -468,7 +468,7 @@ document.addEventListener('keydown', e => {
 if (token) {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('main-screen').style.display = 'flex';
-  loadAll().catch(() => logout());
+  loadAll().catch(function() { logout(); });
 }
 </script>
 </body>
