@@ -200,6 +200,21 @@ info keys-meta
 
 时间复杂度为 *O(n)*
 
+### `DB-List` | 列出已加载数据库
+
+```
+info db-list
+```
+
+获取所有已加载的数据库名称列表：
+
+```
+~> info db-list
+[OK]: ["default", "system"]
+```
+
+返回 JSON 字符串数组。
+
 ### `Max-Connect-Number` | 最大连接数
 
 ```

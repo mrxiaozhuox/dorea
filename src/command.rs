@@ -466,6 +466,17 @@ impl CommandManager {
                 return (NetPacketState::OK, json_str.as_bytes().to_vec());
             }
 
+            // `info db-list` — return all loaded database names
+            if argument == "db-list" {
+                let mut list: Vec<String> = Vec::new();
+                for entry in database_manager.db_list.iter() {
+                    list.push(entry.key().to_string());
+                }
+                let json_str =
+                    serde_json::to_string(&list).unwrap_or_else(|_| "[]".to_string());
+                return (NetPacketState::OK, json_str.as_bytes().to_vec());
+            }
+
             if argument.starts_with('@') {
                 let var = &argument[1..];
 

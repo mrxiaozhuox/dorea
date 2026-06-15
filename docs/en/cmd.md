@@ -202,6 +202,21 @@ Returns a JSON array, each element contains:
 
 Time complexity is *O(n)*
 
+### `DB-List` | List Loaded Databases
+
+```
+info db-list
+```
+
+Get all loaded database names:
+
+```
+~> info db-list
+[OK]: ["default", "system"]
+```
+
+Returns a JSON string array.
+
 ### `Max-Connect-Number` | Maximum Connections
 
 ```

@@ -95,6 +95,11 @@ tr:hover td { background:rgba(88,166,255,.04); }
 
 .spinner { display:none; width:16px; height:16px; border:2px solid var(--border); border-top:2px solid var(--accent); border-radius:50%; animation:spin .6s linear infinite; margin:2px 0 0 8px; }
 @keyframes spin { to{transform:rotate(360deg)} }
+
+/* DB Selector */
+.db-select { background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--green); font-size:12px; font-family:inherit; padding:3px 8px; cursor:pointer; outline:none; max-width:140px; }
+.db-select:focus { border-color:var(--accent); }
+.db-select option { background:var(--panel); color:var(--text); }
 </style>
 </head>
 <body>
@@ -117,7 +122,7 @@ tr:hover td { background:rgba(88,166,255,.04); }
     <div class="logo">DOREA Admin</div>
     <div class="header-right">
       <span id="h-conn" class="dim">--</span>
-      <span id="h-db" class="dim">@default</span>
+      <select id="db-select" class="db-select" onchange="switchDatabase(this.value)"></select>
       <span id="h-ver" class="dim">v--</span>
       <span style="color:var(--red);cursor:pointer;font-size:12px" onclick="logout()">Logout</span>
     </div>
@@ -260,6 +265,19 @@ async function loadAll() {
     const info = await api('/@' + currentDB + '/info');
     const keys = info.keys || [];
     const keyNames = info.key_list || [];
+    const dbList = info.db_list || [];
+
+    // Populate database selector
+    const sel = document.getElementById('db-select');
+    sel.innerHTML = '';
+    for (var i = 0; i < dbList.length; i++) {
+      var opt = document.createElement('option');
+      opt.value = dbList[i];
+      opt.textContent = '@' + dbList[i];
+      if (dbList[i] === currentDB) opt.selected = true;
+      sel.appendChild(opt);
+    }
+
     document.getElementById('s-keys').textContent = keyNames.length;
     document.getElementById('s-db').textContent = '@' + currentDB;
     document.getElementById('key-count').textContent = keyNames.length + ' keys';
@@ -299,6 +317,14 @@ async function loadAll() {
     toast(e.message, false);
   }
   finally { showSpinner(false); }
+}
+
+async function switchDatabase(db) {
+  if (db === currentDB) return;
+  currentDB = db;
+  currentKey = '';
+  closeValue();
+  await loadAll();
 }
 
 async function doSearch() {

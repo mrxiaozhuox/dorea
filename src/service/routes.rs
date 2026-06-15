@@ -243,10 +243,29 @@ pub async fn controller(
             })
             .unwrap_or_default();
 
+        // Get available databases
+        let db_list_json = match client.execute("info db-list").await {
+            Ok((NetPacketState::OK, data)) => {
+                let json_str = String::from_utf8_lossy(&data).to_string();
+                serde_json::from_str(&json_str).unwrap_or(serde_json::Value::Array(vec![]))
+            }
+            _ => serde_json::Value::Array(vec![]),
+        };
+
+        let db_list: Vec<String> = db_list_json
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+
         return Api::json(
             StatusCode::OK,
             json!({
                 "group_name": &group,
+                "db_list": db_list,
                 "key_list": key_list,
                 "keys": key_meta_json,
                 "key_number": key_list.len(),
