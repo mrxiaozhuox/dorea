@@ -92,6 +92,14 @@ tr:hover td { background:rgba(88,166,255,.04); }
 .modal-actions { display:flex; gap:8px; margin-top:12px; justify-content:flex-end; }
 .modal-box label { display:block; font-size:11px; color:var(--dim); margin-bottom:4px; margin-top:8px; }
 .modal-box input { width:100%; padding:6px 10px; background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:12px; font-family:inherit; outline:none; }
+.file-upload { display:flex; gap:6px; align-items:center; }
+.file-upload input[type=file] { display:none; }
+.file-upload .file-btn { padding:4px 12px; border-radius:4px; font-size:11px; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--accent); font-family:inherit; }
+.file-upload .file-btn:hover { border-color:var(--accent); background:rgba(88,166,255,.06); }
+.file-upload .file-name { font-size:11px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px; }
+.file-upload .file-clear { color:var(--dim); cursor:pointer; font-size:14px; background:none; border:none; padding:0 4px; }
+.file-upload .file-clear:hover { color:var(--red); }
+#editValue[readonly] { opacity:0.6; }
 
 .spinner { display:none; width:16px; height:16px; border:2px solid var(--border); border-top:2px solid var(--accent); border-radius:50%; animation:spin .6s linear infinite; margin:2px 0 0 8px; }
 @keyframes spin { to{transform:rotate(360deg)} }
@@ -191,6 +199,13 @@ tr:hover td { background:rgba(88,166,255,.04); }
     <h3 id="modalTitle">Edit Key</h3>
     <label>Key</label>
     <input id="editKey" placeholder="key name">
+    <label>Upload File (optional)</label>
+    <div class="file-upload">
+      <input type="file" id="editFile" onchange="onFileSelected()">
+      <button class="file-btn" onclick="document.getElementById('editFile').click()">📁 Choose File</button>
+      <span class="file-name" id="fileName"></span>
+      <button class="file-clear" id="fileClear" style="display:none" onclick="clearFile()" title="Clear file">✕</button>
+    </div>
     <label>Value (JSON / Doson)</label>
     <textarea id="editValue" placeholder='"hello" or {"name":"admin"}'></textarea>
     <label>TTL (seconds, 0 = forever)</label>
@@ -209,6 +224,7 @@ tr:hover td { background:rgba(88,166,255,.04); }
 let token = localStorage.getItem('dorea_token') || '';
 let currentDB = 'default';
 let currentKey = '';
+let currentValueRaw = '';
 
 // ========== API HELPERS ==========
 async function api(path, body) {
@@ -423,6 +439,7 @@ async function viewKey(key) {
   showSpinner(true);
   try {
     const data = await api('/@' + currentDB + '/get', { key, style: 'json' });
+    currentValueRaw = data.value || '';
     document.getElementById('valKey').textContent = key;
     var type = inferType(data.value);
     document.getElementById('valBody').innerHTML = renderValue(data.value, type, data.expire);
@@ -446,6 +463,7 @@ async function viewKey(key) {
 function closeValue() {
   document.getElementById('valuePanel').classList.remove('open');
   currentKey = '';
+  currentValueRaw = '';
 }
 
 // ========== CRUD ==========
@@ -454,7 +472,9 @@ function openNewKey() {
   document.getElementById('editKey').value = '';
   document.getElementById('editKey').disabled = false;
   document.getElementById('editValue').value = '';
+  document.getElementById('editValue').readOnly = false;
   document.getElementById('editTTL').value = '0';
+  clearFile();
   document.getElementById('editModal').classList.add('open');
 }
 
@@ -462,15 +482,60 @@ function editCurrent() {
   if (!currentKey) return toast('Select a key first', false);
   var pre = document.getElementById('valBody').querySelector('pre');
   var valText = pre ? pre.textContent : '';
+  var hexBody = document.getElementById('valBody').querySelector('.hex-view');
+  if (!valText && hexBody) {
+    // Binary key — get the raw binary!(...) representation
+    valText = currentValueRaw || '';
+  }
   document.getElementById('modalTitle').textContent = 'Edit: ' + currentKey;
   document.getElementById('editKey').value = currentKey;
   document.getElementById('editKey').disabled = true;
   document.getElementById('editValue').value = valText;
+  document.getElementById('editValue').readOnly = false;
   document.getElementById('editTTL').value = '0';
+  clearFile();
   document.getElementById('editModal').classList.add('open');
 }
 
 function closeModal() { document.getElementById('editModal').classList.remove('open'); }
+
+// ===== FILE UPLOAD =====
+function onFileSelected() {
+  var file = document.getElementById('editFile').files[0];
+  if (!file) return;
+
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileClear').style.display = 'inline';
+
+  // Auto-fill key name if empty
+  var keyInput = document.getElementById('editKey');
+  if (!keyInput.value.trim()) {
+    keyInput.value = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  }
+
+  var reader = new FileReader();
+  reader.onload = function() {
+    var bytes = new Uint8Array(reader.result);
+    var binary = '';
+    for (var i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    var base64 = btoa(binary);
+    var valInput = document.getElementById('editValue');
+    valInput.value = 'binary!(' + base64 + ')';
+    valInput.readOnly = true;
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function clearFile() {
+  document.getElementById('editFile').value = '';
+  document.getElementById('fileName').textContent = '';
+  document.getElementById('fileClear').style.display = 'none';
+  var valInput = document.getElementById('editValue');
+  valInput.value = '';
+  valInput.readOnly = false;
+}
 
 async function saveEdit() {
   var key = document.getElementById('editKey').value.trim();
