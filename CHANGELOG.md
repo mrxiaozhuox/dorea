@@ -37,9 +37,8 @@
 - **`info keys-meta` 协议命令**：一次性返回所有 Key 的 type、size、expire 元数据
   - Web Admin `/info` 接口自动返回 `keys` 数组（含 type/size/expire），表格直接填满无需点击加载
   - TUI Data Tab 一次加载即显示 TYPE / SIZE / TTL 四列，新增 TTL 列
-- **`info db-list` 协议命令**：列出所有已加载数据库名称
-  - Web Admin `/info` 接口自动返回 `db_list` 数组
-  - Web Admin 支持数据库切换：Header 下拉框动态加载，选择即切换 + 自动刷新
+- **数据库切换支持**：Web Admin Header 下拉框动态加载数据库列表，选择即切换
+  - `/info` 接口自动返回 `db_list` 字段（复用现有 `db list` 命令）
 - **Binary 类型修复**：前后端正确识别 Binary 类型（`binary!()` + JSON `{"Binary":...}` 格式）
 - **Pipeline 协议**：客户端告知服务端命令数量，服务端精准批量处理
 - **NetPacketState::PIPELINE**：新增协议状态码，标识 Pipeline 批量命令

@@ -49,7 +49,6 @@ pub const SUBCOMMAND_INFO_HELP: &str = "
 - connect-id | cid :                current connection id number[uuid].
 - keys :                            current database key list.
 - keys-meta :                        current database key list with metadata (type, size, expire).
-- db-list :                         list all loaded database names.
 - @{key_name} :
     - expire :                      data expire time[timestamp].
     - timestamp :                   data expire time and modify time[timestamp].

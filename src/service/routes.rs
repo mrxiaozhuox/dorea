@@ -244,7 +244,7 @@ pub async fn controller(
             .unwrap_or_default();
 
         // Get available databases
-        let db_list_json = match client.execute("info db-list").await {
+        let db_list_json = match client.execute("db list").await {
             Ok((NetPacketState::OK, data)) => {
                 let json_str = String::from_utf8_lossy(&data).to_string();
                 serde_json::from_str(&json_str).unwrap_or(serde_json::Value::Array(vec![]))
