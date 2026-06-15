@@ -179,6 +179,28 @@ info keys
 
 时间复杂度为 *O(n)* （时间复杂度优化将提上议程）
 
+### `Keys-Meta` | 键元数据列表
+
+```
+info keys-meta
+info keys_meta
+```
+
+获取当前数据库下的 `key` 列表及其元数据（type、size、expire）：
+
+```
+~> info keys-meta
+[OK]: [{"expire":0,"key":"foo","size":3,"type":"String"}, ...]
+```
+
+返回 JSON 数组，每个元素包含：
+- `key` — 键名
+- `type` — 值类型（String / Number / Boolean / Dict / List）
+- `size` — 序列化后字节大小
+- `expire` — 过期时间（秒），0 表示永不过期
+
+时间复杂度为 *O(n)*
+
 ### `Max-Connect-Number` | 最大连接数
 
 ```
