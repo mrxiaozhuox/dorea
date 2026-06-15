@@ -254,14 +254,19 @@ function logout() {
 async function loadAll() {
   showSpinner(true);
   try {
-    // Keys list
+    // Keys list with metadata
     const info = await api('/@' + currentDB + '/info');
-    const keys = info.key_list || [];
-    document.getElementById('s-keys').textContent = keys.length;
+    const keys = info.keys || [];
+    const keyNames = info.key_list || [];
+    document.getElementById('s-keys').textContent = keyNames.length;
     document.getElementById('s-db').textContent = '@' + currentDB;
-    document.getElementById('key-count').textContent = keys.length + ' keys';
-    document.getElementById('s-size').textContent = calcSize(keys);
-    document.getElementById('footer-info').textContent = keys.length + ' keys · @' + currentDB;
+    document.getElementById('key-count').textContent = keyNames.length + ' keys';
+    document.getElementById('footer-info').textContent = keyNames.length + ' keys · @' + currentDB;
+
+    // Calc total size from metadata
+    var totalSize = 0;
+    for (var i = 0; i < keys.length; i++) { totalSize += (keys[i].size || 0); }
+    document.getElementById('s-size').textContent = formatBytes(totalSize);
 
     // Version (execute → data.reply)
     try {
@@ -319,12 +324,16 @@ function renderTable(keys) {
     tbody.innerHTML = '<tr><td colspan="4" style="color:var(--dim);text-align:center;padding:40px">No keys</td></tr>';
     return;
   }
-  tbody.innerHTML = keys.map(function(k) {
+  tbody.innerHTML = keys.map(function(m) {
+    var name = esc(m.key || m);
+    var type = m.type ? typeBadge(m.type) : '<span style="color:var(--dim)">–</span>';
+    var size = m.size != null ? formatBytes(m.size) : '<span style="color:var(--dim)">–</span>';
+    var ttl = formatTTL(m.expire);
     return '<tr>'
-      + '<td><span class="key-name" onclick="viewKey(\'' + esc(k) + '\')">' + esc(k) + '</span></td>'
-      + '<td><span style="color:var(--dim)">–</span></td>'
-      + '<td style="color:var(--dim)">–</td>'
-      + '<td style="color:var(--dim)">–</td>'
+      + '<td><span class="key-name" onclick="viewKey(\'' + esc(m.key) + '\')">' + name + '</span></td>'
+      + '<td>' + type + '</td>'
+      + '<td style="font-size:11px">' + size + '</td>'
+      + '<td style="font-size:11px">' + ttl + '</td>'
       + '</tr>';
   }).join('');
 }

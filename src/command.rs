@@ -443,6 +443,29 @@ impl CommandManager {
                 );
             }
 
+            // `info keys-meta` — return full metadata (type, size, expire) for all keys
+            if argument == "keys-meta" {
+                let db_arc = database_manager.db_list.get(current).unwrap().clone();
+                let db = db_arc.read().await;
+
+                let metas = db.keys_with_meta().await;
+                let items: Vec<serde_json::Value> = metas
+                    .iter()
+                    .map(|m| {
+                        serde_json::json!({
+                            "key": m.key,
+                            "type": m.key_type,
+                            "size": m.size,
+                            "expire": m.expire,
+                        })
+                    })
+                    .collect();
+
+                let json_str =
+                    serde_json::to_string(&items).unwrap_or_else(|_| "[]".to_string());
+                return (NetPacketState::OK, json_str.as_bytes().to_vec());
+            }
+
             if argument.starts_with('@') {
                 let var = &argument[1..];
 

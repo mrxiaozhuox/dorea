@@ -181,6 +181,27 @@ Get the list of `keys` in the current database:
 
 The time complexity is *O(n)* (time complexity optimization will be on the agenda).
 
+### `Keys-Meta` | Key Metadata List
+
+```
+info keys-meta
+```
+
+Get the list of `keys` in the current database with metadata (type, size, expire):
+
+```
+~> info keys-meta
+[OK]: [{"expire":0,"key":"foo","size":3,"type":"String"}, ...]
+```
+
+Returns a JSON array, each element contains:
+- `key` — key name
+- `type` — value type (String / Number / Boolean / Dict / List)
+- `size` — serialized byte size
+- `expire` — expiration time (seconds), 0 means no expiration
+
+Time complexity is *O(n)*
+
 ### `Max-Connect-Number` | Maximum Connections
 
 ```

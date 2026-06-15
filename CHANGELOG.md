@@ -34,6 +34,9 @@
   - 数据编辑：新建 / 编辑 / 删除 Key
   - 运行状态：Keys 数量、运行时间、连接数
   - 零依赖纯前端：HTML + JS + CSS 单文件嵌入
+- **`info keys-meta` 协议命令**：一次性返回所有 Key 的 type、size、expire 元数据
+  - Web Admin `/info` 接口自动返回 `keys` 数组（含 type/size/expire），表格直接填满无需点击加载
+  - TUI Data Tab 一次加载即显示 TYPE / SIZE / TTL 四列，新增 TTL 列
 - **Pipeline 协议**：客户端告知服务端命令数量，服务端精准批量处理
 - **NetPacketState::PIPELINE**：新增协议状态码，标识 Pipeline 批量命令
 - **并发批量测试示例**：新增 `bulk_concurrent.rs` 示例，展示多客户端并发写入

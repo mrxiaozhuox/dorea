@@ -222,15 +222,34 @@ pub async fn controller(
     let operation = operation.to_lowercase();
 
     if &operation == "info" || &operation == "information" {
-        let keys = client.info(InfoType::KeyList).await.unwrap();
-        let keys = serde_json::from_str::<Vec<String>>(&keys).unwrap_or_default();
+        // Try to get full metadata first, fall back to key list
+        let key_meta_json = match client.execute("info keys-meta").await {
+            Ok((NetPacketState::OK, data)) => {
+                let json_str = String::from_utf8_lossy(&data).to_string();
+                let items: serde_json::Value =
+                    serde_json::from_str(&json_str).unwrap_or(serde_json::Value::Array(vec![]));
+                items
+            }
+            _ => serde_json::Value::Array(vec![]),
+        };
+
+        // Extract key list from metadata for backward compat
+        let key_list: Vec<String> = key_meta_json
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.get("key").and_then(|k| k.as_str()).map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
 
         return Api::json(
             StatusCode::OK,
             json!({
                 "group_name": &group,
-                "key_list": keys,
-                "key_number": keys.len(),
+                "key_list": key_list,
+                "keys": key_meta_json,
+                "key_number": key_list.len(),
             }),
         );
     } else if &operation == "get" {
