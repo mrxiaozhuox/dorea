@@ -918,9 +918,9 @@ impl DataFile {
             0,
         );
 
-        let len = file.read(&mut buf).await.ok()?;
+        let _ = file.read_exact(&mut buf).await.ok()?;
 
-        let v = match serde_json::from_slice::<DataNode>(buf[0..len].as_bytes()) {
+        let v = match serde_json::from_slice::<DataNode>(&buf) {
             Ok(v) => v,
             Err(_) => {
                 return None;

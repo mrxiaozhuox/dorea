@@ -27,6 +27,7 @@ use crate::service::secret;
 use crate::service::ShareState;
 use crate::value::DataValue;
 use axum::http::StatusCode;
+use doson::binary::Binary;
 
 use super::db;
 
@@ -345,9 +346,19 @@ pub async fn controller(
             return Api::lose_param("value");
         }
 
-        let value = form.value.clone().unwrap();
+        let value_str = form.value.clone().unwrap();
 
-        let value = DataValue::from(&value);
+        // 检测 binary!(base64...) 格式，使用原生 Binary 类型
+        // 避免 DataValue::from 将其序列化为巨大的 JSON 数组导致读取失败
+        let value = if value_str.starts_with("binary!(") && value_str.ends_with(')') {
+            let b64 = &value_str[8..value_str.len() - 1];
+            match base64::decode(b64) {
+                Ok(bytes) => DataValue::Binary(Binary::build(bytes)),
+                Err(_) => DataValue::from(&value_str),
+            }
+        } else {
+            DataValue::from(&value_str)
+        };
         if value == DataValue::None {
             return Api::error(StatusCode::BAD_REQUEST, "value parse error.");
         }
