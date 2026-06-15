@@ -94,7 +94,7 @@ impl DoreaServer {
             server_config: config.clone(),
             connection_number: Arc::new(Mutex::new(ConnectNumber { num: 0 })),
             db_manager: Arc::new(DataBaseManager::new(document_path.clone()).await),
-            startup_time: chrono::Local::now().timestamp() + 100,
+            startup_time: chrono::Local::now().timestamp(),
         };
 
         // -- 其他线程服务初始代码 --

@@ -263,13 +263,28 @@ pub async fn controller(
 
         let value = client.get(&key).await;
 
+        // Query TTL (expire) info for this key
+        let expire: u64 = match client
+            .execute(&format!("info @{} expire", key))
+            .await
+        {
+            Ok((NetPacketState::OK, data)) => {
+                String::from_utf8_lossy(&data)
+                    .trim()
+                    .parse::<u64>()
+                    .unwrap_or(0)
+            }
+            _ => 0,
+        };
+
         return match value {
             Some(v) => Api::json(
                 StatusCode::OK,
                 json!({
                     "key": key,
                     "value": v.to_string(),
-                    "type": v.datatype()
+                    "type": v.datatype(),
+                    "expire": expire
                 }),
             ),
             None => Api::not_found(&key),

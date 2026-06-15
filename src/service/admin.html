@@ -336,7 +336,7 @@ async function viewKey(key) {
     const data = await api('/@' + currentDB + '/get', { key, style: 'json' });
     document.getElementById('valKey').textContent = key;
     var type = inferType(data.value);
-    document.getElementById('valBody').innerHTML = renderValue(data.value, type);
+    document.getElementById('valBody').innerHTML = renderValue(data.value, type, data.expire);
 
     // Update table row
     const rows = document.getElementById('key-table').querySelectorAll('tr');
@@ -345,7 +345,7 @@ async function viewKey(key) {
       if (cell && cell.textContent === key) {
         rows[i].cells[1].innerHTML = typeBadge(type);
         rows[i].cells[2].textContent = formatBytes(new Blob([data.value || '']).size);
-        rows[i].cells[3].textContent = '–';
+        rows[i].cells[3].textContent = formatTTL(data.expire);
         break;
       }
     }
@@ -480,9 +480,10 @@ function formatValue(obj) {
   return String(obj);
 }
 
-function renderValue(value, type) {
+function renderValue(value, type, expire) {
   var display = extractDisplay(value);
-  return '<div style="font-size:10px;color:var(--dim);margin-bottom:8px">' + type + '</div><pre>' + esc(display) + '</pre>';
+  var ttlHtml = (expire > 0) ? '<span style="font-size:10px;color:var(--warn);margin-left:10px">TTL: ' + formatTTL(expire) + '</span>' : '';
+  return '<div style="font-size:10px;color:var(--dim);margin-bottom:8px">' + type + ttlHtml + '</div><pre>' + esc(display) + '</pre>';
 }
 
 function typeBadge(type) {
@@ -509,6 +510,14 @@ function formatUptime(s) {
   if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
   if (s < 86400) return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
   return Math.floor(s/86400) + 'd ' + Math.floor((s%86400)/3600) + 'h';
+}
+
+function formatTTL(exp) {
+  if (exp == null || exp <= 0) return '–';
+  if (exp < 60) return exp + 's';
+  if (exp < 3600) return Math.floor(exp/60) + 'm ' + (exp%60) + 's';
+  if (exp < 86400) return Math.floor(exp/3600) + 'h ' + Math.floor((exp%3600)/60) + 'm';
+  return Math.floor(exp/86400) + 'd ' + Math.floor((exp%86400)/3600) + 'h';
 }
 
 function esc(s) {
