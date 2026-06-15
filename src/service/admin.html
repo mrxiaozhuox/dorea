@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dorea Admin</title>
+<style>
+:root {
+  --bg: #0f1117; --panel: #161822; --border: #252836;
+  --text: #c9d1d9; --dim: #6e7681; --accent: #58a6ff;
+  --green: #3fb950; --red: #f85149; --yellow: #d2991d; --purple: #a371f7;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, 'SF Mono', monospace; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Login */
+#login-screen { display: flex; align-items: center; justify-content: center; height: 100vh; }
+.login-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 40px; width: 380px; text-align: center; }
+.login-box h1 { font-size: 20px; color: var(--accent); margin-bottom: 8px; }
+.login-box p { color: var(--dim); font-size: 13px; margin-bottom: 24px; }
+.login-box input { width: 100%; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 14px; font-family: inherit; margin-bottom: 8px; outline: none; }
+.login-box input:focus { border-color: var(--accent); }
+.login-box button { width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; margin-top: 8px; }
+.login-box button:hover { opacity: 0.9; }
+.login-error { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 18px; }
+
+/* Main */
+#main-screen { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 0 20px; height: 44px; background: var(--panel); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.logo { font-size: 15px; font-weight: 700; color: var(--accent); }
+.header-right { display: flex; gap: 16px; align-items: center; font-size: 12px; }
+.header-right .dim { color: var(--dim); }
+.main { display: flex; flex: 1; overflow: hidden; }
+.content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.stats { display: flex; gap: 12px; padding: 12px 20px; flex-shrink: 0; }
+.stat-card { flex:1; min-width:120px; background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:12px 14px; }
+.stat-label { font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; }
+.stat-value { font-size:20px; font-weight:700; margin-top:4px; }
+
+.panel-header { display:flex; align-items:center; justify-content:space-between; padding:8px 20px; font-size:12px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.search-box { background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:5px 10px; font-size:12px; color:var(--text); width:240px; font-family:inherit; outline:none; }
+.search-box:focus { border-color:var(--accent); }
+
+.table-wrap { flex:1; overflow-y:auto; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+th { text-align:left; padding:6px 20px; color:var(--dim); font-weight:500; font-size:10px; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); }
+td { padding:6px 20px; border-bottom:1px solid rgba(255,255,255,.03); }
+tr:hover td { background:rgba(88,166,255,.04); }
+.key-name { color:var(--accent); cursor:pointer; }
+.key-name:hover { text-decoration:underline; }
+.type-badge { display:inline-block; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:500; }
+.type-string { background:rgba(63,185,80,.12); color:var(--green); }
+.type-number { background:rgba(210,153,29,.12); color:var(--yellow); }
+.type-dict { background:rgba(163,113,247,.12); color:var(--purple); }
+.type-list { background:rgba(88,166,255,.12); color:var(--accent); }
+.type-bool { background:rgba(248,81,73,.12); color:var(--red); }
+
+.footer { height:28px; padding:0 20px; display:flex; align-items:center; font-size:10px; color:var(--dim); border-top:1px solid var(--border); flex-shrink:0; justify-content:space-between; }
+
+/* Value panel */
+.value-panel { width:0; overflow:hidden; background:var(--panel); border-left:1px solid var(--border); transition:width .2s; display:flex; flex-direction:column; }
+.value-panel.open { width:400px; flex-shrink:0; }
+.val-header { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.val-key { font-size:14px; font-weight:600; color:var(--accent); }
+.val-close { cursor:pointer; color:var(--dim); font-size:18px; background:none; border:none; }
+.val-close:hover { color:var(--text); }
+.val-body { flex:1; overflow-y:auto; padding:14px; font-size:12px; line-height:1.6; }
+.val-body pre { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:12px; white-space:pre-wrap; word-break:break-all; }
+.val-actions { display:flex; gap:6px; padding:10px 14px; border-top:1px solid var(--border); flex-shrink:0; }
+.btn { padding:5px 12px; border-radius:4px; font-size:11px; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text); font-family:inherit; }
+.btn:hover { background:rgba(255,255,255,.05); }
+.btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.btn.danger { color:var(--red); border-color:rgba(248,81,73,.3); }
+.btn.danger:hover { background:rgba(248,81,73,.08); }
+
+/* Toast */
+.toast { position:fixed; bottom:20px; right:20px; padding:10px 20px; border-radius:6px; font-size:12px; z-index:100; animation:fade .3s; }
+.toast.ok { background:rgba(63,185,80,.15); color:var(--green); border:1px solid rgba(63,185,80,.3); }
+.toast.err { background:rgba(248,81,73,.15); color:var(--red); border:1px solid rgba(248,81,73,.3); }
+@keyframes fade { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* Edit modal */
+.modal { display:none; position:fixed; top:0;left:0;width:100%;height:100%; background:rgba(0,0,0,.6); z-index:50; align-items:center; justify-content:center; }
+.modal.open { display:flex; }
+.modal-box { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:24px; width:500px; max-height:80vh; overflow-y:auto; }
+.modal-box h3 { font-size:14px; margin-bottom:12px; color:var(--accent); }
+.modal-box textarea { width:100%; height:200px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-family:inherit; font-size:12px; padding:12px; resize:vertical; outline:none; }
+.modal-box textarea:focus { border-color:var(--accent); }
+.modal-actions { display:flex; gap:8px; margin-top:12px; justify-content:flex-end; }
+.modal-box label { display:block; font-size:11px; color:var(--dim); margin-bottom:4px; margin-top:8px; }
+.modal-box input { width:100%; padding:6px 10px; background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:12px; font-family:inherit; outline:none; }
+
+.spinner { display:none; width:16px; height:16px; border:2px solid var(--border); border-top:2px solid var(--accent); border-radius:50%; animation:spin .6s linear infinite; margin:2px 0 0 8px; }
+@keyframes spin { to{transform:rotate(360deg)} }
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN ===== -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>Dorea Admin</h1>
+    <p>Web Management Console</p>
+    <input type="text" id="login-user" placeholder="Username (master)" autocomplete="off">
+    <input type="password" id="login-pass" placeholder="Master Password" autocomplete="off">
+    <button onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ===== MAIN ===== -->
+<div id="main-screen">
+  <div class="header">
+    <div class="logo">DOREA Admin</div>
+    <div class="header-right">
+      <span id="h-conn" class="dim">--</span>
+      <span id="h-db" class="dim">@default</span>
+      <span id="h-ver" class="dim">v--</span>
+      <span style="color:var(--red);cursor:pointer;font-size:12px" onclick="logout()">Logout</span>
+    </div>
+  </div>
+  <div class="main">
+    <div class="content">
+      <div class="stats">
+        <div class="stat-card"><div class="stat-label">Keys</div><div class="stat-value" id="s-keys" style="color:var(--accent)">--</div></div>
+        <div class="stat-card"><div class="stat-label">Size</div><div class="stat-value" id="s-size" style="color:var(--yellow)">--</div></div>
+        <div class="stat-card"><div class="stat-label">Uptime</div><div class="stat-value" id="s-uptime" style="color:var(--text)">--</div></div>
+        <div class="stat-card"><div class="stat-label">DB</div><div class="stat-value" id="s-db" style="color:var(--green)">@default</div></div>
+      </div>
+      <div class="panel-header">
+        <span id="key-count" style="color:var(--dim)">0 keys</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span style="font-size:10px;color:var(--dim)">search</span>
+          <input class="search-box" id="search-input" placeholder="* | user: | value hello" onkeyup="if(event.key==='Enter')doSearch()">
+          <button class="btn" onclick="doSearch()" style="font-size:11px">⌕</button>
+          <button class="btn primary" onclick="openNewKey()" style="font-size:11px">+ New</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table><thead><tr>
+          <th style="width:50%">Key</th><th style="width:12%">Type</th><th style="width:10%">Size</th><th style="width:28%">TTL</th>
+        </tr></thead>
+        <tbody id="key-table"><tr><td colspan="4" style="color:var(--dim);text-align:center;padding:40px">Loading...</td></tr></tbody></table>
+      </div>
+      <div class="footer">
+        <span id="footer-info">--</span>
+        <span>Esc close · r refresh · ↑↓ navigate</span>
+      </div>
+    </div>
+    <div class="value-panel" id="valuePanel">
+      <div class="val-header">
+        <span class="val-key" id="valKey">--</span>
+        <button class="val-close" onclick="closeValue()">✕</button>
+      </div>
+      <div class="val-body" id="valBody"><pre>Select a key to view</pre></div>
+      <div class="val-actions">
+        <button class="btn" onclick="editCurrent()">✏ Edit</button>
+        <button class="btn" onclick="copyCurrent()">📋 Copy</button>
+        <button class="btn danger" onclick="deleteCurrent()">🗑 Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== EDIT MODAL ===== -->
+<div class="modal" id="editModal">
+  <div class="modal-box">
+    <h3 id="modalTitle">Edit Key</h3>
+    <label>Key</label>
+    <input id="editKey" placeholder="key name">
+    <label>Value (JSON / Doson)</label>
+    <textarea id="editValue" placeholder='"hello" or {"name":"admin"}'></textarea>
+    <label>TTL (seconds, 0 = forever)</label>
+    <input id="editTTL" type="number" value="0" min="0">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="saveEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="spinner" id="spinner" style="position:fixed;top:10px;right:20px;z-index:200"></div>
+
+<script>
+// ========== STATE ==========
+let token = localStorage.getItem('dorea_token') || '';
+let currentDB = 'default';
+let currentKey = '';
+
+// ========== API HELPERS ==========
+async function api(path, body) {
+  const headers = {};
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  if (body) {
+    headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    const p = new URLSearchParams();
+    for (const [k,v] of Object.entries(body)) if (v !== undefined) p.append(k, v);
+    body = p.toString();
+  }
+  const r = await fetch(path, { method: 'POST', headers, body });
+  const data = await r.json();
+  if (data.alpha !== 'OK') throw new Error(data.message || 'API Error');
+  return data.data;
+}
+
+// execute 返回 {reply: "..."}
+async function exec(query) {
+  const data = await api('/@' + currentDB + '/execute', { query, style: 'json' });
+  return data.reply || '';
+}
+
+function showSpinner(s) { document.getElementById('spinner').style.display = s ? 'block' : 'none'; }
+function toast(msg, ok) {
+  const t = document.createElement('div');
+  t.className = 'toast ' + (ok ? 'ok' : 'err');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function() { t.remove(); }, 2000);
+}
+
+// ========== AUTH ==========
+async function doLogin() {
+  const u = document.getElementById('login-user').value || 'master';
+  const p = document.getElementById('login-pass').value;
+  const err = document.getElementById('login-error');
+  if (!p) { err.textContent = 'Password required'; return; }
+  try {
+    showSpinner(true);
+    const r = await fetch('/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'username=' + encodeURIComponent(u) + '&password=' + encodeURIComponent(p)
+    });
+    const data = await r.json();
+    if (data.alpha !== 'OK') throw new Error(data.message || 'Login failed');
+    token = data.data.token || data.data;
+    localStorage.setItem('dorea_token', token);
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('main-screen').style.display = 'flex';
+    await loadAll();
+  } catch(e) { err.textContent = e.message; }
+  finally { showSpinner(false); }
+}
+
+function logout() {
+  token = '';
+  localStorage.removeItem('dorea_token');
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('main-screen').style.display = 'none';
+}
+
+// ========== DATA LOADING ==========
+async function loadAll() {
+  showSpinner(true);
+  try {
+    // Keys list
+    const info = await api('/@' + currentDB + '/info');
+    const keys = info.key_list || [];
+    document.getElementById('s-keys').textContent = keys.length;
+    document.getElementById('s-db').textContent = '@' + currentDB;
+    document.getElementById('key-count').textContent = keys.length + ' keys';
+    document.getElementById('s-size').textContent = calcSize(keys);
+    document.getElementById('footer-info').textContent = keys.length + ' keys · @' + currentDB;
+
+    // Version (execute → data.reply)
+    try {
+      var ver = (await exec('info version')).trim();
+      if (ver.charAt(0) === 'V' || ver.charAt(0) === 'v') ver = ver.slice(1);
+      document.getElementById('h-ver').textContent = 'v' + ver;
+    } catch(e) { document.getElementById('h-ver').textContent = 'v--'; }
+
+    // Uptime (execute → data.reply)
+    try {
+      var tsStr = (await exec('info server-startup-time')).trim();
+      var ts = parseInt(tsStr, 10);
+      if (ts > 0) {
+        var secs = Math.floor(Date.now() / 1000) - ts;
+        if (secs < 0) secs = 0;
+        document.getElementById('s-uptime').textContent = formatUptime(secs);
+      } else {
+        document.getElementById('s-uptime').textContent = '--';
+      }
+    } catch(e) { document.getElementById('s-uptime').textContent = '--'; }
+
+    // Connections (API may not support, show --)
+    document.getElementById('h-conn').textContent = '--';
+
+    renderTable(keys);
+  } catch(e) {
+    if (e.message.indexOf('401') >= 0 || e.message.indexOf('jwt') >= 0) { logout(); return; }
+    toast(e.message, false);
+  }
+  finally { showSpinner(false); }
+}
+
+async function doSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  if (!q) return loadAll();
+  showSpinner(true);
+  try {
+    const cmd = q.includes(' ') ? ('search value ' + q) : ('search ' + q);
+    const raw = await exec(cmd);
+    let keys = [];
+    try { keys = JSON.parse(raw); } catch(e) {
+      keys = raw.replace(/[\[\]" ]/g, '').split(',').filter(Boolean);
+    }
+    document.getElementById('key-count').textContent = keys.length + ' keys (filtered)';
+    document.getElementById('footer-info').textContent = keys.length + ' keys · search: ' + q;
+    renderTable(Array.isArray(keys) ? keys : []);
+  } catch(e) { toast(e.message, false); }
+  finally { showSpinner(false); }
+}
+
+// ========== RENDER ==========
+function renderTable(keys) {
+  const tbody = document.getElementById('key-table');
+  if (!keys || !keys.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--dim);text-align:center;padding:40px">No keys</td></tr>';
+    return;
+  }
+  tbody.innerHTML = keys.map(function(k) {
+    return '<tr>'
+      + '<td><span class="key-name" onclick="viewKey(\'' + esc(k) + '\')">' + esc(k) + '</span></td>'
+      + '<td><span style="color:var(--dim)">–</span></td>'
+      + '<td style="color:var(--dim)">–</td>'
+      + '<td style="color:var(--dim)">–</td>'
+      + '</tr>';
+  }).join('');
+}
+
+async function viewKey(key) {
+  currentKey = key;
+  showSpinner(true);
+  try {
+    const data = await api('/@' + currentDB + '/get', { key, style: 'json' });
+    document.getElementById('valKey').textContent = key;
+    var type = inferType(data.value);
+    document.getElementById('valBody').innerHTML = renderValue(data.value, type, data.expire);
+
+    // Update table row
+    const rows = document.getElementById('key-table').querySelectorAll('tr');
+    for (var i = 0; i < rows.length; i++) {
+      var cell = rows[i].querySelector('.key-name');
+      if (cell && cell.textContent === key) {
+        rows[i].cells[1].innerHTML = typeBadge(type);
+        rows[i].cells[2].textContent = formatBytes(new Blob([data.value || '']).size);
+        rows[i].cells[3].textContent = formatTTL(data.expire);
+        break;
+      }
+    }
+    document.getElementById('valuePanel').classList.add('open');
+  } catch(e) { toast(e.message, false); }
+  finally { showSpinner(false); }
+}
+
+function closeValue() {
+  document.getElementById('valuePanel').classList.remove('open');
+  currentKey = '';
+}
+
+// ========== CRUD ==========
+function openNewKey() {
+  document.getElementById('modalTitle').textContent = 'New Key';
+  document.getElementById('editKey').value = '';
+  document.getElementById('editKey').disabled = false;
+  document.getElementById('editValue').value = '';
+  document.getElementById('editTTL').value = '0';
+  document.getElementById('editModal').classList.add('open');
+}
+
+function editCurrent() {
+  if (!currentKey) return toast('Select a key first', false);
+  var pre = document.getElementById('valBody').querySelector('pre');
+  var valText = pre ? pre.textContent : '';
+  document.getElementById('modalTitle').textContent = 'Edit: ' + currentKey;
+  document.getElementById('editKey').value = currentKey;
+  document.getElementById('editKey').disabled = true;
+  document.getElementById('editValue').value = valText;
+  document.getElementById('editTTL').value = '0';
+  document.getElementById('editModal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('editModal').classList.remove('open'); }
+
+async function saveEdit() {
+  var key = document.getElementById('editKey').value.trim();
+  var value = document.getElementById('editValue').value.trim();
+  var ttl = parseInt(document.getElementById('editTTL').value, 10) || 0;
+  if (!key || !value) return toast('Key and value required', false);
+  showSpinner(true);
+  try {
+    await api('/@' + currentDB + '/set', { key: key, value: value, expire: ttl });
+    toast('Saved: ' + key, true);
+    closeModal();
+    await loadAll();
+  } catch(e) { toast(e.message, false); }
+  finally { showSpinner(false); }
+}
+
+async function deleteCurrent() {
+  if (!currentKey) return toast('Select a key first', false);
+  if (!confirm('Delete "' + currentKey + '"?')) return;
+  showSpinner(true);
+  try {
+    await api('/@' + currentDB + '/delete', { key: currentKey });
+    toast('Deleted: ' + currentKey, true);
+    closeValue();
+    await loadAll();
+  } catch(e) { toast(e.message, false); }
+  finally { showSpinner(false); }
+}
+
+function copyCurrent() {
+  var pre = document.getElementById('valBody').querySelector('pre');
+  var val = pre ? pre.textContent : '';
+  navigator.clipboard.writeText(val).then(function() { toast('Copied!', true); });
+}
+
+// ========== UTILS ==========
+function inferType(value) {
+  if (!value) return 'Empty';
+  var v = value.trim();
+  // Doson format: {"String":"hello"}, {"Number":42}, etc.
+  try {
+    var obj = JSON.parse(v);
+    if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
+      var keys = Object.keys(obj);
+      if (keys.length === 1) {
+        var k = keys[0];
+        if (k === 'String') return 'String';
+        if (k === 'Number') return 'Number';
+        if (k === 'Boolean') return 'Boolean';
+        if (k === 'Dict') return 'Dict';
+        if (k === 'List') return 'List';
+        if (k === 'Tuple') return 'Tuple';
+      }
+      return 'Dict';
+    }
+    if (Array.isArray(obj)) return 'List';
+    if (typeof obj === 'number') return 'Number';
+    if (typeof obj === 'boolean') return 'Boolean';
+    if (typeof obj === 'string') return 'String';
+  } catch(e) {}
+  if (v === 'true' || v === 'false') return 'Boolean';
+  if (!isNaN(v) && v !== '') return 'Number';
+  return 'String';
+}
+
+function extractDisplay(value) {
+  if (!value) return '';
+  try {
+    var obj = JSON.parse(value);
+    return formatValue(obj);
+  } catch(e) {}
+  return value;
+}
+
+function formatValue(obj) {
+  if (typeof obj === 'string') return obj;
+  if (typeof obj === 'number' || typeof obj === 'boolean') return String(obj);
+  if (Array.isArray(obj)) {
+    return '[' + obj.map(formatValue).join(', ') + ']';
+  }
+  if (typeof obj === 'object' && obj !== null) {
+    var keys = Object.keys(obj);
+    // Unwrap Doson single-key wrappers
+    if (keys.length === 1) {
+      var k = keys[0];
+      if (k === 'String' || k === 'Number' || k === 'Boolean') return formatValue(obj[k]);
+      if (k === 'Dict' || k === 'List') return formatValue(obj[k]);
+    }
+    // Pretty print dict
+    var parts = [];
+    for (var i = 0; i < keys.length; i++) {
+      parts.push(JSON.stringify(keys[i]) + ': ' + formatValue(obj[keys[i]]));
+    }
+    return '{\n  ' + parts.join(',\n  ') + '\n}';
+  }
+  return String(obj);
+}
+
+function renderValue(value, type, expire) {
+  var display = extractDisplay(value);
+  var ttlHtml = (expire > 0) ? '<span style="font-size:10px;color:var(--warn);margin-left:10px">TTL: ' + formatTTL(expire) + '</span>' : '';
+  return '<div style="font-size:10px;color:var(--dim);margin-bottom:8px">' + type + ttlHtml + '</div><pre>' + esc(display) + '</pre>';
+}
+
+function typeBadge(type) {
+  var map = { String:'type-string', Number:'type-number', Dict:'type-dict', List:'type-list', Boolean:'type-bool' };
+  var cls = map[type] || 'type-string';
+  return '<span class="type-badge ' + cls + '">' + (type || 'String') + '</span>';
+}
+
+function calcSize(keys) {
+  var n = keys ? keys.length : 0;
+  if (!n) return '0 B';
+  return formatBytes(n * 200);
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(1) + ' MB';
+}
+
+function formatUptime(s) {
+  if (s == null || s < 0) return '--';
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
+  if (s < 86400) return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+  return Math.floor(s/86400) + 'd ' + Math.floor((s%86400)/3600) + 'h';
+}
+
+function formatTTL(exp) {
+  if (exp == null || exp <= 0) return '–';
+  if (exp < 60) return exp + 's';
+  if (exp < 3600) return Math.floor(exp/60) + 'm ' + (exp%60) + 's';
+  if (exp < 86400) return Math.floor(exp/3600) + 'h ' + Math.floor((exp%3600)/60) + 'm';
+  return Math.floor(exp/86400) + 'd ' + Math.floor((exp%86400)/3600) + 'h';
+}
+
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ========== KEYBOARD ==========
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeValue();
+  if (e.key === 'r' && !e.target.closest('input,textarea')) loadAll();
+  if (e.key === '/' && !e.target.closest('input,textarea')) { e.preventDefault(); document.getElementById('search-input').focus(); }
+});
+
+// ========== INIT ==========
+if (token) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-screen').style.display = 'flex';
+  loadAll().catch(function() { logout(); });
+}
+</script>
+</body>
+</html>

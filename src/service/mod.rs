@@ -1,6 +1,7 @@
 //! web server 启动器程序
 
 use axum::extract::Extension;
+use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
 
@@ -63,6 +64,7 @@ pub async fn startup(addr: (&'static str, u16), document_path: &Path) -> crate::
 
         let app = Router::new()
             .route("/", get(routes::index).post(routes::index))
+            .route("/admin", get(|| async { Html(include_str!("admin.html")) }))
             .route("/auth", post(routes::auth))
             .route("/ping", post(routes::ping))
             .route("/:group/:operation", post(routes::controller))
